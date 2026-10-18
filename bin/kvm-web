@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""
+The front door: one port serving the connect page, the control API, noVNC and the
+WebSocket.
+
+This is websockify with two extra routes bolted on. ProxyRequestHandler already
+subclasses SimpleHTTPRequestHandler and defines no do_POST, so adding one costs nothing
+and the console path stays byte-for-byte the stock implementation.
+
+Everything under /api/ is forwarded to bin/kvm-session on loopback, because websockify
+hands each connection to a fresh interpreter -- python 3.14 defaults multiprocessing to
+`forkserver` -- and nothing stateful can live here.
+"""
+import json
+import os
+import sys
+
+import requests
+from websockify.auth_plugins import BasicHTTPAuth
+from websockify.websocketproxy import ProxyRequestHandler, WebSocketProxy
+
+WEB_ROOT = "/usr/share/novnc"
+SESSION_URL = "http://127.0.0.1:%s" % os.environ.get("SESSION_PORT", "8081")
+MAX_BODY = 512 * 1024
+
+
+class KvmHandler(ProxyRequestHandler):
+    server_version = "kvm-web/1"
+
+    # -------------------------------------------------------------- plumbing
+
+    def _send(self, body: bytes, code=200, ctype="application/json"):
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _error(self, code, msg):
+        self._send(json.dumps({"error": msg}).encode(), code)
+
+    def _forward(self, method):
+        """Relay /api/<x> to the supervisor's /<x>."""
+        path = self.path[len("/api"):] or "/"
+        data = None
+        if method == "POST":
+            n = int(self.headers.get("Content-Length") or 0)
+            if n > MAX_BODY:
+                return self._error(413, "request body too large")
+            data = self.rfile.read(n) if n > 0 else b"{}"
+        try:
+            r = requests.request(
+                method, SESSION_URL + path, data=data, timeout=45,
+                headers={"Content-Type": "application/json"},
+            )
+        except requests.RequestException as e:
+            return self._error(502, f"the session supervisor is not answering: {e}")
+        self._send(r.content, r.status_code)
+
+    # ----------------------------------------------------------------- routes
+
+    def do_POST(self):
+        # do_GET and handle_upgrade call this for us; POST has to ask itself.
+        self.auth_connection()
+        if self.path.startswith("/api/"):
+            return self._forward("POST")
+        self._error(404, "not found")
+
+    def do_GET(self):
+        if self.path.startswith("/api/"):
+            self.auth_connection()
+            return self._forward("GET")
+        super().do_GET()          # noVNC static + the /websockify upgrade, untouched
+
+    def list_directory(self, path):
+        self.send_error(404)      # no directory indexes
+
+
+def main():
+    web_pw = os.environ.get("WEB_PASSWORD") or ""
+    kwargs = dict(
+        RequestHandlerClass=KvmHandler,
+        listen_host="0.0.0.0",
+        listen_port=int(os.environ.get("NOVNC_PORT", "8080")),
+        target_host="127.0.0.1",
+        target_port=int(os.environ.get("VNC_PORT", "5999")),
+        web=WEB_ROOT,
+    )
+    if web_pw:
+        # Gates the page, the API, noVNC and the WebSocket upgrade in one move.
+        kwargs.update(web_auth=True, auth_plugin=BasicHTTPAuth("kvm:" + web_pw))
+        print("[kvm-web] HTTP basic auth enabled (user 'kvm')", file=sys.stderr, flush=True)
+    else:
+        print("[kvm-web] WARNING: no WEB_PASSWORD set - the page and console are open "
+              "to anything that can reach this port", file=sys.stderr, flush=True)
+    WebSocketProxy(**kwargs).start_server()
+
+
+# Required. Python 3.14 defaults multiprocessing to `forkserver`, and websockify spawns
+# one process per connection; without this guard the re-imported module re-runs
+# start_server(), the child dies on EADDRINUSE, and every request is reset.
+if __name__ == "__main__":
+    main()

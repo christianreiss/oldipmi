@@ -1,0 +1,5 @@
+.env
+*.jnlp
+.playwright-mcp/
+__pycache__/
+*.pyc
