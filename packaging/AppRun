@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+OLDIPMI_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export OLDIPMI_BIN_DIR="$OLDIPMI_DIR/usr/bin"
+export QT_PLUGIN_PATH="$OLDIPMI_DIR/usr/plugins"
+export QML_IMPORT_PATH="$OLDIPMI_DIR/usr/qml"
+export QML2_IMPORT_PATH="$OLDIPMI_DIR/usr/qml"
+export QT_QPA_FONTDIR="$OLDIPMI_DIR/usr/share/fonts"
+# Keep the distro's selected style when installed; use the bundled native style
+# when the host requests a Quick Controls style unavailable in this bundle.
+case "${QT_QUICK_CONTROLS_STYLE:-}" in
+  ""|Basic|Fusion|Material|Universal|Imagine) ;;
+  *) export QT_QUICK_CONTROLS_STYLE=Fusion ;;
+esac
+export FONTCONFIG_FILE="$OLDIPMI_DIR/usr/share/fonts/fonts.conf"
+exec "$OLDIPMI_DIR/usr/lib/ld-linux-x86-64.so.2" --library-path "$OLDIPMI_DIR/usr/lib" "$OLDIPMI_DIR/usr/bin/oldipmi" "$@"

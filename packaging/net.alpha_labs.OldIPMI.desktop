@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=OldIPMI
+Comment=Native legacy BMC console
+Exec=oldipmi
+Icon=oldipmi
+Categories=System;RemoteAccess;
+Terminal=false

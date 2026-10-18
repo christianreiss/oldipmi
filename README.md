@@ -1,263 +1,118 @@
-# OldIPMI — ancient Java iKVM consoles in a modern browser
+# OldIPMI — native Linux BMC console
 
-Supermicro/AMI MegaRAC BMCs from the 2010s ship their remote console as a Java Web Start
-app (`jviewer.jnlp`). No current browser runs applets, no current JRE ships `javaws`, and
-the JARs are signed with certificates that expired years ago. This puts the viewer in a
-container and hands you the console over plain HTTPS-able noVNC instead.
+OldIPMI is a Go protocol engine with a Qt 6/Kirigami desktop interface for KDE
+Plasma. Video is decoded directly into the native window. It needs no Java,
+Docker, Podman, browser, web server, or VNC bridge.
 
-```
-browser ──http/ws──> noVNC ──> websockify ──> x11vnc ──> Xvfb ──> JViewer.jar (Java 8)
-                                                                       │
-                                                  AMI KVM protocol (5901 video, 5900 HID,
-                                                       5120/5123 virtual media)
-                                                                       ▼
-                                                                      BMC
-```
+This is a new implementation, not the old launcher repackaged. The previous
+container version is recoverable at Git commit `ce0b1a7`.
 
-## Why not just point noVNC at the BMC
+## Build and run
 
-Because ports 5900/5901 do not speak RFB. They wait for the client to send an AMI
-proprietary handshake carrying a session token, and 5120/5123 are AMI's `IUSB` virtual
-media protocol. Verified against the hardware — there is no VNC server to talk to, so the
-Java client genuinely has to run somewhere.
+On Fedora KDE, install Go, CMake, Ninja, a C++20 compiler, `qt6-qtbase-devel`,
+`qt6-qtdeclarative-devel`, `kf6-kirigami-devel`, and `kf6-kwallet-devel`.
 
-## Why not `javaws` / IcedTea-Web / OpenWebStart
-
-`JViewer.jar` is signed with `SMCCERT.RSA` from 2016. Every Web Start implementation
-validates that chain and refuses. `java -cp` ignores JAR signatures entirely, so we read
-`main-class` from the JNLP (defaulting to `com.ami.kvm.jviewer.JViewer`) and invoke it directly with the
-arguments the JNLP would have passed. No trust-store surgery.
-
-## Setup
-
-```bash
-cp .env.example .env      # optional: fill in BMC_USER / BMC_PASS
-./start.sh
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+./build/oldipmi
 ```
 
-The launcher builds and starts the container in the background, waits for the connect
-page, and opens <http://127.0.0.1:8088/> in your default browser. It works from any
-working directory and reuses the container on subsequent runs when nothing changed.
-Podman, `podman-compose` and `curl` are required; Linux browser opening uses `xdg-open`.
-Run as your normal user for rootless containers. Existing `.env` settings are loaded
-by podman-compose. No Docker daemon or Podman API socket is needed.
+Select the correct BMC family, enter a hostname and credentials, and connect.
+Save profiles for reuse; saving a password is optional and uses KWallet.
+A fresh JNLP can supply the session token, but is never executed or used to
+fetch code. Enter the BMC address and select its family before importing it.
+Close/disconnect before selecting another host. Reconnect by clicking Connect;
+credential login always obtains a new token. A JNLP must be freshly obtained.
 
-The launcher calls `podman-compose` directly: `podman compose` can otherwise prefer
-an installed Docker Compose provider ([Podman documentation](https://docs.podman.io/en/latest/markdown/podman-compose.1.html)).
-The existing `Dockerfile` and `docker-compose.yml` filenames are supported by Podman
-and stay in place. The image is built locally as `localhost/oldipmi-kvm`; the base
-image's fully qualified name avoids interactive registry selection. `.containerignore`
-keeps `.env`, JNLP tokens and Python caches out of the build context.
+Click the console to capture input. Losing focus releases held keys/buttons.
+The toolbar provides fit/actual-size, fullscreen, Ctrl+Alt+Del, ISO mount/eject
+and confirmed power operations. Mounted ISO files are opened read-only.
 
-Only TCP port `8088` on loopback is published (to container port `8080`); the page,
-API and console WebSocket share it. BMC connections are outbound and need no extra
-published ports.
+## Transport compatibility
 
-Use `./start.sh --no-browser` on a headless machine, or `./start.sh SERVICE` for
-another service added to the Compose file. To stop it, run
-`podman-compose stop lab-ami` from this directory. Inspect logs with
-`podman-compose logs lab-ami`. A rebuilt image replaces the container on the next
-launch; an unchanged image and configuration reuse it to preserve the active session.
+TLS verification is enabled by default. HTTP login, unverified/legacy TLS and
+plain console/media transport are separate per-host exceptions, off by default.
+The legacy TLS exception also allows obsolete RSA/3DES suites when required.
+No BMC TLS configuration, clocks or firmware are changed by OldIPMI.
 
-If you previously ran this app with Docker, stop its container first with
-`docker compose stop lab-ami` to free port 8088. Podman uses separate container and
-image storage, so the first Podman launch rebuilds the image; `.env` can stay as-is.
+Older AMI systems may have plain video and an always-TLS HID channel. On the
+verified Lab-AMI generation, select AMI and explicitly enable HTTP login,
+legacy/unverified TLS and plain console/media. Passwords/tokens never appear in
+command-line arguments, profile files or diagnostic output.
 
-## Two ways in
+For verified Lab-Avocent, select Avocent / Dell iDRAC and enable legacy/unverified TLS.
+Avocent ISO media, JNLP import and packet-134 video are not implemented; the ISO
+button is disabled for that family. Cisco uses port 2068, Dell uses port 5900.
 
-`/` is a connect page offering both routes:
+ATEN systems requiring mutual TLS need their client certificate/key selected in
+Compatibility. The application does not distribute vendor private keys. It also
+does not change the BMC's Java/HTML5 console preference automatically.
 
-- **Drop a `.jnlp`.** Drag the file the BMC's web UI gave you onto the page. It goes
-  straight down the launcher's stdin and never touches the container's filesystem —
-  the tokens inside are single-use, so a temp file would only be a liability.
-- **Type host, user and password.** The container logs in itself and mints a fresh
-  JNLP, which is the only way to get a token that is not already spent.
+## Compatibility and acceptance
 
-Either way the console lands at `/vnc.html`, and the page is where you go back to
-switch servers or reconnect. Credentials in `.env` are optional: set all three and the
-container connects at boot exactly as it always did; leave them empty and it comes up
-on the page instead of refusing to start.
+| Family / target | Implementation | Current evidence |
+|---|---|---|
+| Legacy AMI / Lab-AMI, Supermicro X8DTU | 7-byte framing, TLS HID, RGB555 VSC raw and LRLE16/32 | Real native 640x480 video decoded and visually inspected |
+| Newer AMI / ASPEED | 8-byte IVTP, VQ/JPEG decoder, HID, iUSB | Imported regression tests; no hardware acceptance yet |
+| ATEN / Supermicro | Token login, Hermon and bit-plane video, HID, power, read-only media | Synthetic TCP handshake/video/cancellation tests; no ATEN target supplied |
+| Avocent / Lab-Avocent, Dell PowerEdge R420 | APCP, TLS companion channel, RGB555 stream, HID | Real native 640x480 video decoded and visually inspected |
+| Cisco IMC / Lab-Cisco (bonus target) | APCP handshake supported | Account rejected by IMC API (551); KVM channel access denied; video unverified |
 
-The browser console defaults to zoom to fit (noVNC's **Local Scaling**), including
-direct visits to `/vnc.html`. It scales with the browser window; the noVNC settings
-still let you choose another scaling mode.
+This is a development release. Both AMI and ATEN hardware acceptance remain
+required for a completed release. Live keyboard injection, ISO mounting and
+power/boot operations have not been run on production hardware. AMI single-port
+HTTP CONNECT mode, encrypted HID at the application layer, non-RGB555 legacy
+VSC modes, unsupported ATEN encodings, and relative pointer mode are not yet
+implemented. Unsupported formats fail explicitly rather than launch Java.
 
-The console has an always-visible **Disconnect / reconnect** button. It stops the
-current Java viewer and returns to the connection screen, where you can upload a
-fresh JNLP or log in again. **Connection screen** returns there without stopping
-the viewer. If the session ends or the container restarts, the console automatically
-returns to the connection screen instead of leaving an empty black desktop.
+## Portable bundle
 
-Failures now show up in the browser rather than in `podman logs` — a rejected password
-comes back as the BMC's own `HAPI_STATUS`, a role below Operator as its `CURPRIV`, and
-firmware that hides its JNLP somewhere unusual says so.
-
-### More servers
-
-Copy the `lab-ami:` block in `docker-compose.yml`, change the name, `BMC_HOST` and the host
-port. One container per BMC session — see the session limit below.
-
-## Tokens expire — this is the whole reason for the login step
-
-A downloaded `.jnlp` is good for exactly one launch. Reuse it and JViewer shows:
-
-> Authentication failed. Token issued for this session is expired.
-
-So the container logs in itself on every start:
-
-1. `POST /rpc/WEBSES/create.asp` with `WEBVAR_USERNAME` / `WEBVAR_PASSWORD`
-2. read `SESSION_COOKIE` out of the JavaScript response (it is not JSON), check `HAPI_STATUS == 0`
-3. `GET /Java/jviewer.jnlp` with that cookie — confirmed from the BMC's own `impl/remote_control_imp.js`
-4. parse `codebase`, the `<jar>` list, the Linux x86_64 `<nativelib>` and the 12 `<argument>`s
-5. download the JARs from the BMC, extract the `.so` files, exec `java`
-
-### The JNLP fetch lies about its length
-
-This firmware answers `/Java/jviewer.jnlp` with `Content-length: 3757`, sends 2034 bytes
-of complete, valid XML, and closes. urllib3 correctly calls that a broken stream and
-discards the body — and its `IncompleteRead` carries a byte *count*, not the bytes, so
-there is nothing to recover at the `requests` layer.
-
-The symptom is misleading: the fetch of the *correct* path raises, `fetch_jnlp` moves on
-to the remaining candidates, they all 404, and you get told to go find the right path in
-the web UI. The path was right all along.
-
-So `fetch_jnlp` retries a truncated response through `http.client`, which hands back what
-actually arrived, and says so in the log:
-
-```
-[jviewer]   /Java/jviewer.jnlp -> server cut the body short; using the 2034B it sent
-[jviewer] got JNLP from /Java/jviewer.jnlp
+```sh
+python3 packaging/bundle.py
+./dist/OldIPMI-x86_64.AppImage
 ```
 
-Only the JNLP endpoint does this. The JAR downloads are well-formed and stay on
-`requests`.
+Packaging additionally uses `mksquashfs`, `patchelf`, `qmake6` and
+Python 3. It bundles the native executables, Qt/KDE QML modules, platform plugins,
+fonts and shared-library dependencies, including a private glibc and loader.
+GPU drivers remain host-provided. The bundle has passed an offscreen rendering
+check in a clean Ubuntu 24.04 userspace; a full Ubuntu desktop session has not
+been tested. The private loader avoids Fedora Qt libraries requiring a newer
+host glibc. The release checksum is in `dist/SHA256SUMS`.
 
-If your firmware serves the JNLP from a path not in `JNLP_CANDIDATES`, pass it explicitly:
+Without FUSE, use `--appimage-extract-and-run`, or `--appimage-extract` and run
+`squashfs-root/AppRun`. `dist/OldIPMI.AppDir/AppRun` is the unpacked equivalent.
+KWallet requires the host desktop's wallet service; without it use a session-only
+password. Runtime license texts and an inventory of file checksums are included.
 
-```bash
-podman-compose run --rm --service-ports lab-ami --jnlp-path '/cgi/url_redirect.cgi?url_name=man_ikvm&url_type=jwsk'
+## Checks
+
+```sh
+go test -race ./...
+go vet ./...
+ctest --test-dir build --output-on-failure
+go test ./internal/ami -run '^$' -fuzz FuzzLegacyDecode -fuzztime 10s
+go test ./internal/aten -run '^$' -fuzz FuzzDecode -fuzztime 10s
 ```
 
-To find that path on another box, you do not need to log in at all. This firmware gates
-HTML pages behind a session but serves `/impl/*.js` and `/lib/*.js` unauthenticated, and it
-answers *missing* files under `/impl/` with a clean `404` while every gated path returns
-`405 Access Denied`. So `/impl/` is a reliable existence oracle:
+`oldipmi --self-test` opens a synthetic framebuffer and exits after checking
+rendering. `--preview` keeps that synthetic preview open. Neither contacts a BMC.
+`oldipmi-core --probe` accepts `{ "profile": {...}, "password": "..." }` on
+stdin and checks live video without injecting keys or changing power/media.
+`--capture PATH` saves the first frame to a new mode-0600 PNG, only when explicitly
+requested. Never commit real console captures or credential-bearing JNLP files.
 
-```bash
-# find the console page's implementation file
-for n in remote_control console_redirection jviewer ikvm kvm_console; do
-  curl -so /dev/null -w "%{http_code} /impl/${n}_imp.js\n" "http://$BMC/impl/${n}_imp.js"
-done
-# then just read it -- the launch URL is in plain sight
-curl -s "http://$BMC/impl/remote_control_imp.js" | grep -i 'window.open'
-```
+## Architecture
 
-On the box this was built against that prints
-`window.open('/Java/jviewer.jnlp','RemoteConsole',...)`.
+The GUI owns one backend child per connection. Two inherited AF_UNIX socketpairs
+carry version-1 control messages and RGBA video frames. There are no listening
+ports or installed background services. Control records are length-prefixed JSON
+(maximum 1 MiB); frame records carry width, height and bounded raw RGBA bytes.
+A one-frame queue drops superseded display frames without delaying input.
 
-**Privileges.** The same file shows the BMC requires `CURPRIV` of Administrator (4) or
-Operator (3) to launch the console; `jviewer-launch` checks `/rpc/getrole.asp` and warns
-rather than failing opaquely.
+Profiles live in the application's XDG config directory. Old `.env` files are not
+imported or deleted automatically. To roll back, build/run a separate checkout of
+`ce0b1a7`; private `.env` configuration remains outside version control.
 
-### One-off with a JNLP you already downloaded
-
-Dropping it on the page is usually easier, but the flag still works and still connects
-at boot:
-
-```bash
-podman run --rm -p 127.0.0.1:8088:8080 \
-  -v ~/Downloads/jviewer.jnlp:/tmp/j.jnlp:ro,Z localhost/oldipmi-kvm --jnlp /tmp/j.jnlp
-```
-
-Works once, then the token is burnt — but the container now stays up on the connect
-page afterwards instead of exiting, so you can drop a fresh one without restarting it.
-
-### ATEN viewers and Pack200 downloads
-
-ATEN/Supermicro `launch.jnlp` files are also supported through the upload route.
-The launcher honors their `application-desc main-class`, such as
-`tw.com.aten.ikvm.KVMMain`; the credential-login route remains AMI-specific.
-When the JNLP sets `jnlp.packEnabled=true`, both application and native JARs are fetched
-as `.jar.pack.gz` and unpacked with Java 8's `unpack200`. A missing packed resource
-(HTTP 404/410) falls back to the plain JAR, as in Java Web Start.
-
-Some BMCs serve only the packed files: a 404 for `iKVM__V1.69.21.0x0.jar` does not
-mean its `.jar.pack.gz` counterpart is missing. The original JNLP needs no editing.
-All application arguments are redacted from launcher logs because token positions
-differ between viewers. `--dump-only` deliberately prints the full command, including
-tokens; do not share its output.
-
-Run the launcher regression checks with `python3 -m unittest discover -s tests -v`.
-
-## Operational notes
-
-**Legacy HTTPS.** BMC certificate verification is disabled for login, JNLP fetches,
-and application/native JAR downloads (including Pack200). Expired, self-signed,
-untrusted and hostname-mismatched certificates do not block the launcher.
-
-**Session limits.** MegaRAC firmware allows only a few concurrent iKVM sessions.
-`kvm-session` traps SIGTERM and kills the Java process so its TCP connections close, and
-it kills the previous session before starting a new one, but *whether that actually frees
-the BMC's session slot immediately is untested here* — JViewer has no clean logout hook,
-so the BMC may hold the slot until its own timeout either way. Assume a killed session
-can block the next launch for a few minutes, which now includes reconnecting from the
-page. If the iKVM wedges,
-port 623 is open and `ipmitool -I lanplus -H <bmc> -U <user> -P <pass> mc reset cold`
-resets the BMC without touching the host OS.
-
-**Container lifetime.** The container used to exit when JViewer did. It now stays up and
-returns you to the connect page, because reconnecting without a restart is the point of
-the page. `restart: "no"` still means a crash does not loop.
-
-**Mouse.** Set Mouse Mode to *Absolute* in the BMC's own web UI. In relative mode the
-browser pointer and the BMC's pointer drift apart permanently and no container-side setting
-fixes it.
-
-**Keyboard.** The chain browser → noVNC keysym → x11vnc → Xvfb → Java `KeyEvent` → BMC HID
-has five places to mangle modifiers. It is wired US/EN end to end (`x11vnc -xkb`, JNLP arg
-11 = `EN`). Keep the layout identical at every hop; for anything exotic use JViewer's own
-Video → Soft Keyboard, which bypasses the whole chain.
-
-**Exposure.** The compose file binds `127.0.0.1` deliberately. This is an unauthenticated
-route to a server console *and its power controls*, and since the connect page landed it
-is also where BMC credentials get typed and JNLPs get uploaded. Reach it through an SSH
-tunnel (`ssh -L 8088:127.0.0.1:8088 containerhost`) or put an authenticating proxy in front.
-
-Setting `WEB_PASSWORD` turns on HTTP basic auth (user `kvm`) across the whole surface —
-the page, the API, noVNC and the WebSocket — which is worth doing now that the port
-accepts credentials. It is off by default because it breaks a bookmarked
-`?autoconnect=1` link. `VNC_PASSWORD` adds an x11vnc password underneath it. Neither
-encrypts anything; the tunnel does that.
-
-Worth knowing before you widen the binding: a JNLP names a `codebase`, and the launcher
-downloads JARs from it and runs them. Uploading a JNLP is therefore choosing a host to
-fetch and execute code from. That is fine for a file your own BMC just handed you, and
-it is the reason this port should stay behind the tunnel.
-
-## Files
-
-| path | what |
-|---|---|
-| `Dockerfile` | Podman build: Temurin 8 JRE + Xvfb/x11vnc/fluxbox + noVNC |
-| `docker-compose.yml` | podman-compose service, environment and loopback port binding |
-| `.containerignore` | excludes credentials, JNLPs and caches from the Podman build context |
-| `start.sh` | builds/starts the container, waits for HTTP, opens the browser |
-| `bin/entrypoint.sh` | brings up X and x11vnc, then the two services below |
-| `bin/kvm-web` | port 8080: connect page, control API, noVNC, WebSocket — websockify with two extra routes |
-| `bin/kvm-session` | owns the JViewer process so it can be started and restarted from the page |
-| `bin/jviewer-launch` | login, JNLP fetch/parse, JAR download, `java` exec |
-| `web/index.html` | the connect page, served as noVNC's `index.html` |
-| `fluxbox/init` | strips toolbar and window decoration so only the console shows |
-
-`fbsetbg` is replaced with a no-op in the image. fluxbox calls it on startup whatever the
-style says, and with no wallpaper setter installed it answers by parking a 636x136
-`xmessage` in the middle of the screen — on top of the console. The root window is
-painted by `rootCommand` instead, which previously called an `xsetroot` that is not in
-this image and so did nothing at all.
-
-`kvm-session` is a separate process on purpose. websockify hands every connection to a
-fresh interpreter — Python 3.14 defaults `multiprocessing` to `forkserver` — so nothing
-that has to outlive a single request can live in the web layer. The same quirk is why
-both scripts guard their startup behind `if __name__ == "__main__":`; without it the
-re-imported module rebinds the port and every request dies with a connection reset.
+See [THIRD_PARTY.md](THIRD_PARTY.md) for provenance and licenses.

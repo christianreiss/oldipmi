@@ -1,6 +1,0 @@
-session.screen0.toolbar.visible: false
-session.screen0.defaultDeco: NONE
-session.screen0.fullMaximization: true
-! fbsetroot ships with fluxbox. The xsetroot this used to call is not in the image,
-! so the root window was never actually being painted.
-session.screen0.rootCommand: fbsetroot -solid black

@@ -1,5 +1,8 @@
 .env
+/build/
+/dist/
+*.AppImage
 *.jnlp
-.playwright-mcp/
+*.pem
+*.key
 __pycache__/
-*.pyc
