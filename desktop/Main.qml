@@ -13,18 +13,20 @@ Kirigami.ApplicationWindow {
  property string certPath: ""
  property string keyPath: ""
  property string pendingPower: ""
+ Component.onCompleted: { if (controller.hosts.length) window.loadHost(controller.hosts[0]) }
  property bool busy: controller.state !== "disconnected"
  function profile() { return {id:hostId,name:hostName.text,host:address.text.trim(),username:username.text,family:["ami","aten","avocent","cisco"][family.currentIndex],http:plainHttp.checked,legacyTLS:legacyTls.checked,allowPlainConsole:plainConsole.checked,remember:remember.checked,jnlpPath:jnlpPath.text,clientCert:certPath,clientKey:keyPath} }
- function loadHost(p) {hostId=p.id||"";hostName.text=p.name||"";address.text=p.host||"";username.text=p.username||"";family.currentIndex=Math.max(0,["ami","aten","avocent","cisco"].indexOf(p.family));plainHttp.checked=!!p.http;legacyTls.checked=!!p.legacyTLS;plainConsole.checked=!!p.allowPlainConsole;remember.checked=!!p.remember;jnlpPath.text=p.jnlpPath||"";certPath=p.clientCert||"";keyPath=p.clientKey||"";password.text=""}
+ function loadHost(p) {hostId=p.id||"";hostName.text=p.name||"";address.text=p.host||"";username.text=p.username||"";family.currentIndex=Math.max(0,["ami","aten","avocent","cisco"].indexOf(p.family));plainHttp.checked=!!p.http;legacyTls.checked=!!p.legacyTLS;plainConsole.checked=!!p.allowPlainConsole;remember.checked=p.remember===undefined?true:!!p.remember;jnlpPath.text=p.jnlpPath||"";certPath=p.clientCert||"";keyPath=p.clientKey||"";password.text=""}
  header: ToolBar {
   RowLayout {
    anchors.fill: parent; anchors.margins: 6
    Kirigami.Heading {text:"OldIPMI";level:2;Layout.leftMargin:8}
-   Label {text:controller.state; color:controller.state==="connected"?Kirigami.Theme.positiveTextColor:Kirigami.Theme.textColor}
+   Label {text:({disconnected:"Disconnected",logging_in:"Logging in",discovering:"Discovering console",connecting:"Connecting",connected:"Connected"})[controller.state]||controller.state; color:controller.state==="connected"?Kirigami.Theme.positiveTextColor:Kirigami.Theme.textColor}
    Item {Layout.fillWidth:true}
    ToolButton {text:viewport.fit?"Actual size":"Fit to window";onClicked:viewport.fit=!viewport.fit}
    ToolButton {text:window.visibility===Window.FullScreen?"Leave fullscreen":"Fullscreen";onClicked:window.visibility=window.visibility===Window.FullScreen?Window.Windowed:Window.FullScreen}
-   ToolButton {text:"Disconnect";enabled:window.busy;onClicked:controller.disconnectHost()}
+   BusyIndicator {running:window.busy&&controller.state!=="connected";visible:running;Layout.preferredWidth:24;Layout.preferredHeight:24}
+   ToolButton {text:controller.state==="connected"?"Disconnect":"Cancel";enabled:window.busy;onClicked:controller.disconnectHost()}
   }
  }
  RowLayout {
@@ -33,10 +35,19 @@ Kirigami.ApplicationWindow {
    id:sidebar;Layout.preferredWidth:300;Layout.fillHeight:true;clip:true;visible:window.visibility!==Window.FullScreen
    ColumnLayout {
     width:sidebar.availableWidth;spacing:10
-    Kirigami.Heading {text:"Hosts";level:3;Layout.margins:12}
+    Kirigami.Heading {text:"Profiles";level:3;Layout.margins:12}
     Repeater {
      model:controller.hosts
-     delegate:ItemDelegate {required property var modelData;Layout.fillWidth:true;text:modelData.name||modelData.host;highlighted:window.hostId===modelData.id;enabled:!window.busy;onClicked:window.loadHost(modelData)}
+     delegate:RowLayout {
+      required property var modelData
+      Layout.fillWidth:true;spacing:0
+      ItemDelegate {Layout.fillWidth:true;text:modelData.name||modelData.host;highlighted:window.hostId===modelData.id;enabled:!window.busy;onClicked:window.loadHost(modelData)}
+      ToolButton {text:"Open Console";icon.name:"media-playback-start";display:AbstractButton.IconOnly;enabled:!window.busy
+       ToolTip.visible:hovered;ToolTip.text:"Open "+(modelData.name||modelData.host)+" console"
+       Accessible.name:ToolTip.text
+       onClicked:{window.loadHost(modelData);controller.connectHost(modelData,"")}
+      }
+     }
     }
     RowLayout {Layout.margins:12
      Button {text:"New";enabled:!window.busy;onClicked:window.loadHost({})}
@@ -54,11 +65,11 @@ Kirigami.ApplicationWindow {
      Label {text:"Username"}
      TextField {id:username;Layout.fillWidth:true}
      Label {text:"Password"}
-     TextField {id:password;Layout.fillWidth:true;echoMode:TextInput.Password;placeholderText:remember.checked?"Use saved KWallet password":"Session only";onAccepted:controller.connectHost(window.profile(),text)}
+     TextField {id:password;Layout.fillWidth:true;echoMode:TextInput.Password;placeholderText:remember.checked?"Use saved KWallet password":"Session only";onAccepted:{controller.connectHost(window.profile(),text);text=""}}
      CheckBox {id:remember;text:"Save password in KWallet"}
-     Button {text:"Save host";Layout.fillWidth:true;onClicked:{let p=controller.saveHost(window.profile(),password.text,remember.checked);window.hostId=p.id||""}}
-     Button {text:"Connect";highlighted:true;Layout.fillWidth:true;enabled:address.text.trim()!=="";onClicked:controller.connectHost(window.profile(),password.text)}
-     Button {text:"Open fresh JNLP…";Layout.fillWidth:true;enabled:address.text.trim()!=="";onClicked:controller.openJNLP(window.profile())}
+     Button {text:"Save profile";Layout.fillWidth:true;onClicked:{let p=controller.saveHost(window.profile(),password.text,remember.checked);if(p.id){window.hostId=p.id;password.text=""}}}
+     Button {text:"Open Console";highlighted:true;Layout.fillWidth:true;enabled:address.text.trim()!=="";onClicked:{controller.connectHost(window.profile(),password.text);password.text=""}}
+     Button {text:"Open fresh JNLP…";Layout.fillWidth:true;enabled:address.text.trim()!==""&&family.currentIndex<2;onClicked:controller.openJNLP(window.profile())}
      Label {text:"Compatibility";font.bold:true;Layout.topMargin:8}
      CheckBox {id:plainHttp;text:"HTTP login (unencrypted)"}
      CheckBox {id:legacyTls;text:"Allow legacy / unverified TLS"}
@@ -74,6 +85,25 @@ Kirigami.ApplicationWindow {
   Kirigami.Separator {Layout.fillHeight:true;visible:sidebar.visible}
   ColumnLayout {
    Layout.fillWidth:true;Layout.fillHeight:true;spacing:0
+   Pane {Layout.fillWidth:true;visible:!!controller.consoleInfo.protocol
+    ColumnLayout {anchors.fill:parent
+     RowLayout {Layout.fillWidth:true
+      Label {text:controller.consoleInfo.protocol||"";font.bold:true}
+      Label {text:controller.consoleInfo.resolution||""}
+      Item {Layout.fillWidth:true}
+      ToolButton {id:details;objectName:"consoleDetails";checkable:true;text:checked?"Hide console info":"Console info"}
+     }
+     ColumnLayout {visible:details.checked;Layout.fillWidth:true
+      Label {text:controller.state==="disconnected"?"Most recent connection":"Current connection";font.italic:true}
+      Label {visible:!!controller.consoleInfo.protocolVersion;text:"Protocol version: "+(controller.consoleInfo.protocolVersion||"")}
+      Repeater {model:controller.consoleInfo.endpoints||[]
+       delegate:Label {required property var modelData;Layout.fillWidth:true;wrapMode:Text.Wrap;text:modelData.role+": "+modelData.address+" · "+modelData.transport}
+      }
+      Label {text:"Console features: "+(controller.consoleInfo.capabilities||[]).join(", ");Layout.fillWidth:true;wrapMode:Text.Wrap}
+      Label {visible:!!controller.consoleInfo.legacyTLS;text:"Legacy TLS enabled; certificate verification disabled for this profile.";Layout.fillWidth:true;wrapMode:Text.Wrap}
+     }
+    }
+   }
    ConsoleView {id:viewport;objectName:"console";Layout.fillWidth:true;Layout.fillHeight:true}
    ToolBar {Layout.fillWidth:true
     RowLayout {
@@ -98,8 +128,32 @@ Kirigami.ApplicationWindow {
   Label {text:"Send ‘"+window.pendingPower+"’ to "+address.text+"?\nThis may interrupt the host operating system."}
   onAccepted:controller.power(window.pendingPower)
  }
- Dialog {id:removeDialog;title:"Remove saved host?";anchors.centerIn:parent;modal:true;standardButtons:Dialog.Ok|Dialog.Cancel
+ Dialog {id:removeDialog;title:"Remove profile?";anchors.centerIn:parent;modal:true;standardButtons:Dialog.Ok|Dialog.Cancel
   Label {text:"Remove this profile and its saved KWallet password?"}
-  onAccepted:{controller.removeHost(window.hostId);window.loadHost({})}
+  onAccepted:{if(controller.removeHost(window.hostId))window.loadHost({})}
  }
+ Connections {
+  target:controller
+  function onProfileActivated(profile){window.loadHost(profile)}
+  function onPasswordRequired(){credentialsPassword.text="";credentialsRemember.checked=remember.checked;credentialsDialog.open()}
+  function onWalletUnavailable(){walletDialog.open()}
+ }
+ Dialog {id:credentialsDialog;title:"Open "+(hostName.text||address.text)+" console";anchors.centerIn:parent;modal:true;standardButtons:Dialog.Ok|Dialog.Cancel
+  ColumnLayout {
+   Label {text:"Password for "+username.text+" at "+address.text;wrapMode:Text.Wrap;Layout.maximumWidth:450}
+   TextField {id:credentialsPassword;Layout.fillWidth:true;echoMode:TextInput.Password;onAccepted:credentialsDialog.accept()}
+   CheckBox {id:credentialsRemember;text:"Remember in KWallet";checked:true}
+  }
+  onOpened:credentialsPassword.forceActiveFocus()
+  onAccepted:{remember.checked=credentialsRemember.checked;controller.connectHost(window.profile(),credentialsPassword.text);credentialsPassword.text=""}
+  onRejected:{credentialsPassword.text="";controller.cancelCredentials()}
+ }
+ Dialog {id:walletDialog;title:"Profile or password could not be saved";anchors.centerIn:parent;modal:true;standardButtons:Dialog.Cancel
+  ColumnLayout {
+   Label {text:controller.message+"\nYou can still open this console for this session.";wrapMode:Text.Wrap;Layout.maximumWidth:450}
+   Button {text:"Use for this session";onClicked:{walletDialog.close();controller.continueWithoutWallet()}}
+  }
+  onRejected:controller.cancelCredentials()
+ }
+
 }

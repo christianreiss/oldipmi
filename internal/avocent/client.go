@@ -73,10 +73,18 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 		s.Conn.SetDeadline(time.Time{})
 		return s, nil
 	}
+	protocol.Report(ctx, "logging_in", nil)
 	s, e := open(apcp.SessionTypeKVM, false)
 	if e != nil {
 		return c, e
 	}
+	protocol.Report(ctx, "discovering", nil)
+	info := protocol.ConsoleInfo{Protocol: "Avocent APCP", LegacyTLS: p.LegacyTLS,
+		ProtocolVersion: fmt.Sprintf("%d.%d", s.Setup.VersionMajor, s.Setup.VersionMinor),
+		Companion:       s.KVMLoginResponse.NeedsCompanion,
+		Endpoints:       []protocol.Endpoint{protocol.ConsoleEndpoint("Console", p.Host, port, true)},
+		Capabilities:    []string{"Video", "Keyboard", "Pointer"}}
+	protocol.Report(ctx, "connecting", &info)
 	c.control = &protocol.Wire{Conn: s.Conn}
 	c.video = c.control
 	if s.KVMLoginResponse.NeedsCompanion {

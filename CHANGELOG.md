@@ -1,5 +1,16 @@
 # Changelog
 
+## Profile workflow (2026-10-18)
+
+* Add Lab-AMI, Lab-Avocent and Lab-Cisco profiles once, preserving existing profiles and
+  wallet IDs; deleting a default profile no longer causes it to reappear.
+* Open a console in one click with KWallet passwords, automatic login/discovery,
+  visible progress, setup cancellation and stage-specific failures.
+* Display nonsecret console endpoints, transport, protocol, features and resolution.
+* Add profile migration and Wallet failure tests, IPC cancellation tests and fresh
+  session/metadata tests. Lab-AMI and Lab-Avocent desktop connections and KWallet
+  reconnects were verified live; Lab-Cisco still requires a working account.
+
 ## 0.1.0 — native rewrite (2026-10-18)
 
 * Replace the container, Python launcher, browser interface and virtual desktop

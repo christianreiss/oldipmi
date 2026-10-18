@@ -31,6 +31,7 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 		}
 	}()
 	if len(jnlp) > 0 {
+		protocol.Report(ctx, "discovering", nil)
 		c.launch, err = protocol.ParseJNLP(jnlp)
 	} else {
 		c.web, err = protocol.NewWeb(p)
@@ -44,6 +45,8 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 	if c.launch.Family != "aten" {
 		return c, fmt.Errorf("this JNLP requires the AMI adapter")
 	}
+	info := c.launch.ConsoleInfo(p)
+	protocol.Report(ctx, "connecting", &info)
 	c.wire, err = protocol.Dial(ctx, p, c.launch.Port, c.launch.Secure)
 	if err != nil {
 		return c, err

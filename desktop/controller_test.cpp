@@ -1,0 +1,138 @@
+#include "controller.h"
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QSignalSpy>
+#include <QTemporaryDir>
+#include <QtTest>
+
+class FakeCredentials : public Credentials {
+public:
+  QMap<QString, QString> values;
+  bool available = true;
+  int reads = 0, writes = 0, removes = 0;
+  bool read(const QString &id, QString &password) override {
+    ++reads;
+    if (!available || !values.contains(id)) return false;
+    password = values[id];
+    return true;
+  }
+  bool write(const QString &id, const QString &password) override {
+    ++writes;
+    if (!available) return false;
+    values[id] = password;
+    return true;
+  }
+  bool remove(const QString &id) override {
+    ++removes;
+    if (!available) return false;
+    values.remove(id);
+    return true;
+  }
+};
+class ControllerTest : public QObject {
+  Q_OBJECT
+  static QByteArray read(const QString &path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    return f.readAll();
+  }
+private slots:
+  void migrationPreservesProfilesAndDeletion() {
+    QTemporaryDir dir;
+    QString path = dir.filePath("hosts.json");
+    QVariantMap existing{{"id","keep-wallet-id"},{"host","LAB-AMI.EXAMPLE.NET"},
+                         {"name","My server"},{"username","custom"},{"remember",true},
+                         {"legacyTLS",false}};
+    auto legacy = QJsonDocument(QJsonArray{QJsonObject::fromVariantMap(existing)}).toJson();
+    QFile f(path); QVERIFY(f.open(QIODevice::WriteOnly)); f.write(legacy); f.close();
+    FakeCredentials wallet;
+    wallet.values["keep-wallet-id"] = "fixture-password";
+    QVariantList saved;
+    {
+      Controller c(nullptr, &wallet, path);
+      QCOMPARE(c.hosts().size(), 3);
+      QCOMPARE(c.hosts()[0].toMap(), existing);
+      QCOMPARE(read(path + ".pre-profiles"), legacy);
+      QCOMPARE(wallet.reads + wallet.writes + wallet.removes, 0);
+      auto lab-avocent = c.hosts()[1].toMap();
+      QCOMPARE(lab-avocent["name"].toString(), "Lab-Avocent");
+      QVERIFY(c.removeHost(lab-avocent["id"].toString()));
+      saved = c.hosts();
+    }
+    Controller reloaded(nullptr, &wallet, path);
+    QCOMPARE(reloaded.hosts(), saved);
+    QCOMPARE(reloaded.hosts().size(), 2);
+    QVERIFY(wallet.values.contains("keep-wallet-id"));
+    QVERIFY(!read(path).contains("fixture-password"));
+    QVERIFY(!(QFile::permissions(path) & (QFile::ReadGroup | QFile::ReadOther)));
+  }
+  void walletSaveEditRetrieveAndRemove() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    QString path = dir.filePath("hosts.json");
+    Controller c(nullptr, &wallet, path);
+    auto p = c.hosts()[0].toMap();
+    // Unsupported family is rejected locally, before any network operation.
+    p["family"] = "fixture";
+    p["password"] = "must-not-persist";
+    p["token"] = "must-not-persist";
+    p = c.saveHost(p, "fixture-secret", true);
+    QVERIFY(!p.isEmpty()); QCOMPARE(wallet.writes, 1);
+    p["name"] = "Edited profile";
+    p = c.saveHost(p, {}, true);
+    QVERIFY(!p.isEmpty()); QCOMPARE(wallet.writes, 1);
+    QCOMPARE(wallet.values.value(p["id"].toString()), "fixture-secret");
+    c.connectHost(p, {});
+    QCOMPARE(wallet.reads, 1);
+    QTRY_COMPARE(c.state(), QString("disconnected"));
+    QVERIFY2(c.message().contains("unsupported BMC family"), qPrintable(c.message()));
+    QVERIFY(!read(path).contains("fixture-secret"));
+    QVERIFY(!read(path).contains("must-not-persist"));
+    QVERIFY(c.removeHost(p["id"].toString()));
+    QVERIFY(!wallet.values.contains(p["id"].toString()));
+  }
+  void missingAndUnavailableWallet() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    auto p = c.hosts()[0].toMap(); p["family"] = "fixture";
+    QSignalSpy prompt(&c, &Controller::passwordRequired);
+    QSignalSpy fallback(&c, &Controller::walletUnavailable);
+    c.connectHost(p, {});
+    QCOMPARE(prompt.count(), 1);
+    QCOMPARE(c.state(), "disconnected");
+    wallet.available = false;
+    auto before = c.hosts();
+    c.connectHost(p, "fixture-secret");
+    QCOMPARE(fallback.count(), 1);
+    QCOMPARE(c.hosts(), before);
+    c.continueWithoutWallet();
+    QTRY_COMPARE(c.state(), QString("disconnected"));
+    QVERIFY(c.message().contains("unsupported BMC family"));
+    QCOMPARE(c.hosts(), before);
+    c.cancelCredentials();
+    c.continueWithoutWallet();
+    QCOMPARE(c.state(), "disconnected");
+  }
+  void changedAccountNeverReusesPassword() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    auto p = c.saveHost(c.hosts()[0].toMap(), "fixture-secret", true);
+    p["username"] = "different-account";
+    QSignalSpy prompt(&c, &Controller::passwordRequired);
+    c.connectHost(p, {});
+    QCOMPARE(prompt.count(), 1); QCOMPARE(wallet.reads, 0);
+    p = c.saveHost(p, {}, true);
+    QVERIFY(!wallet.values.contains(p["id"].toString()));
+  }
+  void invalidFileIsPreserved() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    QString path = dir.filePath("hosts.json");
+    QFile f(path); QVERIFY(f.open(QIODevice::WriteOnly)); f.write("broken"); f.close();
+    Controller c(nullptr, &wallet, path);
+    QVERIFY(c.hosts().isEmpty());
+    QVERIFY(c.saveHost({{"host","example.invalid"}}, {}, false).isEmpty());
+    QCOMPARE(read(path), QByteArray("broken"));
+  }
+};
+QTEST_MAIN(ControllerTest)
+#include "controller_test.moc"

@@ -18,12 +18,32 @@ cmake --build build
 ./build/oldipmi
 ```
 
-Select the correct BMC family, enter a hostname and credentials, and connect.
-Save profiles for reuse; saving a password is optional and uses KWallet.
-A fresh JNLP can supply the session token, but is never executed or used to
-fetch code. Enter the BMC address and select its family before importing it.
-Close/disconnect before selecting another host. Reconnect by clicking Connect;
-credential login always obtains a new token. A JNLP must be freshly obtained.
+Lab-AMI, Lab-Avocent and Lab-Cisco appear as profiles on first launch. Use the play
+button beside a profile, or select it and click **Open Console**. OldIPMI logs
+in, discovers console parameters, and opens the native viewer automatically.
+Progress shows **Logging in → Discovering console → Connecting → Connected**;
+Cancel interrupts setup. Errors identify the stage that failed.
+
+The first connection asks for a password. **Remember in KWallet** is enabled
+by default; subsequent connections retrieve that profile's password from the
+wallet. If KWallet cannot save it, choose **Use for this session**. Passwords are
+never stored in the profile file. Changing a host or username requires a fresh
+credential; editing only its name preserves its saved password.
+
+**Console info** shows the actual protocol, endpoints and transport, available
+console features, and the resolution received from the BMC. APCP also reports
+its negotiated protocol version. Media endpoints are advertised parameters, not
+proof that an ISO is mounted. Firmware/model information is not guessed.
+
+Use **New**, **Save profile**, or **Remove** to manage profiles. Existing entries
+and wallet IDs are preserved; missing default profiles are added once and deleted
+defaults stay deleted. Lab-Cisco is configured for Cisco APCP, but the supplied
+account remains rejected: provide a working account in its profile to connect.
+
+For additional servers, select the BMC family and enter its hostname and account.
+A fresh JNLP can supply an AMI/ATEN session token, but is never executed or used to
+fetch code. Close/disconnect before selecting another host. Every credential-based
+connection obtains a fresh session; imported JNLP files must also be fresh.
 
 Click the console to capture input. Losing focus releases held keys/buttons.
 The toolbar provides fit/actual-size, fullscreen, Ctrl+Alt+Del, ISO mount/eject
@@ -32,7 +52,9 @@ and confirmed power operations. Mounted ISO files are opened read-only.
 ## Transport compatibility
 
 TLS verification is enabled by default. HTTP login, unverified/legacy TLS and
-plain console/media transport are separate per-host exceptions, off by default.
+plain console/media transport are separate per-host exceptions, off by default
+for new profiles. The three initial profiles carry their previously verified
+compatibility settings: Lab-AMI enables all three, Lab-Avocent/Lab-Cisco legacy TLS only.
 The legacy TLS exception also allows obsolete RSA/3DES suites when required.
 No BMC TLS configuration, clocks or firmware are changed by OldIPMI.
 
@@ -100,6 +122,9 @@ go test ./internal/aten -run '^$' -fuzz FuzzDecode -fuzztime 10s
 rendering. `--preview` keeps that synthetic preview open. Neither contacts a BMC.
 `oldipmi-core --probe` accepts `{ "profile": {...}, "password": "..." }` on
 stdin and checks live video without injecting keys or changing power/media.
+`oldipmi --probe-ui` accepts the same stdin JSON, resolves a saved profile by
+hostname, and tests the complete desktop flow (including KWallet when enabled);
+it prints only connection stages and allowlisted console information.
 `--capture PATH` saves the first frame to a new mode-0600 PNG, only when explicitly
 requested. Never commit real console captures or credential-bearing JNLP files.
 
@@ -108,10 +133,18 @@ requested. Never commit real console captures or credential-bearing JNLP files.
 The GUI owns one backend child per connection. Two inherited AF_UNIX socketpairs
 carry version-1 control messages and RGBA video frames. There are no listening
 ports or installed background services. Control records are length-prefixed JSON
-(maximum 1 MiB); frame records carry width, height and bounded raw RGBA bytes.
+(maximum 1 MiB); setup state events include `logging_in`, `discovering`,
+`connecting`, and `connected`, plus optional nonsecret `info` metadata; frame records carry width, height and bounded raw RGBA bytes.
 A one-frame queue drops superseded display frames without delaying input.
 
-Profiles live in the application's XDG config directory. Old `.env` files are not
+Profiles live in `hosts.json` in the application's XDG config directory
+(usually `~/.config/OldIPMI/OldIPMI`). The versioned object contains `version`,
+`defaultsVersion`, and `profiles`; it is saved atomically with owner-only access.
+The previous array format is migrated automatically, preserving a
+`hosts.json.pre-profiles` backup. To roll back just the profiles feature, use
+commit `8dd01fd` and restore that backup, or export the current object's
+`profiles` array to the old `hosts.json` format. KWallet entries use unchanged
+profile IDs. Removing a profile also removes its saved wallet entry. Old `.env` files are not
 imported or deleted automatically. To roll back, build/run a separate checkout of
 `ce0b1a7`; private `.env` configuration remains outside version control.
 

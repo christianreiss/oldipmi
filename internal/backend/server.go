@@ -12,6 +12,7 @@ import (
 	"oldipmi/internal/avocent"
 	"oldipmi/internal/protocol"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -30,12 +31,13 @@ type Command struct {
 	Action   string           `json:"action"`
 }
 type Event struct {
-	Version int    `json:"version"`
-	ID      int    `json:"id,omitempty"`
-	Type    string `json:"type"`
-	State   string `json:"state,omitempty"`
-	Message string `json:"message,omitempty"`
-	Mounted *bool  `json:"mounted,omitempty"`
+	Version int                   `json:"version"`
+	ID      int                   `json:"id,omitempty"`
+	Type    string                `json:"type"`
+	State   string                `json:"state,omitempty"`
+	Message string                `json:"message,omitempty"`
+	Mounted *bool                 `json:"mounted,omitempty"`
+	Info    *protocol.ConsoleInfo `json:"info,omitempty"`
 }
 
 func ReadCommand(r io.Reader) (Command, error) {
@@ -69,10 +71,13 @@ func Open(ctx context.Context, p protocol.Profile, password string, jnlp []byte)
 	case "aten":
 		return aten.Connect(ctx, p, password, jnlp)
 	default:
-		return nil, fmt.Errorf("unsupported BMC family; select AMI or ATEN")
+		return nil, fmt.Errorf("unsupported BMC family; select AMI, ATEN, Avocent or Cisco")
 	}
 }
 func Serve(parent context.Context, control, video net.Conn) error {
+	return serve(parent, control, video, Open)
+}
+func serve(parent context.Context, control, video net.Conn, open func(context.Context, protocol.Profile, string, []byte) (protocol.Session, error)) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	defer control.Close()
@@ -93,6 +98,8 @@ func Serve(parent context.Context, control, video net.Conn) error {
 			cancel()
 		}
 	}
+	var opening atomic.Bool
+	opening.Store(true)
 	cmds := make(chan Command, 32)
 	go func() {
 		defer close(cmds)
@@ -103,6 +110,10 @@ func Serve(parent context.Context, control, video net.Conn) error {
 				return
 			}
 
+			if c.Op == "disconnect" && opening.Load() {
+				cancel()
+				return
+			}
 			select {
 			case cmds <- c:
 			case <-ctx.Done():
@@ -123,12 +134,24 @@ func Serve(parent context.Context, control, video net.Conn) error {
 	if first.Op != "connect" {
 		return fmt.Errorf("first IPC command must connect")
 	}
-	emit(Event{Type: "state", State: "connecting"})
-	session, e := Open(ctx, first.Profile, first.Password, []byte(first.JNLP))
+	stage := "logging_in"
+	if first.JNLP != "" {
+		stage = "discovering"
+	}
+	emit(Event{Type: "state", State: stage})
+	setupCtx := protocol.WithProgress(ctx, func(p protocol.Progress) {
+		stage = p.Stage
+		emit(Event{Type: "state", State: stage, Info: p.Info})
+	})
+	session, e := open(setupCtx, first.Profile, first.Password, []byte(first.JNLP))
+	opening.Store(false)
 	first.Password = ""
 	first.JNLP = ""
 	if e != nil {
-		emit(Event{Type: "error", State: "disconnected", Message: e.Error()})
+		if ctx.Err() == nil {
+			label := map[string]string{"logging_in": "Login", "discovering": "Console discovery", "connecting": "Console connection"}[stage]
+			emit(Event{Type: "error", State: "disconnected", Message: label + " failed: " + e.Error()})
+		}
 		return e
 	}
 	defer session.Close()

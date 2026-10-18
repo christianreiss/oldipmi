@@ -35,6 +35,7 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 		}
 	}()
 	if len(jnlp) > 0 {
+		protocol.Report(ctx, "discovering", nil)
 		c.launch, err = protocol.ParseJNLP(jnlp)
 	} else {
 		c.web, err = protocol.NewWeb(p)
@@ -51,6 +52,8 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 	if c.launch.Args["singleportenabled"] == "1" {
 		return c, fmt.Errorf("AMI single-port tunneling is not supported by this firmware adapter")
 	}
+	info := c.launch.ConsoleInfo(p)
+	protocol.Report(ctx, "connecting", &info)
 	c.wire, err = protocol.Dial(ctx, p, c.launch.Port, c.launch.Secure)
 	if err != nil {
 		return c, err
@@ -70,6 +73,8 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 		if err != nil {
 			return c, err
 		}
+		stopHID := context.AfterFunc(ctx, func() { c.hid.Close() })
+		defer stopHID()
 		c.hid.SetDeadline(time.Now().Add(15 * time.Second))
 		t, st, _, err = c.read(c.hid)
 		if err != nil {

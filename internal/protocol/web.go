@@ -91,6 +91,7 @@ var cookieRE = regexp.MustCompile(`['"]?SESSION_COOKIE['"]?\s*:\s*['"]([^'"\r\n]
 var statusRE = regexp.MustCompile(`['"]?HAPI_STATUS['"]?\s*:\s*(-?\d+)`)
 
 func (w *Web) Login(ctx context.Context, password string) (Launch, error) {
+	Report(ctx, "logging_in", nil)
 	fam := w.Profile.Family
 	if fam == "" {
 		fam = "ami"
@@ -117,6 +118,7 @@ func (w *Web) Login(ctx context.Context, password string) (Launch, error) {
 		u, _ := url.Parse(w.Base)
 		w.Client.Jar.SetCookies(u, []*http.Cookie{{Name: "SessionCookie", Value: w.Cookie, Path: "/"}, {Name: "Username", Value: w.Profile.Username, Path: "/"}})
 	}
+	Report(ctx, "discovering", nil)
 	path := w.Profile.JNLPPath
 	if path == "" {
 		if fam == "aten" {

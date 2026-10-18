@@ -1,5 +1,4 @@
 #include "controller.h"
-#include <KWallet>
 #include <QApplication>
 #include <QDir>
 #include <QFile>
@@ -20,13 +19,12 @@ static QString configPath() {
   return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
          "/hosts.json";
 }
-Controller::Controller(QObject *p) : QObject(p) {
-  QFile f(configPath());
-  if (f.open(QIODevice::ReadOnly) && f.size() <= 1024 * 1024) {
-    auto doc = QJsonDocument::fromJson(f.readAll());
-    if (doc.isArray())
-      m_hosts = doc.array().toVariantList();
-  }
+Controller::Controller(QObject *p, Credentials *credentials, QString configFile) : QObject(p) {
+  m_configFile = configFile.isEmpty() ? configPath() : configFile;
+  if (!credentials)
+    m_ownedCredentials = kdeCredentials();
+  m_credentials = credentials ? credentials : m_ownedCredentials.get();
+  loadProfiles();
   connect(qApp, &QGuiApplication::applicationStateChanged, this,
           [this](Qt::ApplicationState s) {
             if (s != Qt::ApplicationActive)
@@ -38,104 +36,146 @@ void Controller::fail(QString message) {
   m_message = message;
   emit changed();
 }
-void Controller::persist() {
-  QDir().mkpath(QFileInfo(configPath()).absolutePath());
-  QSaveFile f(configPath());
-  if (!f.open(QIODevice::WriteOnly)) {
-    fail("Could not save host profiles.");
+void Controller::loadProfiles() {
+  QFile f(m_configFile);
+  bool initialized = false;
+  if (f.exists()) {
+    if (!f.open(QIODevice::ReadOnly) || f.size() > 1024 * 1024) {
+      m_profilesReadable = false;
+    } else {
+      auto doc = QJsonDocument::fromJson(f.readAll());
+      if (doc.isArray()) {
+        m_hosts = doc.array().toVariantList();
+        // Preserve the old array format for rollback; never replace a backup.
+        if (!QFile::exists(m_configFile + ".pre-profiles") &&
+            !f.copy(m_configFile + ".pre-profiles"))
+          m_profilesReadable = false;
+      } else if (doc.isObject() && doc["version"].toInt() == 1 &&
+                 doc["profiles"].isArray()) {
+        m_hosts = doc["profiles"].toArray().toVariantList();
+        initialized = doc["defaultsVersion"].toInt() >= 1;
+      } else {
+        m_profilesReadable = false;
+      }
+    }
+  }
+  if (!m_profilesReadable) {
+    fail("Could not read or migrate profiles safely; the existing file was preserved.");
     return;
   }
-  f.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
-  f.write(QJsonDocument(QJsonArray::fromVariantList(m_hosts)).toJson());
-  if (!f.commit())
+  if (initialized)
+    return;
+  auto profiles = m_hosts;
+  for (const auto &name : {QString("Lab-AMI"), QString("Lab-Avocent"), QString("Lab-Cisco")}) {
+    QString host = name.toLower() + ".example.net";
+    bool exists = false;
+    for (const auto &v : profiles)
+      if (v.toMap().value("host").toString().trimmed().compare(host, Qt::CaseInsensitive) == 0)
+        exists = true;
+    if (exists)
+      continue;
+    bool ami = name == "Lab-AMI";
+    profiles.append(QVariantMap{
+      {"id", QUuid::createUuid().toString(QUuid::WithoutBraces)},
+      {"name", name}, {"host", host}, {"username", "admin"},
+      {"family", ami ? "ami" : name == "Lab-Avocent" ? "avocent" : "cisco"},
+      {"remember", true}, {"http", ami}, {"legacyTLS", true},
+      {"allowPlainConsole", ami}});
+  }
+  if (persist(profiles))
+    m_hosts = profiles;
+}
+bool Controller::persist(const QVariantList &hosts) {
+  if (!m_profilesReadable) {
+    fail("Profiles were not saved because the existing file could not be read safely.");
+    return false;
+  }
+  QDir().mkpath(QFileInfo(m_configFile).absolutePath());
+  QSaveFile f(m_configFile);
+  if (!f.open(QIODevice::WriteOnly)) {
     fail("Could not save host profiles.");
-}
-static std::unique_ptr<KWallet::Wallet> wallet() {
-  return std::unique_ptr<KWallet::Wallet>(KWallet::Wallet::openWallet(
-      KWallet::Wallet::NetworkWallet(), 0, KWallet::Wallet::Synchronous));
-}
-QString Controller::walletPassword(QString id) {
-  auto w = wallet();
-  QString password;
-  if (!w || !w->setFolder("OldIPMI") || w->readPassword(id, password) != 0)
-    fail("KWallet did not provide a password. Enter it for this connection.");
-  return password;
-}
-bool Controller::walletWrite(QString id, QString password) {
-  auto w = wallet();
-  if (!w) {
-    fail("KWallet is unavailable; the password was not saved.");
     return false;
   }
-  if (!w->hasFolder("OldIPMI") && !w->createFolder("OldIPMI")) {
-    fail("Cannot create the OldIPMI wallet folder.");
-    return false;
-  }
-  if (!w->setFolder("OldIPMI") || w->writePassword(id, password) != 0) {
-    fail("Could not save the password in KWallet.");
+  f.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
+  auto data = QJsonDocument(QJsonObject{{"version", 1}, {"defaultsVersion", 1},
+               {"profiles", QJsonArray::fromVariantList(hosts)}}).toJson();
+  if (f.write(data) != data.size() || !f.commit()) {
+    fail("Could not save host profiles.");
     return false;
   }
   return true;
 }
-QVariantMap Controller::saveHost(QVariantMap p, QString password,
-                                 bool remember) {
-  // Whitelist persisted fields. Passwords and JNLP tokens never enter this
-  // file.
-  QVariantMap clean;
-  for (auto k :
-       {"id", "name", "host", "username", "family", "http", "legacyTLS",
-        "allowPlainConsole", "jnlpPath", "clientCert", "clientKey"})
+QVariantMap Controller::saveHost(QVariantMap p, QString password, bool remember) {
+  if (!m_profilesReadable) {
+    fail("Cannot modify an unreadable profiles file.");
+    return {};
+  }
+  QVariantMap clean, previous;
+  for (auto k : {"id", "name", "host", "username", "family", "http", "legacyTLS",
+                "allowPlainConsole", "jnlpPath", "clientCert", "clientKey"})
     if (p.contains(k))
       clean[k] = p[k];
-  if (clean.value("host").toString().trimmed().isEmpty()) {
+  clean["host"] = clean.value("host").toString().trimmed();
+  if (clean.value("host").toString().isEmpty()) {
     fail("Enter a BMC address before saving.");
-    return p;
+    return {};
   }
   if (clean.value("id").toString().isEmpty())
     clean["id"] = QUuid::createUuid().toString(QUuid::WithoutBraces);
-  clean["remember"] = false;
-  if (remember) {
-    if (password.isEmpty()) {
-      fail("Enter the password before saving it to KWallet.");
-      return p;
-    }
-    if (!walletWrite(clean["id"].toString(), password))
-      return p;
-    clean["remember"] = true;
-  }
-  for (int i = 0; i < m_hosts.size(); i++)
-    if (m_hosts[i].toMap().value("id") == clean["id"]) {
-      if (!remember && m_hosts[i].toMap().value("remember").toBool()) {
-        auto w = wallet();
-        if (!w || !w->setFolder("OldIPMI") ||
-            w->removeEntry(clean["id"].toString()) != 0) {
-          fail("Could not remove the saved password from KWallet.");
-          return p;
-        }
-      }
-      m_hosts.removeAt(i);
+  auto profiles = m_hosts;
+  int index = -1;
+  for (int i = 0; i < profiles.size(); ++i)
+    if (profiles[i].toMap().value("id") == clean["id"]) {
+      index = i;
+      previous = profiles[i].toMap();
       break;
     }
-  m_hosts.append(clean);
-  persist();
+  clean["remember"] = remember;
+  if (remember && !password.isEmpty()) {
+    if (!m_credentials->write(clean["id"].toString(), password)) {
+      fail("KWallet is unavailable; the password was not saved.");
+      return {};
+    }
+  } else if (previous.value("remember").toBool() &&
+             (!remember || previous.value("host") != clean.value("host") ||
+              previous.value("username") != clean.value("username"))) {
+    if (!m_credentials->remove(clean["id"].toString())) {
+      fail("Could not remove the saved password from KWallet.");
+      return {};
+    }
+  }
+  if (index >= 0)
+    profiles[index] = clean;
+  else
+    profiles.append(clean);
+  if (!persist(profiles))
+    return {};
+  m_hosts = profiles;
   emit hostsChanged();
+  m_message = "Profile saved.";
+  emit changed();
   return clean;
 }
-void Controller::removeHost(QString id) {
-  for (int i = 0; i < m_hosts.size(); i++)
-    if (m_hosts[i].toMap().value("id").toString() == id) {
-      if (m_hosts[i].toMap().value("remember").toBool()) {
-        auto w = wallet();
-        if (!w || !w->setFolder("OldIPMI") || w->removeEntry(id) != 0) {
-          fail("Could not remove the saved password from KWallet.");
-          return;
-        }
+bool Controller::removeHost(QString id) {
+  if (!m_profilesReadable) {
+    fail("Cannot modify an unreadable profiles file.");
+    return false;
+  }
+  auto profiles = m_hosts;
+  for (int i = 0; i < profiles.size(); i++)
+    if (profiles[i].toMap().value("id").toString() == id) {
+      if (profiles[i].toMap().value("remember").toBool() && !m_credentials->remove(id)) {
+        fail("Could not remove the saved password from KWallet.");
+        return false;
       }
-      m_hosts.removeAt(i);
-      persist();
+      profiles.removeAt(i);
+      if (!persist(profiles))
+        return false;
+      m_hosts = profiles;
       emit hostsChanged();
-      return;
+      return true;
     }
+  return false;
 }
 void Controller::stop() {
   if (m_process) {
@@ -159,19 +199,58 @@ void Controller::stop() {
   m_mounted = false;
 }
 void Controller::connectHost(QVariantMap p, QString password) {
-  if (password.isEmpty() && p.value("remember").toBool())
-    password = walletPassword(p.value("id").toString());
+  if (m_state != "disconnected")
+    return;
+  m_consoleInfo.clear();
+  m_pendingProfile = p;
+  m_pendingPassword.clear();
+  bool entered = !password.isEmpty();
+  if (!entered && p.value("remember").toBool()) {
+    // Do not reuse a stored credential after changing its host or account.
+    for (const auto &v : m_hosts) {
+      auto saved = v.toMap();
+      if (saved.value("id") == p.value("id") && saved.value("host") == p.value("host") &&
+          saved.value("username") == p.value("username")) {
+        if (!m_credentials->read(p.value("id").toString(), password))
+          password.clear();
+        break;
+      }
+    }
+  }
   if (password.isEmpty()) {
-    fail("Enter a password to connect.");
+    fail("Enter this profile's password to open its console.");
+    emit passwordRequired();
     return;
   }
-  start(p, password);
+  // Saving before connection keeps edited settings attached to the same UUID.
+  auto saved = saveHost(p, entered ? password : QString(), p.value("remember").toBool());
+  if (saved.isEmpty()) {
+    m_pendingPassword = password;
+    emit walletUnavailable();
+    return;
+  }
+  m_pendingProfile.clear();
+  emit profileActivated(saved);
+  start(saved, password);
+}
+void Controller::continueWithoutWallet() {
+  if (m_pendingPassword.isEmpty())
+    return;
+  auto profile = m_pendingProfile;
+  auto password = m_pendingPassword;
+  cancelCredentials();
+  start(profile, password);
+}
+void Controller::cancelCredentials() {
+  m_pendingPassword.clear();
+  m_pendingProfile.clear();
 }
 void Controller::start(QVariantMap p, QString password, QString jnlp) {
   stop();
   emit frameReady(QImage());
-  m_state = "connecting";
-  m_message = "Connecting to " + p.value("host").toString() + "…";
+  m_consoleInfo.clear();
+  m_state = jnlp.isEmpty() ? "logging_in" : "discovering";
+  m_message = "Opening console on " + p.value("host").toString() + "…";
   emit changed();
   int ctl[2], vid[2];
   if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, ctl) < 0) {
@@ -230,6 +309,8 @@ void Controller::start(QVariantMap p, QString password, QString jnlp) {
             m_mounted = false;
             emit frameReady(QImage());
             if (m_message.startsWith("Connected") ||
+                m_message.startsWith("Opening") ||
+                m_message.startsWith("Logging") || m_message.startsWith("Discovering") ||
                 m_message.startsWith("Connecting"))
               m_message =
                   "Connection ended. Reconnect to obtain a fresh session.";
@@ -251,10 +332,12 @@ void Controller::start(QVariantMap p, QString password, QString jnlp) {
            {"jnlp", jnlp}});
 }
 void Controller::disconnectHost() {
+  bool cancelled = m_state != "connected";
+  cancelCredentials();
   releaseInput();
   stop();
   m_state = "disconnected";
-  m_message = "Disconnected.";
+  m_message = cancelled ? "Connection cancelled." : "Disconnected.";
   emit frameReady(QImage());
   emit changed();
 }
@@ -298,8 +381,20 @@ void Controller::readControl() {
       m_state = o["state"].toString();
     if (o["type"] == "error")
       m_message = o["message"].toString();
+    else if (o["state"] == "logging_in")
+      m_message = "Logging in…";
+    else if (o["state"] == "discovering")
+      m_message = "Discovering console…";
+    else if (o["state"] == "connecting")
+      m_message = "Connecting to console…";
     else if (o["state"] == "connected")
       m_message = "Connected — click the console to control it.";
+    if (o.contains("info")) {
+      auto resolution = m_consoleInfo.value("resolution");
+      m_consoleInfo = o["info"].toObject().toVariantMap();
+      if (resolution.isValid())
+        m_consoleInfo["resolution"] = resolution;
+    }
     if (o.contains("mounted"))
       m_mounted = o["mounted"].toBool();
     emit changed();
@@ -327,8 +422,14 @@ void Controller::readVideo() {
             .copy();
     m_videoBuffer.remove(0, 4 + n);
   }
-  if (!latest.isNull())
+  if (!latest.isNull()) {
+    auto resolution = QString::number(latest.width()) + " × " + QString::number(latest.height());
+    if (m_consoleInfo.value("resolution").toString() != resolution) {
+      m_consoleInfo["resolution"] = resolution;
+      emit changed();
+    }
     emit frameReady(latest);
+  }
 }
 void Controller::key(int usage, bool down) {
   if (m_state == "connected")

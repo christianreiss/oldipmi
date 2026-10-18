@@ -40,11 +40,37 @@ int main(int argc, char **argv) {
     if (!input.open(stdin, QIODevice::ReadOnly))
       return 4;
     auto json = QJsonDocument::fromJson(input.readAll()).object();
-    QTimer::singleShot(0, &controller, [&, json] {
+    auto profile = json["profile"].toObject().toVariantMap();
+    if (profile.value("id").toString().isEmpty()) {
+      for (const auto &v : controller.hosts()) {
+        auto saved = v.toMap();
+        if (saved.value("host") == profile.value("host")) {
+          for (auto it = profile.cbegin(); it != profile.cend(); ++it)
+            saved[it.key()] = it.value();
+          profile = saved;
+          break;
+        }
+      }
+    }
+    QObject::connect(&controller, &Controller::changed, &app, [&] {
+      // Probe diagnostics use the same allowlisted metadata as the GUI.
+      QJsonObject event{{"state", controller.state()},
+                        {"info", QJsonObject::fromVariantMap(controller.consoleInfo())}};
+      auto bytes = QJsonDocument(event).toJson(QJsonDocument::Compact);
+      fprintf(stdout, "%s\n", bytes.constData());
+      fflush(stdout);
+      if (controller.state() == "disconnected" && controller.message().contains(" failed:")) {
+        fprintf(stderr, "%s\n", qPrintable(controller.message()));
+        app.exit(4);
+      }
+    });
+    QTimer::singleShot(0, &controller, [&, json, profile] {
       QMetaObject::invokeMethod(
           engine.rootObjects().first(), "loadHost",
-          Q_ARG(QVariant, QVariant(json["profile"].toObject().toVariantMap())));
-      controller.connectHost(json["profile"].toObject().toVariantMap(),
+          Q_ARG(QVariant, QVariant(profile)));
+      auto details = engine.rootObjects().first()->findChild<QObject *>("consoleDetails");
+      if (details) details->setProperty("checked", true);
+      controller.connectHost(profile,
                              json["password"].toString());
     });
     QObject::connect(
