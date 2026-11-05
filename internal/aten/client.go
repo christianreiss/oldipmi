@@ -2,9 +2,11 @@
 package aten
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
+	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/protocol"
 	"sync"
 	"time"
@@ -21,6 +23,9 @@ type Client struct {
 	dec         decoder
 	media       *mediaSession
 	once        sync.Once
+	ast         *codec.Decoder // HTML5 mode video decoder
+	reqW, reqH  int            // HTML5 mode update-request size
+	lastPix     []byte         // last emitted HTML5 frame, to drop unchanged ones
 }
 
 func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []byte) (c *Client, err error) {
@@ -47,33 +52,42 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 	}
 	info := c.launch.ConsoleInfo(p)
 	protocol.Report(ctx, "connecting", &info)
-	c.wire, err = protocol.Dial(ctx, p, c.launch.Port, c.launch.Secure)
+	if c.launch.HTML5 {
+		c.wire, err = dialHTML5(ctx, p, c.launch)
+	} else {
+		c.wire, err = protocol.Dial(ctx, p, c.launch.Port, c.launch.Secure)
+	}
 	if err != nil {
 		return c, err
 	}
+	return c, c.negotiate(ctx)
+}
+
+// negotiate performs the RFB-style handshake on the dialed console connection.
+func (c *Client) negotiate(ctx context.Context) (err error) {
 	stop := context.AfterFunc(ctx, func() { c.wire.Close() })
 	defer stop()
 	c.wire.SetDeadline(time.Now().Add(15 * time.Second))
 	banner, err := protocol.Read(c.wire, 12)
 	if err != nil {
-		return c, err
+		return err
 	}
 	if string(banner[:4]) != "RFB " {
-		return c, fmt.Errorf("unrecognized ATEN banner")
+		return fmt.Errorf("unrecognized ATEN banner")
 	}
 	if err = c.wire.WritePacket(banner); err != nil {
-		return c, err
+		return err
 	}
 	count, err := protocol.Read(c.wire, 1)
 	if err != nil {
-		return c, err
+		return err
 	}
 	if count[0] == 0 {
-		return c, fmt.Errorf("ATEN refused session")
+		return fmt.Errorf("ATEN refused session")
 	}
 	offered, err := protocol.Read(c.wire, int(count[0]))
 	if err != nil {
-		return c, err
+		return err
 	}
 	found := false
 	for _, t := range offered {
@@ -82,51 +96,56 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 		}
 	}
 	if !found {
-		return c, fmt.Errorf("unsupported ATEN security negotiation")
+		return fmt.Errorf("unsupported ATEN security negotiation")
 	}
 	if err = c.wire.WritePacket([]byte{16}); err != nil {
-		return c, err
+		return err
 	}
 	if _, err = protocol.Read(c.wire, 24); err != nil {
-		return c, err
+		return err
 	}
-	auth := make([]byte, 48)
 	if len(c.launch.Token) > 24 {
-		return c, fmt.Errorf("ATEN token exceeds credential field")
+		return fmt.Errorf("ATEN token exceeds credential field")
 	}
-	copy(auth[:24], c.launch.Token)
-	copy(auth[24:], c.launch.Token)
-	if err = c.wire.WritePacket(auth); err != nil {
-		return c, err
+	if err = c.wire.WritePacket(c.tokenAuth()); err != nil {
+		return err
 	}
 	result, err := protocol.Read(c.wire, 4)
 	if err != nil {
-		return c, err
+		return err
 	}
 	if binary.BigEndian.Uint32(result) != 0 {
-		return c, fmt.Errorf("ATEN token rejected")
+		return fmt.Errorf("ATEN token rejected")
 	}
-	if err = c.wire.WritePacket([]byte{0}); err != nil {
-		return c, err
+	shared := byte(0)
+	if c.launch.HTML5 {
+		shared = 1
+	}
+	if err = c.wire.WritePacket([]byte{shared}); err != nil {
+		return err
 	}
 	init, err := protocol.Read(c.wire, 24)
 	if err != nil {
-		return c, err
+		return err
 	}
 	n := binary.BigEndian.Uint32(init[20:])
 	if n > 65536 {
-		return c, fmt.Errorf("invalid ATEN desktop name length")
+		return fmt.Errorf("invalid ATEN desktop name length")
 	}
 	if _, err = protocol.Read(c.wire, int(n)+12); err != nil {
-		return c, err
+		return err
+	}
+	c.wire.SetDeadline(time.Time{})
+	if c.launch.HTML5 {
+		c.reqW, c.reqH = int(binary.BigEndian.Uint16(init)), int(binary.BigEndian.Uint16(init[2:]))
+		return c.htmlRequest(false)
 	}
 	c.dec.Resize(1024, 768)
-	c.wire.SetDeadline(time.Time{})
 	err = c.wire.WritePacket([]byte{0x37, 7, 0x07, 0x80})
 	if err == nil {
 		err = c.request(false)
 	}
-	return c, err
+	return err
 }
 func (c *Client) request(incremental bool) error {
 	p := make([]byte, 10)
@@ -141,21 +160,23 @@ func (c *Client) request(incremental bool) error {
 func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go func() {
-		tick := time.NewTicker(3 * time.Second)
-		defer tick.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-tick.C:
-				if c.wire.WritePacket([]byte{0x15, 0, 0, 0, 1, 0, 0, 0, 0}) != nil {
-					c.wire.Close()
+	if !c.launch.HTML5 { // the HTML5 console sends no keepalive
+		go func() {
+			tick := time.NewTicker(3 * time.Second)
+			defer tick.Stop()
+			for {
+				select {
+				case <-ctx.Done():
 					return
+				case <-tick.C:
+					if c.wire.WritePacket([]byte{0x15, 0, 0, 0, 1, 0, 0, 0, 0}) != nil {
+						c.wire.Close()
+						return
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 
 	stop := context.AfterFunc(ctx, func() { c.wire.Close() })
 	defer stop()
@@ -192,6 +213,33 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 					continue
 				}
 				x, y, w, hgt := int(binary.BigEndian.Uint16(h)), int(binary.BigEndian.Uint16(h[2:])), int(binary.BigEndian.Uint16(h[4:])), int(binary.BigEndian.Uint16(h[6:]))
+				if c.launch.HTML5 {
+					if binary.BigEndian.Uint32(h[8:]) != encAST2100 {
+						return fmt.Errorf("unsupported HTML5 video encoding %d", binary.BigEndian.Uint32(h[8:]))
+					}
+					f, e := c.decodeAST2100(w, hgt, b)
+					if e != nil {
+						return e
+					}
+					c.reqW, c.reqH = f.Width, f.Height
+					if bytes.Equal(f.Pixels, c.lastPix) {
+						// The BMC answers every request, even without changes; pace it.
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case <-time.After(40 * time.Millisecond):
+						}
+						continue
+					}
+					if c.lastPix == nil { // like the web UI: sync the pointer once the size is known
+						if e = c.wire.WritePacket([]byte{0x37, 7, 0x07, 0x80}); e != nil {
+							return e
+						}
+					}
+					c.lastPix = f.Pixels
+					frame(f)
+					continue
+				}
 				if x == 0 && y == 0 && w > 0 && hgt > 0 && w <= 4096 && hgt <= 2160 {
 					if e = c.dec.Resize(w, hgt); e != nil {
 						return e
@@ -204,6 +252,12 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 			}
 			if changed {
 				frame(c.dec.frame)
+			}
+			if c.launch.HTML5 {
+				if e = c.htmlRequest(true); e != nil {
+					return e
+				}
+				continue
 			}
 			if e = c.request(true); e != nil {
 				return e
@@ -236,6 +290,9 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 			c.controlling = !(binary.BigEndian.Uint32(b) == 1 && binary.BigEndian.Uint32(b[4:]) == 4)
 			c.mu.Unlock()
 		default:
+			if c.skipUnknown() {
+				continue
+			}
 			return fmt.Errorf("unsupported ATEN message 0x%02x", t[0])
 		}
 	}
@@ -327,6 +384,9 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 	defer c.mu.Unlock()
 	if c.media != nil {
 		return fmt.Errorf("eject the mounted ISO first")
+	}
+	if c.launch.HTML5 {
+		return fmt.Errorf("virtual media is not available in the ATEN HTML5 console mode")
 	}
 	s, e := newMedia(ctx, c.p, c.launch.CDPort, path)
 	if e != nil {

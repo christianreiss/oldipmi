@@ -51,6 +51,13 @@ func (l Launch) ConsoleInfo(p Profile) ConsoleInfo {
 	if l.Family == "aten" {
 		name = "ATEN RFB"
 	}
+	if l.HTML5 {
+		info := ConsoleInfo{Protocol: "ATEN HTML5 (AST2100 over WebSocket)", LegacyTLS: p.LegacyTLS,
+			Endpoints:    []Endpoint{ConsoleEndpoint("Video / input", p.Host, l.Port, l.Secure)},
+			Capabilities: []string{"Video", "Keyboard", "Pointer", "Power"}}
+		info.Endpoints[0].Transport += " (WebSocket)"
+		return info
+	}
 	info := ConsoleInfo{Protocol: name, LegacyTLS: p.LegacyTLS,
 		Endpoints:    []Endpoint{ConsoleEndpoint("Video / input", p.Host, l.Port, l.Secure)},
 		Capabilities: []string{"Video", "Keyboard", "Pointer"}}

@@ -23,6 +23,9 @@ type Launch struct {
 	Token, Cookie               string
 	Port, HIDPort, CDPort       int
 	Secure, MediaSecure, Legacy bool
+	// HTML5 marks ATEN firmware that only offers the WebSocket (noVNC) console.
+	// Token is then the iKVM session token and Cookie the web session cookie header.
+	HTML5 bool
 }
 type Web struct {
 	Client  *http.Client
@@ -145,10 +148,16 @@ func (w *Web) Login(ctx context.Context, password string) (Launch, error) {
 	}
 	b, e = w.Request(ctx, "GET", path, nil, true)
 	if e != nil {
-		w.Close()
 		if fam == "aten" && w.Profile.JNLPPath == "" && strings.Contains(e.Error(), "status 404") {
-			return Launch{}, fmt.Errorf("login succeeded, but this ATEN firmware offers no Java iKVM (JNLP not found); it may only provide the HTML5 console, which OldIPMI does not support")
+			// Newer ATEN firmware dropped Java iKVM and serves only the HTML5 console.
+			// The web session must stay logged in: it authorizes the WebSocket.
+			l, e2 := w.html5Launch(ctx)
+			if e2 != nil {
+				w.Close()
+			}
+			return l, e2
 		}
+		w.Close()
 		return Launch{}, e
 	}
 	if !bytes.Contains(bytes.ToLower(b), []byte("<jnlp")) {
@@ -176,6 +185,31 @@ func (w *Web) Close() {
 	}
 	w.Client.CloseIdleConnections()
 }
+
+var html5TokenRE = regexp.MustCompile(`id="entry_value"\s+value="([^"]{1,24})"`)
+
+// html5Launch reads the iKVM session token from the HTML5 console page.
+func (w *Web) html5Launch(ctx context.Context) (Launch, error) {
+	b, e := w.Request(ctx, "GET", "/cgi/url_redirect.cgi?url_name=man_ikvm_html5_bootstrap", nil, true)
+	if e != nil {
+		return Launch{}, fmt.Errorf("login succeeded, but this ATEN firmware offers neither Java nor HTML5 iKVM: %w", e)
+	}
+	m := html5TokenRE.FindSubmatch(b)
+	if m == nil {
+		return Launch{}, fmt.Errorf("login succeeded, but the HTML5 console page has no session token (unsupported ATEN firmware)")
+	}
+	u, _ := url.Parse(w.Base)
+	var cookie []string
+	for _, c := range w.Client.Jar.Cookies(u) {
+		cookie = append(cookie, c.Name+"="+c.Value)
+	}
+	port := 443
+	if w.Profile.HTTP {
+		port = 80
+	}
+	return Launch{Family: "aten", HTML5: true, Token: string(m[1]), Cookie: strings.Join(cookie, "; "), Port: port, Secure: !w.Profile.HTTP, Args: map[string]string{}}, nil
+}
+
 func ParseJNLP(b []byte) (Launch, error) {
 	var doc struct {
 		XMLName xml.Name `xml:"jnlp"`

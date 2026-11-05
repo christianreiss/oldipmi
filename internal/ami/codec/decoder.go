@@ -184,7 +184,7 @@ func (d *Decoder) Decode(frame []byte) (result *Frame, err error) {
 	return out, nil
 }
 
-const maxResolution = 1500 // Decoder.MAX_X/Y_RESOLUTION
+const maxResolution = 1920 // Decoder.MAX_X/Y_RESOLUTION was 1500; ATEN HTML5 streams 1600x1200 and 1920x1280
 
 // makeIntArray ports SOCJVVideo.MakeIntArray: pad to a multiple of 4 bytes,
 // then pack little-endian into uint32 words.

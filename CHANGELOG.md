@@ -1,5 +1,15 @@
 # Changelog
 
+## ATEN HTML5 console (2026-11-05)
+
+* Open ATEN BMCs without Java iKVM through their HTML5 console: WebSocket transport,
+  session-token authentication and ASPEED AST2100 video decoded with the shared AMI codec
+  (resolution limit raised to 1920 for 1600x1200 streams). Keyboard, pointer and power use the
+  same messages as the Java protocol; virtual media is refused in this mode.
+* Fix ATEN login: the BMC's expired empty `SID` cookie no longer shadows the real session cookie.
+* Unchanged frames (the BMC answers every request) are dropped and polling is paced.
+* Verified live on a LAN ATEN BMC: video, live updates and keyboard input. Not run live: pointer, power.
+
 ## MCP agent control (2026-11-05)
 
 * Add `oldipmi-mcp`, a stdio MCP server with screenshot, keyboard, mouse, power,

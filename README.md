@@ -58,6 +58,10 @@ compatibility settings: Lab-AMI enables all three, Lab-Avocent/Lab-Cisco legacy 
 The legacy TLS exception also allows obsolete RSA/3DES suites when required.
 No BMC TLS configuration, clocks or firmware are changed by OldIPMI.
 
+ATEN firmware that no longer serves the Java iKVM (JNLP URL answers 404) is opened through
+its HTML5 console automatically; the console info shows "ATEN HTML5". Virtual media is not
+available in that mode.
+
 Older AMI systems may have plain video and an always-TLS HID channel. On the
 verified Lab-AMI generation, select AMI and explicitly enable HTTP login,
 legacy/unverified TLS and plain console/media. Passwords/tokens never appear in
@@ -77,7 +81,8 @@ does not change the BMC's Java/HTML5 console preference automatically.
 |---|---|---|
 | Legacy AMI / Lab-AMI, Supermicro X8DTU | 7-byte framing, TLS HID, RGB555 VSC raw and LRLE16/32 | Real native 640x480 video decoded and visually inspected |
 | Newer AMI / ASPEED | 8-byte IVTP, VQ/JPEG decoder, HID, iUSB | Imported regression tests; no hardware acceptance yet |
-| ATEN / Supermicro | Token login, Hermon and bit-plane video, HID, power, read-only media | Synthetic TCP handshake/video/cancellation tests; no ATEN target supplied |
+| ATEN / Supermicro | Token login, Hermon and bit-plane video, HID, power, read-only media (Java iKVM) | Synthetic TCP handshake/video/cancellation tests; no Java-iKVM target supplied |
+| ATEN HTML5 console (firmware without Java iKVM) | Automatic fallback: WebSocket + ASPEED AST2100 video (shared AMI codec), keyboard, pointer, power; no virtual media | Live: 1600x1200 video, delta updates, keyboard input verified on a LAN ATEN BMC (XCP-ng host); pointer and power not run live |
 | Avocent / Lab-Avocent, Dell PowerEdge R420 | APCP, TLS companion channel, RGB555 stream, HID | Real native 640x480 video decoded and visually inspected |
 | Cisco IMC / Lab-Cisco (bonus target) | APCP handshake supported | Account rejected by IMC API (551); KVM channel access denied; video unverified |
 
