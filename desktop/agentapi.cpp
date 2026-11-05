@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QStandardPaths>
 #include <unistd.h>
 
 static constexpr int MaxLine = 1 << 20;
@@ -39,6 +40,13 @@ bool AgentApi::start() {
   return ok;
 }
 QString AgentApi::mcpPath() const {
+  // An AppImage mounts at a new temporary path on every run, so a registered
+  // path inside it would break; prefer a stable copy on PATH.
+  if (!qEnvironmentVariableIsEmpty("APPIMAGE")) {
+    auto onPath = QStandardPaths::findExecutable("oldipmi-mcp");
+    if (!onPath.isEmpty())
+      return onPath;
+  }
   return QDir::cleanPath(qEnvironmentVariable("OLDIPMI_BIN_DIR", QCoreApplication::applicationDirPath()) +
                          "/oldipmi-mcp");
 }

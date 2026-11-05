@@ -100,6 +100,9 @@ clients as the server `instructions`.
 claude mcp add oldipmi -- /path/to/oldipmi-mcp
 ```
 
+From the AppImage the bundled path changes on every run: copy `oldipmi-mcp` (a static binary) to a
+stable place such as `~/.local/bin`; the MCP button then shows that path.
+
 Tools: `list_profiles`, `status`, `connect`, `disconnect`, `screenshot` (PNG, optional
 crop/scale), `wait_for_change`, `wait_for_stable`, `type_text`, `key`, `key_combo`,
 `release_input`, `mouse_move`, `mouse_click`, `mouse_double_click`, `mouse_drag`,
