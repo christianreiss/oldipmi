@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"bytes"
 	"context"
 	"encoding/xml"
 	"errors"
@@ -131,6 +132,11 @@ func (w *Web) Login(ctx context.Context, password string) (Launch, error) {
 	if e != nil {
 		w.Close()
 		return Launch{}, e
+	}
+	if !bytes.Contains(bytes.ToLower(b), []byte("<jnlp")) {
+		// ATEN answers an unauthenticated request with a "session timeout" HTML page.
+		w.Close()
+		return Launch{}, fmt.Errorf("BMC returned no JNLP (login was not accepted or the session expired; check the account and password)")
 	}
 	l, e := ParseJNLP(b)
 	if e != nil {

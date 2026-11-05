@@ -42,6 +42,16 @@ func TestLoginFailureDoesNotFetchToken(t *testing.T) {
 		t.Fatal(count, e)
 	}
 }
+func TestNonJNLPResponseExplainsLogin(t *testing.T) {
+	w, _ := NewWeb(Profile{Host: "bmc", Family: "aten"})
+	w.Client.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`<html><body onload='logout_alert()'>SessionTimeout ()</body></html>`)), Header: make(http.Header)}, nil
+	})
+	_, e := w.Login(context.Background(), "do-not-log")
+	if e == nil || !strings.Contains(e.Error(), "no JNLP") || strings.Contains(e.Error(), "do-not-log") {
+		t.Fatal(e)
+	}
+}
 func FuzzJNLP(f *testing.F) {
 	f.Add([]byte("<jnlp/>"))
 	f.Fuzz(func(t *testing.T, b []byte) { ParseJNLP(b) })
