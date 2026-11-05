@@ -88,6 +88,30 @@ HTTP CONNECT mode, encrypted HID at the application layer, non-RGB555 legacy
 VSC modes, unsupported ATEN encodings, and relative pointer mode are not yet
 implemented. Unsupported formats fail explicitly rather than launch Java.
 
+## MCP: let an AI agent drive the console
+
+`oldipmi-mcp` is a stdio [MCP](https://modelcontextprotocol.io) server that
+controls the **running OldIPMI window**, so everything the agent does is visible.
+Click **MCP** in the toolbar for the full instructions written for the AI (with
+the exact path of `oldipmi-mcp` and a copy button); the same text is sent to MCP
+clients as the server `instructions`.
+
+```sh
+claude mcp add oldipmi -- /path/to/oldipmi-mcp
+```
+
+Tools: `list_profiles`, `status`, `connect`, `disconnect`, `screenshot` (PNG, optional
+crop/scale), `wait_for_change`, `wait_for_stable`, `type_text`, `key`, `key_combo`,
+`release_input`, `mouse_move`, `mouse_click`, `mouse_double_click`, `mouse_drag`,
+`mouse_scroll`, `power`, `mount_iso`, `eject_iso`. Passwords stay in KWallet and are never
+visible to the agent; `connect` uses the saved password.
+
+The app listens on a Unix socket, `$XDG_RUNTIME_DIR/oldipmi/agent.sock` (owner-only, no
+TCP port). **There is no authentication**: any process of your user can control the
+console, including `power` (immediate, no confirmation) and ISO mounting. Start OldIPMI
+with `--no-agent-api` to disable it; `OLDIPMI_AGENT_SOCKET` overrides the path (Unix socket
+paths are limited to about 107 bytes). A second OldIPMI instance does not take over a live socket.
+
 ## Portable bundle
 
 ```sh
@@ -125,6 +149,7 @@ stdin and checks live video without injecting keys or changing power/media.
 `oldipmi --probe-ui` accepts the same stdin JSON, resolves a saved profile by
 hostname, and tests the complete desktop flow (including KWallet when enabled);
 it prints only connection stages and allowlisted console information.
+`oldipmi --preview` with the MCP server gives a BMC-free end-to-end check of `screenshot`.
 `--capture PATH` saves the first frame to a new mode-0600 PNG, only when explicitly
 requested. Never commit real console captures or credential-bearing JNLP files.
 

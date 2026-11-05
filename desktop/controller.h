@@ -6,6 +6,9 @@
 #include <QObject>
 #include <QProcess>
 #include <QVariantList>
+#include <QElapsedTimer>
+#include <functional>
+#include <map>
 
 class Controller : public QObject {
   Q_OBJECT
@@ -39,6 +42,14 @@ public:
   Q_INVOKABLE void openJNLP(QVariantMap profile);
   Q_INVOKABLE QString chooseCertificate(bool key);
   void preview();
+  // Result callback: (ok, message). Invoked when the backend answers command `id`.
+  using Result = std::function<void(bool, QString)>;
+  void command(QJsonObject obj, Result done = {});
+  void agentNote(QString message);
+  QImage lastFrame() const { return m_lastFrame; }
+  qint64 frameSeq() const { return m_frameSeq; }
+  qint64 changeSeq() const { return m_changeSeq; }
+  qint64 msSinceChange() const { return m_sinceChange.isValid() ? m_sinceChange.elapsed() : 0; }
 signals:
   void changed();
   void hostsChanged();
@@ -61,8 +72,13 @@ private:
   QLocalSocket *m_control = nullptr, *m_video = nullptr;
   QByteArray m_controlBuffer, m_videoBuffer;
   int m_id = 0;
+  QImage m_lastFrame;
+  qint64 m_frameSeq = 0, m_changeSeq = 0;
+  size_t m_frameHash = 0;
+  QElapsedTimer m_sinceChange;
+  std::map<int, Result> m_pending;
+  void failPending(const QString &why);
   void start(QVariantMap profile, QString password, QString jnlp = {});
-  void command(QJsonObject obj);
   void fail(QString message);
   void readControl();
   void readVideo();

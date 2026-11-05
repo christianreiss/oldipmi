@@ -1,3 +1,4 @@
+#include "agentapi.h"
 #include "console.h"
 #include "controller.h"
 #include <QApplication>
@@ -20,8 +21,13 @@ int main(int argc, char **argv) {
     QStandardPaths::setTestModeEnabled(true);
   qmlRegisterType<Console>("OldIPMI", 1, 0, "ConsoleView");
   Controller controller;
+  AgentApi agent(&controller);
+  // Auth-less local control socket for oldipmi-mcp; skipped by self-test and --no-agent-api.
+  if (!test && !app.arguments().contains("--no-agent-api") && !agent.start())
+    fprintf(stderr, "Agent API unavailable at %s: %s\n", qPrintable(agent.socketPath()), qPrintable(agent.errorString()));
   QQmlApplicationEngine engine;
   engine.rootContext()->setContextProperty("controller", &controller);
+  engine.rootContext()->setContextProperty("agent", &agent);
   engine.load(QUrl("qrc:/desktop/Main.qml"));
   if (engine.rootObjects().isEmpty())
     return 1;

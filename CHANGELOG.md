@@ -1,5 +1,15 @@
 # Changelog
 
+## MCP agent control (2026-11-05)
+
+* Add `oldipmi-mcp`, a stdio MCP server with screenshot, keyboard, mouse, power,
+  virtual-media, profile and connection tools for the running OldIPMI window.
+* Add an owner-only, authentication-free Unix socket in the desktop app
+  (`--no-agent-api` disables it) and a toolbar **MCP** button that shows AI instructions.
+* Controller keeps the latest frame and reports backend results for power/media commands.
+* Not verified on hardware: live keyboard/pointer injection, power and ISO mounting via MCP.
+  Verified: unit tests, a Qt socket test and an offscreen end-to-end screenshot.
+
 ## Profile workflow (2026-10-18)
 
 * Add Lab-AMI, Lab-Avocent and Lab-Cisco profiles once, preserving existing profiles and

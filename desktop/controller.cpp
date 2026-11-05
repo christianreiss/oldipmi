@@ -177,7 +177,19 @@ bool Controller::removeHost(QString id) {
     }
   return false;
 }
+void Controller::failPending(const QString &why) {
+  auto pending = std::move(m_pending);
+  m_pending.clear();
+  for (auto &entry : pending)
+    entry.second(false, why);
+}
+void Controller::agentNote(QString message) {
+  m_message = message;
+  emit changed();
+}
 void Controller::stop() {
+  failPending("Connection closed.");
+  m_lastFrame = QImage();
   if (m_process) {
     disconnect(m_process, nullptr, this, nullptr);
     if (m_control)
@@ -305,6 +317,8 @@ void Controller::start(QVariantMap p, QString password, QString jnlp) {
   connect(m_process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
           this, [this](int, QProcess::ExitStatus) {
             readControl();
+            failPending("Connection ended.");
+            m_lastFrame = QImage();
             m_state = "disconnected";
             m_mounted = false;
             emit frameReady(QImage());
@@ -341,17 +355,23 @@ void Controller::disconnectHost() {
   emit frameReady(QImage());
   emit changed();
 }
-void Controller::command(QJsonObject o) {
-  if (!m_control || m_control->state() != QLocalSocket::ConnectedState)
+void Controller::command(QJsonObject o, Result done) {
+  if (!m_control || m_control->state() != QLocalSocket::ConnectedState) {
+    if (done)
+      done(false, "Not connected.");
     return;
+  }
   o["version"] = 1;
   o["id"] = ++m_id;
+  if (done)
+    m_pending[m_id] = std::move(done);
   QByteArray b = QJsonDocument(o).toJson(QJsonDocument::Compact);
   QByteArray h(4, 0);
   qToBigEndian<quint32>(b.size(), h.data());
   if (m_control->bytesToWrite() > 1024 * 1024) {
     fail("Input queue is full; disconnect and reconnect.");
     m_process->terminate();
+    failPending("Input queue is full.");
     return;
   }
   m_control->write(h + b);
@@ -397,6 +417,12 @@ void Controller::readControl() {
     }
     if (o.contains("mounted"))
       m_mounted = o["mounted"].toBool();
+    if (int id = o.value("id").toInt(); id && m_pending.count(id) &&
+        (o["type"] == "ok" || o["type"] == "error")) {
+      auto done = std::move(m_pending[id]);
+      m_pending.erase(id);
+      done(o["type"] == "ok", o["message"].toString());
+    }
     emit changed();
   }
 }
@@ -428,6 +454,14 @@ void Controller::readVideo() {
       m_consoleInfo["resolution"] = resolution;
       emit changed();
     }
+    size_t hash = qHashBits(latest.constBits(), size_t(latest.sizeInBytes()));
+    if (m_lastFrame.isNull() || hash != m_frameHash || latest.size() != m_lastFrame.size()) {
+      m_frameHash = hash;
+      ++m_changeSeq;
+      m_sinceChange.restart();
+    }
+    ++m_frameSeq;
+    m_lastFrame = latest;
     emit frameReady(latest);
   }
 }
@@ -480,6 +514,10 @@ QString Controller::chooseCertificate(bool key) {
 void Controller::preview() {
   QImage im(800, 600, QImage::Format_RGBA8888);
   im.fill(QColor("#223548"));
+  m_lastFrame = im;
+  ++m_frameSeq;
+  ++m_changeSeq;
+  m_sinceChange.restart();
   emit frameReady(im);
   m_message = "Desktop preview — no BMC connection";
   emit changed();

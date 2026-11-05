@@ -100,7 +100,7 @@ copy(ROOT / 'packaging/AppRun', APP / 'AppRun')
 (APP / 'usr/bin/qt.conf').write_text('[Paths]\nPrefix=..\nLibraries=lib\nPlugins=plugins\nQmlImports=qml\n')
 # Make every plugin find the private libraries without relying on global paths.
 for p in APP.rglob('*'):
-    if p.is_file() and p.read_bytes()[:4] == b'\x7fELF' and p.name not in ('oldipmi-core','ld-linux-x86-64.so.2','libc.so.6'):
+    if p.is_file() and p.read_bytes()[:4] == b'\x7fELF' and p.name not in ('oldipmi-core','oldipmi-mcp','ld-linux-x86-64.so.2','libc.so.6'):
         relative = os.path.relpath(lib, p.parent)
         subprocess.run(['patchelf', '--set-rpath', '$ORIGIN/' + relative, str(p)], check=True)
 (APP / 'usr/share/fonts/fonts.conf').write_text('<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd"><fontconfig><dir prefix="relative">.</dir><dir>/usr/share/fonts</dir><cachedir prefix="xdg">fontconfig</cachedir></fontconfig>')

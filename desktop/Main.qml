@@ -23,6 +23,7 @@ Kirigami.ApplicationWindow {
    Kirigami.Heading {text:"OldIPMI";level:2;Layout.leftMargin:8}
    Label {text:({disconnected:"Disconnected",logging_in:"Logging in",discovering:"Discovering console",connecting:"Connecting",connected:"Connected"})[controller.state]||controller.state; color:controller.state==="connected"?Kirigami.Theme.positiveTextColor:Kirigami.Theme.textColor}
    Item {Layout.fillWidth:true}
+   ToolButton {objectName:"mcpButton";text:"MCP";icon.name:"network-connect";ToolTip.visible:hovered;ToolTip.text:"Instructions for AI agents (MCP)";onClicked:mcpDialog.open()}
    ToolButton {text:viewport.fit?"Actual size":"Fit to window";onClicked:viewport.fit=!viewport.fit}
    ToolButton {text:window.visibility===Window.FullScreen?"Leave fullscreen":"Fullscreen";onClicked:window.visibility=window.visibility===Window.FullScreen?Window.Windowed:Window.FullScreen}
    BusyIndicator {running:window.busy&&controller.state!=="connected";visible:running;Layout.preferredWidth:24;Layout.preferredHeight:24}
@@ -127,6 +128,21 @@ Kirigami.ApplicationWindow {
  Dialog {id:powerDialog;title:"Confirm power operation";anchors.centerIn:parent;modal:true;standardButtons:Dialog.Ok|Dialog.Cancel
   Label {text:"Send ‘"+window.pendingPower+"’ to "+address.text+"?\nThis may interrupt the host operating system."}
   onAccepted:controller.power(window.pendingPower)
+ }
+ Dialog {id:mcpDialog;objectName:"mcpDialog";title:"MCP — instructions for AI agents";anchors.centerIn:parent;modal:true;width:Math.min(window.width-40,760);height:Math.min(window.height-40,640);standardButtons:Dialog.Close
+  ColumnLayout {
+   anchors.fill:parent
+   Label {text:agent.listening?"Agent socket is active (local only, no authentication): "+agent.socketPath:"Agent socket is NOT active (another OldIPMI owns it, or --no-agent-api)."
+    color:agent.listening?Kirigami.Theme.positiveTextColor:Kirigami.Theme.negativeTextColor;wrapMode:Text.Wrap;Layout.fillWidth:true}
+   ScrollView {Layout.fillWidth:true;Layout.fillHeight:true;clip:true
+    TextArea {id:mcpText;objectName:"mcpText";readOnly:true;wrapMode:TextEdit.Wrap;selectByMouse:true;font.family:"monospace";text:agent.mcpInstructions()}
+   }
+   RowLayout {
+    Button {text:"Copy instructions";icon.name:"edit-copy";onClicked:{mcpText.selectAll();mcpText.copy();mcpText.deselect()}}
+    Button {text:"Copy register command";onClicked:{mcpCmd.text="claude mcp add oldipmi -- "+agent.mcpPath;mcpCmd.selectAll();mcpCmd.copy()}}
+    TextEdit {id:mcpCmd;visible:false}
+   }
+  }
  }
  Dialog {id:removeDialog;title:"Remove profile?";anchors.centerIn:parent;modal:true;standardButtons:Dialog.Ok|Dialog.Cancel
   Label {text:"Remove this profile and its saved KWallet password?"}
