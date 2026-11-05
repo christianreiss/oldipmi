@@ -31,6 +31,21 @@ type Web struct {
 	Cookie  string
 }
 
+// cleanJar ignores empty-valued cookies. ATEN firmware "deletes" SID with an
+// unparsable expiry date; Go would keep the empty cookie (at a narrower path) and
+// send it ahead of the real session cookie.
+type cleanJar struct{ http.CookieJar }
+
+func (j cleanJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+	keep := cookies[:0:0]
+	for _, c := range cookies {
+		if c.Value != "" {
+			keep = append(keep, c)
+		}
+	}
+	j.CookieJar.SetCookies(u, keep)
+}
+
 func NewWeb(p Profile) (*Web, error) {
 	if p.Host == "" || strings.ContainsAny(p.Host, "/\\@?#\x00\r\n ") {
 		return nil, fmt.Errorf("enter a BMC hostname or IP address without a URL")
@@ -44,7 +59,7 @@ func NewWeb(p Profile) (*Web, error) {
 		u.Host = "[" + p.Host + "]"
 	}
 	jar, _ := cookiejar.New(nil)
-	c := &http.Client{Timeout: 20 * time.Second, Jar: jar, Transport: &http.Transport{TLSClientConfig: TLSConfig(p), DisableKeepAlives: true}}
+	c := &http.Client{Timeout: 20 * time.Second, Jar: cleanJar{jar}, Transport: &http.Transport{TLSClientConfig: TLSConfig(p), DisableKeepAlives: true}}
 	c.CheckRedirect = func(r *http.Request, via []*http.Request) error {
 		if len(via) > 3 || r.URL.Hostname() != p.Host || r.URL.Scheme != scheme {
 			return fmt.Errorf("BMC redirect changes host or transport; select the correct transport")
@@ -131,6 +146,9 @@ func (w *Web) Login(ctx context.Context, password string) (Launch, error) {
 	b, e = w.Request(ctx, "GET", path, nil, true)
 	if e != nil {
 		w.Close()
+		if fam == "aten" && w.Profile.JNLPPath == "" && strings.Contains(e.Error(), "status 404") {
+			return Launch{}, fmt.Errorf("login succeeded, but this ATEN firmware offers no Java iKVM (JNLP not found); it may only provide the HTML5 console, which OldIPMI does not support")
+		}
 		return Launch{}, e
 	}
 	if !bytes.Contains(bytes.ToLower(b), []byte("<jnlp")) {
