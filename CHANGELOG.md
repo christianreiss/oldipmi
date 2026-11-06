@@ -50,6 +50,10 @@
   (all printable ASCII, combos, F13–F24, pointer clicks, scaling). Not run on hardware:
   F13–F24, keypad and SysRq on real BMCs.
 
+* `release_input`, `mount_iso` and `eject_iso` answer with a sentence instead of `{}`;
+  `eject_iso` says when nothing is mounted instead of reporting a silent no-op.
+  `oldipmi-mcp` reports version 0.2.0 (was 0.3.0).
+
 ### Supermicro (ATEN)
 * Detect the base64 + `check=00` login form of later X10/X11 firmware from the login
   page (one login attempt only); a rejected login is reported in the Login stage.

@@ -133,15 +133,27 @@ func pretty(raw json.RawMessage) []Content {
 }
 
 // simple builds a tool that forwards validated arguments to one GUI operation.
-func simple(t Tool, op string) Tool {
+func simple(t Tool, op string) Tool { return simpleDone(t, op, "") }
+
+// simpleDone is simple with a sentence for an empty reply, so an agent reads
+// what happened instead of "{}".
+func simpleDone(t Tool, op, done string) Tool {
 	t.Run = func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
 		raw, err := call(b, op, a)
 		if err != nil {
 			return nil, err
 		}
+		if done != "" && emptyObject(raw) {
+			return text(done), nil
+		}
 		return pretty(raw), nil
 	}
 	return t
+}
+
+func emptyObject(raw json.RawMessage) bool {
+	var v map[string]any
+	return json.Unmarshal(raw, &v) == nil && len(v) == 0
 }
 
 // input sends key and pointer events and, if the tool stops early (error or
@@ -537,9 +549,9 @@ func tools() []Tool {
 			Description: "Release keys previously held with key_down.",
 			Schema:      obj(map[string]any{"keys": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 1, "maxItems": 6, "description": "Key names"}}, "keys"),
 			Run:         keyHold(false), Idempotent: true},
-		simple(Tool{Name: "release_input", Title: "Release all input", Idempotent: true,
+		simpleDone(Tool{Name: "release_input", Title: "Release all input", Idempotent: true,
 			Description: "Release every held key and mouse button on the remote side (also the user's). Use when keys seem stuck.",
-			Schema:      obj(map[string]any{})}, "release"),
+			Schema:      obj(map[string]any{})}, "release", "Released all held keys and mouse buttons."),
 		inputTool(Tool{Name: "mouse_move", Title: "Move pointer", Idempotent: true,
 			Description: "Move the pointer to a framebuffer pixel (absolute).",
 			Schema:      obj(map[string]any{"x": intProp("Framebuffer X", 0, 4095), "y": intProp("Framebuffer Y", 0, 4095)}, "x", "y")},
@@ -652,12 +664,33 @@ func tools() []Tool {
 				}
 				return text("Power action '" + act + "' accepted by the BMC."), nil
 			}},
-		simple(Tool{Name: "mount_iso", Title: "Mount ISO",
+		simpleDone(Tool{Name: "mount_iso", Title: "Mount ISO",
 			Description: "Attach a local ISO file read-only as virtual CD/DVD (AMI and ATEN Java-protocol consoles; not Avocent/Cisco or ATEN HTML5). The host sees it until eject_iso or disconnect.",
-			Schema:      obj(map[string]any{"path": prop("string", "Absolute path to a readable .iso file on this computer")}, "path")}, "mount"),
-		simple(Tool{Name: "eject_iso", Title: "Eject ISO", Idempotent: true,
+			Schema:      obj(map[string]any{"path": prop("string", "Absolute path to a readable .iso file on this computer")}, "path")}, "mount",
+			"ISO attached read-only; the host sees a virtual CD/DVD until eject_iso or disconnect."),
+		{Name: "eject_iso", Title: "Eject ISO", Idempotent: true,
 			Description: "Detach the mounted virtual media.",
-			Schema:      obj(map[string]any{})}, "eject"),
+			Schema:      obj(map[string]any{}),
+			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
+				// Say so when nothing is mounted instead of reporting a silent no-op as success.
+				if raw, err := call(b, "status", nil); err == nil {
+					var st struct {
+						State   string `json:"state"`
+						Mounted *bool  `json:"mounted"`
+					}
+					if json.Unmarshal(raw, &st) == nil && st.State == "connected" && st.Mounted != nil && !*st.Mounted {
+						return text("No virtual media is mounted; nothing to eject."), nil
+					}
+				}
+				raw, err := call(b, "eject", a)
+				if err != nil {
+					return nil, err
+				}
+				if emptyObject(raw) {
+					return text("Virtual media detached."), nil
+				}
+				return pretty(raw), nil
+			}},
 	}
 }
 

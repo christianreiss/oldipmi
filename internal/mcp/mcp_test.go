@@ -632,3 +632,22 @@ func TestInstructionsContainPath(t *testing.T) {
 		t.Fatal(s)
 	}
 }
+
+func TestEmptyRepliesAreSentences(t *testing.T) {
+	f := &fake{statuses: []string{`{"state":"connected","mounted":false}`}}
+	if c := content(callTool(t, f, "release_input", `{}`)); !strings.Contains(c, "Released all held keys") {
+		t.Fatalf("release_input: %s", c)
+	}
+	if c := content(callTool(t, f, "eject_iso", `{}`)); !strings.Contains(c, "nothing to eject") {
+		t.Fatalf("eject_iso without media: %s", c)
+	}
+	for _, c := range f.calls {
+		if c.op == "eject" {
+			t.Fatal("eject sent although nothing was mounted")
+		}
+	}
+	f = &fake{statuses: []string{`{"state":"connected","mounted":true}`}}
+	if c := content(callTool(t, f, "eject_iso", `{}`)); !strings.Contains(c, "detached") {
+		t.Fatalf("eject_iso with media: %s", c)
+	}
+}
