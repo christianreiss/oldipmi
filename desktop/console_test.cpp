@@ -1,5 +1,6 @@
 #include "console.h"
 #include <QQuickWindow>
+#include <QShortcut>
 #include <QSignalSpy>
 #include <QtTest>
 
@@ -55,6 +56,23 @@ private slots:
     again.ignore();
     QCoreApplication::sendEvent(view, &again);
     QVERIFY(!again.isAccepted());
+  }
+  void windowShortcutsDoNotFireWhileCaptured() {
+    // Real delivery path: QGuiApplication shortcut map → window → focus item.
+    QShortcut shortcut(QKeySequence("Ctrl+N"), window);
+    QShortcut fullscreen(QKeySequence(Qt::Key_F11), window);
+    QSignalSpy fired(&shortcut, &QShortcut::activated);
+    QSignalSpy fullscreenFired(&fullscreen, &QShortcut::activated);
+    QSignalSpy keys(view, &Console::keyInput);
+    view->capture();
+    QVERIFY(view->hasActiveFocus());
+    QTest::keyClick(window, Qt::Key_N, Qt::ControlModifier);
+    QTest::keyClick(window, Qt::Key_F11);
+    QCOMPARE(fired.count(), 0);
+    QCOMPARE(fullscreenFired.count(), 0);
+    view->release();
+    QTest::keyClick(window, Qt::Key_N, Qt::ControlModifier);
+    QCOMPARE(fired.count(), 1);
   }
   void loneRightCtrlReleases() {
     QSignalSpy keys(view, &Console::keyInput);

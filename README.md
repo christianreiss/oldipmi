@@ -125,9 +125,11 @@ does not change the BMC's Java/HTML5 console preference automatically.
 | Avocent / Lab-Avocent, Dell PowerEdge R420 | APCP, TLS companion channel, RGB555 stream, HID | Real native 640x480 video decoded and visually inspected |
 | Cisco IMC / Lab-Cisco (bonus target) | APCP handshake supported | Account rejected by IMC API (551); KVM channel access denied; video unverified |
 
-This is a development release. Both AMI and ATEN hardware acceptance remain
-required for a completed release. Live keyboard injection, ISO mounting and
-power/boot operations have not been run on production hardware. AMI single-port
+Evidence levels are exactly as stated in the table: "Live" rows were exercised
+on real BMCs, everything else is covered by synthetic tests only. Keyboard
+input has been verified live on the ATEN HTML5 console only; pointer input,
+ISO mounting and power/boot operations have not been run on production
+hardware, nor have the Java iKVM or Redfish (X12/X13) paths. AMI single-port
 HTTP CONNECT mode, encrypted HID at the application layer, non-RGB555 legacy
 VSC modes, unsupported ATEN encodings, and relative pointer mode are not yet
 implemented. Unsupported formats fail explicitly rather than launch Java.
@@ -182,9 +184,10 @@ python3 packaging/bundle.py
 Packaging additionally uses `mksquashfs`, `patchelf`, `qmake6` and
 Python 3. It bundles the native executables, Qt/KDE QML modules, platform plugins,
 fonts and shared-library dependencies, including a private glibc and loader.
-GPU drivers remain host-provided. The bundle has passed an offscreen rendering
-check in a clean Ubuntu 24.04 userspace; a full Ubuntu desktop session has not
-been tested. The private loader avoids Fedora Qt libraries requiring a newer
+GPU drivers remain host-provided. The 0.1 bundle passed an offscreen rendering
+check in a clean Ubuntu 24.04 userspace; the 0.2.0 bundle (with Kirigami
+Addons) has been checked offscreen on the Fedora build host only, and a full
+Ubuntu desktop session has not been tested. The private loader avoids Fedora Qt libraries requiring a newer
 host glibc. The release checksum is in `dist/SHA256SUMS`.
 
 Without FUSE, use `--appimage-extract-and-run`, or `--appimage-extract` and run

@@ -120,7 +120,7 @@ func (w *Web) do(ctx context.Context, method, path string, body []byte, contentT
 	}
 	// Some ATEN web servers answer 500 without a Referer.
 	r.Header.Set("Referer", w.Base+"/")
-	r.Header.Set("User-Agent", "OldIPMI/0.1")
+	r.Header.Set("User-Agent", "OldIPMI/0.2")
 	if contentType != "" {
 		r.Header.Set("Content-Type", contentType)
 	}

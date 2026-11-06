@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 — product release (2026-11-06)
+## 0.2.0 (2026-11-06)
 
 ### Interface
 * New two-pane layout: a connection manager (filter, live state as emblem and text,
@@ -22,8 +22,10 @@
   ISO actions appear only when the console reports read-only ISO support.
 * Window title follows the connection; window geometry and last selection persist.
 * `--self-test --screenshots DIR` renders every UI state offscreen for review; new
-  console input tests cover capture, the swallowed capturing click and Right Ctrl release.
+  console input tests cover capture, the swallowed capturing click, Right Ctrl release and
+  window shortcuts (Ctrl+N, F11) staying with the server while captured.
   DESIGN.md and docs/slop-review-2026-11-06.md document the review.
+* Cancelling the password prompt clears its hint from the console pane.
 * Requires Kirigami Addons (`kf6-kirigami-addons`); the AppImage bundles it.
 
 ### AI agents (MCP)

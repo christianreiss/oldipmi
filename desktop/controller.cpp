@@ -318,6 +318,10 @@ void Controller::continueWithoutWallet() {
 void Controller::cancelCredentials() {
   m_pendingPassword.clear();
   m_pendingProfile.clear();
+  if (m_message.startsWith("Enter the password")) {
+    m_message.clear();
+    emit changed();
+  }
 }
 void Controller::start(QVariantMap p, QString password, QString jnlp) {
   stop();
