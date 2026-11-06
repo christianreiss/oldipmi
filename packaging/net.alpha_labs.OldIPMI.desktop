@@ -1,8 +1,11 @@
 [Desktop Entry]
 Type=Application
 Name=OldIPMI
-Comment=Native legacy BMC console
+GenericName=BMC Remote Console
+Comment=Open the KVM console of older server BMCs without Java
 Exec=oldipmi
 Icon=oldipmi
 Categories=System;RemoteAccess;
+Keywords=IPMI;BMC;KVM;iKVM;iDRAC;Supermicro;ATEN;AMI;MegaRAC;Cisco;console;
+StartupNotify=true
 Terminal=false
