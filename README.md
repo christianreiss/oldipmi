@@ -185,7 +185,7 @@ TCP port). **There is no authentication**: any process of your user can control 
 console, including `power` (immediate, no confirmation) and ISO mounting. Switch it off
 in Settings → AI agents (takes effect immediately, remembered), or start OldIPMI with
 `--no-agent-api`; `OLDIPMI_AGENT_SOCKET` overrides the path (Unix socket
-paths are limited to about 107 bytes). A second OldIPMI instance does not take over a live socket; it retries every 3 s and takes the socket over once the first instance closes.
+paths are limited to about 107 bytes). Only one OldIPMI runs per user session (lock `$XDG_RUNTIME_DIR/oldipmi/instance.lock`): starting it again brings the running window to the front and exits, so two windows can never overwrite each other's profiles.
 
 ## Portable bundle
 

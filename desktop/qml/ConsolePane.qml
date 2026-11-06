@@ -20,6 +20,7 @@ ColumnLayout {
     signal powerRequested(string action)
     signal toggleFullscreen()
     signal toggleSidebar()
+    signal quitRequested()
 
     readonly property string connState: controller.state
     readonly property bool live: controller.hasFrame || connState === "connected"
@@ -82,10 +83,23 @@ ColumnLayout {
             }
             Kirigami.ActionToolBar {
                 Layout.fillWidth: true
+                // Takes only the space left, so the Quit button always fits;
+                // what does not fit moves to the overflow menu.
+                Layout.preferredWidth: 0
+                Layout.minimumWidth: Kirigami.Units.gridUnit * 2
                 alignment: Qt.AlignRight
                 actions: root.live && root.connState === "connected" ? connectedActions
                        : root.settingUp ? setupActions
                        : root.shown.id ? idleActions : []
+            }
+            QQC2.ToolButton {
+                objectName: "headerQuitButton"
+                icon.name: "application-exit"
+                text: "Quit OldIPMI"
+                display: QQC2.AbstractButton.IconOnly
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.text: text + " (Ctrl+Q)"
+                onClicked: root.quitRequested()
             }
         }
     }

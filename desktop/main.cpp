@@ -3,6 +3,7 @@
 #include "controller.h"
 #include "i18n.h"
 #include "settings.h"
+#include "singleinstance.h"
 #include <QCursor>
 #include <QIcon>
 #include <algorithm>
@@ -134,6 +135,13 @@ int main(int argc, char **argv) {
   app.setApplicationDisplayName("OldIPMI");
   app.setDesktopFileName("net.alpha_labs.OldIPMI");
   app.setWindowIcon(QIcon::fromTheme("oldipmi", QIcon(":/oldipmi.svg")));
+  // One instance per user session; a second start shows the running window.
+  // The self-test runs with isolated test paths and stays independent.
+  SingleInstance instance;
+  if (!test && !instance.acquire(qgetenv("XDG_ACTIVATION_TOKEN"))) {
+    fprintf(stderr, "OldIPMI is already running; showing its window.\n");
+    return 0;
+  }
   bool preview = app.arguments().contains("--preview");
   qmlRegisterType<Console>("OldIPMI", 1, 0, "ConsoleView");
   Controller controller;
@@ -162,6 +170,17 @@ int main(int argc, char **argv) {
   if (engine.rootObjects().isEmpty())
     return 1;
   engine.rootContext()->setContextProperty("mainWindow", engine.rootObjects().first());
+  QObject::connect(&instance, &SingleInstance::activationRequested, &app, [&](const QByteArray &token) {
+    auto *w = qobject_cast<QWindow *>(engine.rootObjects().first());
+    if (!w)
+      return;
+    if (!token.isEmpty()) // Wayland: lets the compositor grant focus to this window
+      qputenv("XDG_ACTIVATION_TOKEN", token);
+    w->setWindowStates(w->windowStates() & ~Qt::WindowMinimized);
+    w->show();
+    w->raise();
+    w->requestActivate();
+  });
   auto console = engine.rootObjects().first()->findChild<Console *>("console");
   if (!console)
     return 2;

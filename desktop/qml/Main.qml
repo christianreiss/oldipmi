@@ -118,6 +118,7 @@ Kirigami.ApplicationWindow {
             }
             onToggleFullscreen: window.toggleFullscreen()
             onToggleSidebar: settings.showSidebar = !settings.showSidebar
+            onQuitRequested: window.quitApp()
         }
     }
 

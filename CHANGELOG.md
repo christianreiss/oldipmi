@@ -2,6 +2,14 @@
 
 ## 0.2.0 (2026-11-06)
 
+### Single instance
+* Only one OldIPMI runs per user session. Starting it again (menu, `oldipmi`) brings the
+  running window to the front (passing the launcher's Wayland activation token) and
+  exits. Before, a second window kept its own copy of the profiles and the one saved
+  last silently overwrote the other's changes.
+* A Quit button sits at the right end of the console toolbar (Ctrl+Q); the action
+  buttons yield space to it and move to the overflow menu when the window is narrow.
+
 ### Fixed
 * ATEN / Supermicro HTML5 console on X12/X13-generation firmware connected but then
   timed out ("i/o timeout"): their console expects a client-type byte after the session
