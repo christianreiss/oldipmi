@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,7 +25,28 @@ type Profile struct {
 	JNLPPath          string `json:"jnlpPath,omitempty"`
 	ClientCert        string `json:"clientCert,omitempty"`
 	ClientKey         string `json:"clientKey,omitempty"`
+	// ConsoleMode selects the ATEN / Supermicro console: "" or "auto" tries
+	// the Java iKVM and falls back to HTML5, "java" and "html5" force one.
+	ConsoleMode string `json:"consoleMode,omitempty"`
 }
+
+const (
+	ConsoleAuto  = "auto"
+	ConsoleJava  = "java"
+	ConsoleHTML5 = "html5"
+)
+
+// ConsoleModeValue returns the normalized console mode.
+func (p Profile) ConsoleModeValue() (string, error) {
+	switch m := strings.ToLower(strings.TrimSpace(p.ConsoleMode)); m {
+	case "", ConsoleAuto:
+		return ConsoleAuto, nil
+	case ConsoleJava, ConsoleHTML5:
+		return m, nil
+	}
+	return "", fmt.Errorf("unknown console mode %q; set this profile's console mode to Auto, Java or HTML5", p.ConsoleMode)
+}
+
 type Frame struct {
 	Width, Height int
 	Pixels        []byte

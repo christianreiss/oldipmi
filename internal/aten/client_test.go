@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"oldipmi/internal/protocol"
+	"strings"
 	"testing"
 	"time"
 )
@@ -102,5 +103,27 @@ func TestPointerButtonTranslation(t *testing.T) {
 	}
 	if e := <-done; e != nil {
 		t.Fatal(e)
+	}
+}
+
+func TestJavaTokenAuthUsesDistinctPasswordField(t *testing.T) {
+	c := &Client{launch: protocol.Launch{Family: "aten", Token: "user1", PasswordToken: "pass2"}}
+	a := c.tokenAuth()
+	if !bytes.Equal(bytes.TrimRight(a[:24], "\x00"), []byte("user1")) || !bytes.Equal(bytes.TrimRight(a[24:], "\x00"), []byte("pass2")) {
+		t.Fatalf("%q", a)
+	}
+	c.launch.PasswordToken = ""
+	if a = c.tokenAuth(); !bytes.Equal(a[:24], a[24:]) {
+		t.Fatalf("%q", a)
+	}
+}
+
+func TestImportedJNLPRespectsConsoleMode(t *testing.T) {
+	jnlp := []byte(`<jnlp><application-desc main-class="tw.com.aten.ikvm.KVMMain"><argument>h</argument><argument>t</argument><argument>t</argument><argument>n</argument><argument>5900</argument><argument>623</argument><argument>0</argument><argument>0</argument></application-desc></jnlp>`)
+	for mode, want := range map[string]string{"html5": "console mode is HTML5", "bogus": "unknown console mode"} {
+		_, err := Connect(context.Background(), protocol.Profile{Host: "127.0.0.1", Family: "aten", ConsoleMode: mode}, "", jnlp)
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatal(mode, err)
+		}
 	}
 }

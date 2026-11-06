@@ -56,6 +56,9 @@ func (l Launch) ConsoleInfo(p Profile) ConsoleInfo {
 			Endpoints:    []Endpoint{ConsoleEndpoint("Video / input", p.Host, l.Port, l.Secure)},
 			Capabilities: []string{"Video", "Keyboard", "Pointer", "Power"}}
 		info.Endpoints[0].Transport += " (WebSocket)"
+		if l.Redfish {
+			info.Protocol += ", discovered via Redfish"
+		}
 		return info
 	}
 	info := ConsoleInfo{Protocol: name, LegacyTLS: p.LegacyTLS,

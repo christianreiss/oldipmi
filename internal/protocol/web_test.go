@@ -44,14 +44,22 @@ func TestLoginFailureDoesNotFetchToken(t *testing.T) {
 		t.Fatal(count, e)
 	}
 }
+
+// A rejected ATEN login sets no session cookie and answers every page with a
+// "session timeout" page; it must fail in the login stage.
 func TestNonJNLPResponseExplainsLogin(t *testing.T) {
 	w, _ := NewWeb(Profile{Host: "bmc", Family: "aten"})
+	var stages []string
+	ctx := WithProgress(context.Background(), func(p Progress) { stages = append(stages, p.Stage) })
 	w.Client.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`<html><body onload='logout_alert()'>SessionTimeout ()</body></html>`)), Header: make(http.Header)}, nil
 	})
-	_, e := w.Login(context.Background(), "do-not-log")
-	if e == nil || !strings.Contains(e.Error(), "no JNLP") || strings.Contains(e.Error(), "do-not-log") {
+	_, e := w.Login(ctx, "do-not-log")
+	if e == nil || !strings.Contains(e.Error(), "password was rejected") || strings.Contains(e.Error(), "do-not-log") {
 		t.Fatal(e)
+	}
+	if len(stages) != 1 || stages[0] != "logging_in" {
+		t.Fatal("rejected login reported as a later stage:", stages)
 	}
 }
 func FuzzJNLP(f *testing.F) {
