@@ -43,16 +43,6 @@ ColumnLayout {
                 elide: Text.ElideRight
             }
             QQC2.ToolButton {
-                objectName: "disconnectAllButton"
-                visible: controller.openCount > 0
-                icon.name: "network-disconnect"
-                text: controller.openCount > 1 ? "Disconnect all " + controller.openCount + " consoles" : "Disconnect the open console"
-                display: QQC2.AbstractButton.IconOnly
-                QQC2.ToolTip.visible: hovered
-                QQC2.ToolTip.text: text + " (Ctrl+Shift+D)"
-                onClicked: controller.disconnectAll()
-            }
-            QQC2.ToolButton {
                 icon.name: "list-add"
                 text: "New connection…"
                 display: QQC2.AbstractButton.IconOnly
@@ -229,7 +219,8 @@ ColumnLayout {
         }
     }
 
-    // Footer: Settings and Quit, always one click away.
+    // Footer: Settings and Disconnect all, always one click away (Quit sits at
+    // the right end of the console toolbar and in the main menu).
     Kirigami.Separator { Layout.fillWidth: true }
     RowLayout {
         Layout.fillWidth: true
@@ -244,12 +235,14 @@ ColumnLayout {
         }
         Item { Layout.fillWidth: true }
         QQC2.ToolButton {
-            objectName: "quitButton"
-            icon.name: "application-exit"
-            text: "Quit"
+            objectName: "disconnectAllButton"
+            icon.name: "network-disconnect"
+            text: "Disconnect all"
+            enabled: controller.openCount > 0
             QQC2.ToolTip.visible: hovered
-            QQC2.ToolTip.text: "Quit OldIPMI (Ctrl+Q)"
-            onClicked: root.quitRequested()
+            QQC2.ToolTip.text: (controller.openCount > 1 ? "Close all " + controller.openCount + " open consoles"
+                               : controller.openCount === 1 ? "Close the open console" : "No console is open") + " (Ctrl+Shift+D)"
+            onClicked: controller.disconnectAll()
         }
     }
 }

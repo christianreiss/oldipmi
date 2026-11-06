@@ -9,9 +9,10 @@
   last silently overwrote the other's changes.
 * A Quit button sits at the right end of the console toolbar (Ctrl+Q); the action
   buttons yield space to it and move to the overflow menu when the window is narrow.
-* "Disconnect all" is now visible: a button in the connection list header while any
-  console is open (tooltip names the count), and an entry in the main menu. Ctrl+Shift+D
-  also works with a single open console.
+* "Disconnect all" is now visible: it replaces Quit at the bottom of the connection
+  list (enabled while any console is open; the tooltip names the count) and is in the
+  main menu. Ctrl+Shift+D also works with a single open console. Quit stays in the
+  console toolbar, the main menu and on Ctrl+Q.
 
 ### Fixed
 * ATEN / Supermicro HTML5 console on X12/X13-generation firmware connected but then

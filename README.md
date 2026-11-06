@@ -27,7 +27,7 @@ The window has two panes (see [DESIGN.md](DESIGN.md)):
   live state. Filter with Ctrl+F. Double-click, Enter or the play button connects;
   any number of consoles can be open at once, and selecting an open connection shows
   its console while the others keep running. The play button of an open row
-  disconnects it; Ctrl+D disconnects the shown console, Ctrl+Shift+D (or the button in the connection list header) all of them.
+  disconnects it; Ctrl+D disconnects the shown console, Ctrl+Shift+D (or "Disconnect all" below the connection list) all of them.
   The context menu offers Show/Connect, Disconnect, Edit (F2), Duplicate and Delete (Del).
   **+** (Ctrl+N) opens **New connection**; **Settings** and **Quit** (Ctrl+Q) sit at
   the bottom of the list.
