@@ -104,7 +104,7 @@ ColumnLayout {
         Kirigami.Action {
             text: "Power"
             icon.name: "system-shutdown"
-            visible: root.has("Power")
+            tooltip: "Chassis power over IPMI (UDP 623) with this connection's account"
             Kirigami.Action { text: "Power on"; icon.name: "system-run"; onTriggered: root.powerRequested("on") }
             Kirigami.Action { text: "Graceful shutdown"; icon.name: "system-shutdown"; onTriggered: root.powerRequested("soft") }
             Kirigami.Action { text: "Reset"; icon.name: "system-reboot"; onTriggered: root.powerRequested("reset") }

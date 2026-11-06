@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.2.0 — product release (2026-11-06)
+
+### Interface
+* New two-pane layout: a connection manager (filter, live state as emblem and text,
+  context menu with Connect, Connect with JNLP file, Edit, Duplicate, Delete) and a
+  console pane with distinct states for first run, selected connection, three-stage
+  setup progress, stage-specific failure (cause, likely fix, Try again, Edit) and the
+  live console with a console-information side panel and a capture status bar.
+* New/Edit connection is a modal dialog; security exceptions and client certificates
+  moved to Advanced options and now explain their consequence and warn when enabled.
+  Pasted URLs are reduced to the host. Duplicate never copies a password.
+* Settings window (General, AI agents (MCP), About); preferences in `OldIPMI.conf`.
+  The agent socket can be switched on and off at runtime.
+* Keyboard: Ctrl+N, Ctrl+F, Ctrl+D, Ctrl+Q, Ctrl+,, F9, F11/Esc. While the console is
+  captured all keys go to the server and app shortcuts do not fire; a lone Right Ctrl
+  tap (configurable) or the Release button releases. The capturing click is no longer
+  sent to the server. Send key menu (Ctrl+Alt+Del, Ctrl+Alt+F1/F2/F7, Alt+Tab, Alt+F4,
+  Print Screen, Super, Right Ctrl).
+* Power dialogs name the server and the consequence; delete names the connection.
+  ISO actions appear only when the console reports read-only ISO support.
+* Window title follows the connection; window geometry and last selection persist.
+* `--self-test --screenshots DIR` renders every UI state offscreen for review.
+  DESIGN.md and docs/slop-review-2026-11-06.md document the review.
+* Requires Kirigami Addons (`kf6-kirigami-addons`); the AppImage bundles it.
+
+### Supermicro (ATEN)
+* Detect the base64 + `check=00` login form of later X10/X11 firmware from the login
+  page (one login attempt only); a rejected login is reported in the Login stage.
+* Fall back to the HTML5 console when the Java iKVM is disabled (web page instead of
+  JNLP), not only on 404; try `man_ikvm` as a second JNLP URL.
+* New per-profile console mode (`consoleMode`: `auto`, `java`, `html5`).
+* Parse ATEN JNLP layouts from iKVM 1.69.21 through 1.69.39 (8, 10 and 22 arguments);
+  send distinct user/password tokens.
+* Experimental Redfish discovery for Supermicro X11–X13 (session login, IKVM URI),
+  with generation-specific errors when the console format is unsupported.
+* Verified live, read-only: lab-aten (HTML5, 1600x1200, base64 login form) and Lab-AMI
+  (AMI X8DTU, 640x480). Java iKVM and Redfish paths: synthetic tests only.
+
 ## ATEN HTML5 console (2026-11-05)
 
 * Open ATEN BMCs without Java iKVM through their HTML5 console: WebSocket transport,

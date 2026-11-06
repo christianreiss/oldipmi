@@ -10,7 +10,8 @@ container version is recoverable at Git commit `ce0b1a7`.
 ## Build and run
 
 On Fedora KDE, install Go, CMake, Ninja, a C++20 compiler, `qt6-qtbase-devel`,
-`qt6-qtdeclarative-devel`, `kf6-kirigami-devel`, and `kf6-kwallet-devel`.
+`qt6-qtdeclarative-devel`, `kf6-kirigami-devel`, `kf6-kirigami-addons` and
+`kf6-kwallet-devel`.
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -18,36 +19,59 @@ cmake --build build
 ./build/oldipmi
 ```
 
-Lab-AMI, Lab-Avocent and Lab-Cisco appear as profiles on first launch. Use the play
-button beside a profile, or select it and click **Open Console**. OldIPMI logs
-in, discovers console parameters, and opens the native viewer automatically.
-Progress shows **Logging in → Discovering console → Connecting → Connected**;
-Cancel interrupts setup. Errors identify the stage that failed.
+## Using OldIPMI
 
-The first connection asks for a password. **Remember in KWallet** is enabled
-by default; subsequent connections retrieve that profile's password from the
-wallet. If KWallet cannot save it, choose **Use for this session**. Passwords are
-never stored in the profile file. Changing a host or username requires a fresh
-credential; editing only its name preserves its saved password.
+The window has two panes (see [DESIGN.md](DESIGN.md)):
 
-**Console info** shows the actual protocol, endpoints and transport, available
-console features, and the resolution received from the BMC. APCP also reports
-its negotiated protocol version. Media endpoints are advertised parameters, not
-proof that an ISO is mounted. Firmware/model information is not guessed.
+* **Connections** (left) lists every saved BMC with its address, console type and
+  live state. Filter with Ctrl+F. Double-click, Enter or the play button connects;
+  the context menu offers Connect with JNLP file, Edit (F2), Duplicate and Delete (Del).
+  **+** (Ctrl+N) opens **New connection**.
+* **New / Edit connection** is a dialog: BMC address (a pasted URL is reduced to
+  its host), name, console type, username, password and *Remember password in
+  KWallet*. **Advanced options** hold the Supermicro console mode, the per-host
+  security exceptions, a JNLP endpoint override and client certificates.
+  **Save and Connect** saves and opens the console in one step.
+* The **console pane** (right) shows the selected connection, then the setup
+  progress **Logging in → Discovering console → Connecting**, then the remote
+  screen. Cancel interrupts setup. A failure names the stage, the cause and the
+  likely fix, with **Try again** and **Edit connection…**.
 
-Use **New**, **Save profile**, or **Remove** to manage profiles. Existing entries
-and wallet IDs are preserved; missing default profiles are added once and deleted
-defaults stay deleted. Lab-Cisco is configured for Cisco APCP, but the supplied
-account remains rejected: provide a working account in its profile to connect.
+Click the remote screen to give it keyboard and mouse; that first click is not sent
+to the server. While captured, every key goes to the server, including OldIPMI's own
+shortcuts. Tap **Right Ctrl** (the tap is still forwarded; can be switched off in
+Settings) or click **Release** in the status bar to get them back. Losing focus
+releases held keys and buttons.
 
-For additional servers, select the BMC family and enter its hostname and account.
-A fresh JNLP can supply an AMI/ATEN session token, but is never executed or used to
-fetch code. Close/disconnect before selecting another host. Every credential-based
-connection obtains a fresh session; imported JNLP files must also be fresh.
+While connected, the toolbar offers **Send key** (Ctrl+Alt+Del, Ctrl+Alt+F1/F2/F7,
+Alt+Tab, Alt+F4, Print Screen, Super, Right Ctrl), **Mount ISO… / Eject ISO**
+(only when the console reports read-only ISO support), **Power** (chassis
+control over IPMI LAN, UDP 623, with the connection's account; every action is
+confirmed with its consequence),
+fit/actual size, full screen (F11, Esc leaves), **Console information** (protocol,
+endpoints, transport, features, resolution; APCP also its protocol version) and
+**Disconnect** (Ctrl+D). Mounted ISO files are opened read-only. Media endpoints
+are advertised parameters, not proof that an ISO is mounted; firmware/model
+information is not guessed.
 
-Click the console to capture input. Losing focus releases held keys/buttons.
-The toolbar provides fit/actual-size, fullscreen, Ctrl+Alt+Del, ISO mount/eject
-and confirmed power operations. Mounted ISO files are opened read-only.
+The first connection asks for a password. *Remember in KWallet* is on by default
+(Settings → General changes the default); later connections read the password
+from the wallet. If KWallet cannot save it, choose **Connect without saving**.
+Passwords are never stored in the profile file. Changing a host or username
+requires a fresh credential; editing only the name keeps the saved password.
+Duplicating a connection does not copy its password.
+
+**Settings** (main menu ☰ or Ctrl+,) has three pages: *General* (KWallet default,
+scaling, Right Ctrl release, shortcut list), *AI agents (MCP)* (agent control on/off,
+status, setup, recent agent activity) and *About* (version, file locations).
+Preferences are stored in `OldIPMI.conf` in the XDG config directory.
+
+Lab-AMI, Lab-Avocent and Lab-Cisco are added once on first launch; deleted defaults stay
+deleted. Lab-Cisco is configured for Cisco APCP, but the supplied account remains
+rejected: provide a working account in its profile to connect. A fresh JNLP can
+supply an AMI/ATEN session token, but is never executed or used to fetch code.
+Every credential-based connection obtains a fresh session; imported JNLP files must
+also be fresh.
 
 ## Transport compatibility
 
@@ -58,31 +82,46 @@ compatibility settings: Lab-AMI enables all three, Lab-Avocent/Lab-Cisco legacy 
 The legacy TLS exception also allows obsolete RSA/3DES suites when required.
 No BMC TLS configuration, clocks or firmware are changed by OldIPMI.
 
-ATEN firmware that no longer serves the Java iKVM (JNLP URL answers 404) is opened through
-its HTML5 console automatically; the console info shows "ATEN HTML5". Virtual media is not
-available in that mode.
+### Supermicro (ATEN) generations
+
+Choose **Supermicro (ATEN)** for X9 and newer boards and most X8 boards; X8 boards
+with AMI MegaRAC firmware (such as the X8DTU) use **AMI MegaRAC**. OldIPMI reads the
+BMC's login page first and sends the form that firmware expects (plain `name`/`pwd`
+on X9-era firmware, base64 with `check=00` on later X10/X11), so it makes exactly one
+login attempt. A rejected password is reported in the Login stage.
+
+*Console mode* (Advanced options, profile key `consoleMode`): **Automatic** tries
+the Java iKVM (`ikvm`, then `man_ikvm` JNLP; 8-, 10- and 22-argument layouts) and
+falls back to the HTML5 console when the JNLP URL answers 404 *or* a web page
+because Java is disabled; **Java iKVM** never falls back; **HTML5** skips the JNLP.
+The console info then shows "ATEN HTML5"; virtual media is not available there.
+When the HTML5 page is missing, or `login.cgi` is gone (X12/X13, AST2600), OldIPMI
+uses a Redfish session and the Supermicro IKVM resource (experimental, see below).
+OldIPMI never changes the BMC's Java/HTML5 preference.
 
 Older AMI systems may have plain video and an always-TLS HID channel. On the
 verified Lab-AMI generation, select AMI and explicitly enable HTTP login,
 legacy/unverified TLS and plain console/media. Passwords/tokens never appear in
 command-line arguments, profile files or diagnostic output.
 
-For verified Lab-Avocent, select Avocent / Dell iDRAC and enable legacy/unverified TLS.
+For verified Lab-Avocent, select Dell iDRAC (Avocent) and enable legacy/unverified TLS.
 Avocent ISO media, JNLP import and packet-134 video are not implemented; the ISO
-button is disabled for that family. Cisco uses port 2068, Dell uses port 5900.
+action is not offered for that family. Cisco uses port 2068, Dell uses port 5900.
 
 ATEN systems requiring mutual TLS need their client certificate/key selected in
-Compatibility. The application does not distribute vendor private keys. It also
+the connection's advanced options. The application does not distribute vendor private keys. It also
 does not change the BMC's Java/HTML5 console preference automatically.
 
 ## Compatibility and acceptance
 
 | Family / target | Implementation | Current evidence |
 |---|---|---|
-| Legacy AMI / Lab-AMI, Supermicro X8DTU | 7-byte framing, TLS HID, RGB555 VSC raw and LRLE16/32 | Real native 640x480 video decoded and visually inspected |
+| Legacy AMI / Lab-AMI, Supermicro X8DTU | 7-byte framing, TLS HID, RGB555 VSC raw and LRLE16/32 | Real native 640x480 video decoded and visually inspected; read-only probe re-run 2026-11-06 |
 | Newer AMI / ASPEED | 8-byte IVTP, VQ/JPEG decoder, HID, iUSB | Imported regression tests; no hardware acceptance yet |
 | ATEN / Supermicro | Token login, Hermon and bit-plane video, HID, power, read-only media (Java iKVM) | Synthetic TCP handshake/video/cancellation tests; no Java-iKVM target supplied |
-| ATEN HTML5 console (firmware without Java iKVM) | Automatic fallback: WebSocket + ASPEED AST2100 video (shared AMI codec), keyboard, pointer, power; no virtual media | Live: 1600x1200 video, delta updates, keyboard input verified on a LAN ATEN BMC (XCP-ng host); pointer and power not run live |
+| ATEN / Supermicro X9–X11 Java iKVM | Plain or base64 (`check=00`) login detected from the login page; 8/10/22-argument JNLP layouts; `ikvm`/`man_ikvm` URLs | Synthetic fixtures only; no Java-iKVM target supplied |
+| Supermicro X12/X13 (Redfish iKVM) | Redfish session login, `Oem/Supermicro/IKVM` (X11: `Managers/1/IKVM`) discovery, HTML5 page reuse when it carries the known token | Synthetic only; AST2600 console page/stream unverified, fails with a generation-specific message |
+| ATEN HTML5 console (firmware without Java iKVM) | Automatic fallback: WebSocket + ASPEED AST2100 video (shared AMI codec), keyboard, pointer, power; no virtual media | Live: 1600x1200 video, delta updates, keyboard input verified on a LAN ATEN BMC (XCP-ng host); base64 login form and HTML5 fallback re-verified read-only 2026-11-06; pointer and power not run live |
 | Avocent / Lab-Avocent, Dell PowerEdge R420 | APCP, TLS companion channel, RGB555 stream, HID | Real native 640x480 video decoded and visually inspected |
 | Cisco IMC / Lab-Cisco (bonus target) | APCP handshake supported | Account rejected by IMC API (551); KVM channel access denied; video unverified |
 
