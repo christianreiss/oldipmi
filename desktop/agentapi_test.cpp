@@ -120,6 +120,56 @@ private slots:
     QVERIFY(run(api, "disconnect").ok);
     QVERIFY(!run(api, "status").value.toObject()["passwordRequired"].toBool());
   }
+  void twoConsolesAtOnce() {
+    QTemporaryDir dir; NoCredentials w;
+    QFile pf(dir.filePath("hosts.json"));
+    QVERIFY(pf.open(QIODevice::WriteOnly));
+    pf.write(R"({"version":1,"defaultsVersion":1,"profiles":[
+      {"id":"demo-1","name":"Demo","host":"demo","family":"demo","username":"","remember":false},
+      {"id":"demo-3","name":"Wide","host":"demo-1920x1080","family":"demo","username":"","remember":false}]})");
+    pf.close();
+    Controller c(nullptr, &w, pf.fileName());
+    AgentApi api(&c, dir.filePath("s"));
+    QVERIFY(run(api, "connect", {{"profile", "Demo"}}).ok);
+    QVERIFY(run(api, "connect", {{"profile", "Wide"}}).ok);
+    QCOMPARE(c.openCount(), 2);
+    QTRY_VERIFY_WITH_TIMEOUT(c.session("demo-1")->connected() && c.session("demo-3")->connected(), 10000);
+    QTRY_VERIFY(!c.session("demo-1")->lastFrame.isNull() && !c.session("demo-3")->lastFrame.isNull());
+    QCOMPARE(c.session("demo-1")->lastFrame.size(), QSize(1024, 768));
+    QCOMPARE(c.session("demo-3")->lastFrame.size(), QSize(1920, 1080));
+    // The newest console is in front; the other one keeps running behind it.
+    QCOMPARE(c.shownId(), QString("demo-3"));
+    // With several open, an operation must name its target.
+    auto r = run(api, "screenshot");
+    QVERIFY(!r.ok);
+    QVERIFY(r.value.toString().contains("Several consoles"));
+    QVERIFY(!run(api, "status").ok);
+    QVERIFY(!run(api, "key", {{"usage", 4}, {"down", true}}).ok);
+    // Each profile answers for itself.
+    QCOMPARE(run(api, "screenshot", {{"profile", "Demo"}}).value.toObject()["fullWidth"].toInt(), 1024);
+    QCOMPARE(run(api, "screenshot", {{"profile", "wide"}}).value.toObject()["fullWidth"].toInt(), 1920);
+    auto st = run(api, "status", {{"profile", "Demo"}}).value.toObject();
+    QCOMPARE(st["profile"].toObject()["name"].toString(), QString("Demo"));
+    QCOMPARE(st["sessions"].toArray().size(), 2);
+    auto before = c.session("demo-1")->changeSeq;
+    QVERIFY(run(api, "key", {{"profile", "Demo"}, {"usage", 4}, {"down", true}}).ok);
+    QVERIFY(run(api, "key", {{"profile", "Demo"}, {"usage", 4}, {"down", false}}).ok);
+    QTRY_VERIFY(c.session("demo-1")->changeSeq > before);
+    // Closing one leaves the other open and makes the default unambiguous again.
+    r = run(api, "disconnect", {{"profile", "Demo"}});
+    QVERIFY(r.ok);
+    QCOMPARE(r.value.toObject()["stillOpen"].toArray().size(), 1);
+    QVERIFY(!c.session("demo-1"));
+    QVERIFY(c.session("demo-3")->connected());
+    QVERIFY(run(api, "screenshot").ok);
+    QVERIFY(run(api, "connect", {{"profile", "Demo"}}).ok);
+    QCOMPARE(c.openCount(), 2);
+    r = run(api, "disconnect", {{"all", true}});
+    QVERIFY(r.ok);
+    QCOMPARE(r.value.toObject()["closed"].toArray().size(), 2);
+    QCOMPARE(c.openCount(), 0);
+    QCOMPARE(run(api, "status").value.toObject()["state"].toString(), QString("disconnected"));
+  }
   void demoConsoleEndToEnd() {
     QTemporaryDir dir; NoCredentials w;
     Controller c(nullptr, &w, writeProfiles(dir));
@@ -127,26 +177,25 @@ private slots:
     auto r = run(api, "connect", {{"profile", "Demo"}});
     QVERIFY2(r.ok, qPrintable(r.value.toString()));
     QTRY_COMPARE_WITH_TIMEOUT(c.state(), QString("connected"), 10000);
-    QTRY_VERIFY(!c.lastFrame().isNull());
-    QCOMPARE(c.lastFrame().size(), QSize(1024, 768));
+    QTRY_VERIFY(!c.shown()->lastFrame.isNull());
+    QCOMPARE(c.shown()->lastFrame.size(), QSize(1024, 768));
     auto st = run(api, "status").value.toObject();
     QCOMPARE(st["profile"].toObject()["name"].toString(), QString("Demo"));
     QVERIFY(st["consoleInfo"].toObject()["protocol"].toString().contains("demo"));
-    // Same profile again: no error, nothing restarted. Another profile: busy.
+    // Same profile again: no error, nothing restarted.
     r = run(api, "connect", {{"profile", "demo-1"}});
     QVERIFY(r.ok && r.value.toObject()["already"].toBool());
-    QVERIFY(run(api, "connect", {{"profile", "Demo Fail"}}).value.toString().contains("busy"));
     // Keys and pointer reach the demo session, which redraws.
-    auto before = c.changeSeq();
+    auto before = c.shown()->changeSeq;
     QVERIFY(run(api, "key", {{"usage", 4}, {"down", true}}).ok);
     QVERIFY(run(api, "key", {{"usage", 4}, {"down", false}}).ok);
-    QTRY_VERIFY(c.changeSeq() > before);
+    QTRY_VERIFY(c.shown()->changeSeq > before);
     QVERIFY(!run(api, "key", {{"usage", 300}, {"down", true}}).ok);
     QVERIFY(!run(api, "pointer", {{"x", 1024}, {"y", 0}}).ok);
-    before = c.changeSeq();
+    before = c.shown()->changeSeq;
     QVERIFY(run(api, "pointer", {{"x", 300}, {"y", 200}, {"buttons", 1}}).ok);
     QVERIFY(run(api, "pointer", {{"x", 300}, {"y", 200}, {"buttons", 0}}).ok);
-    QTRY_VERIFY(c.changeSeq() > before);
+    QTRY_VERIFY(c.shown()->changeSeq > before);
     auto shot = run(api, "screenshot").value.toObject();
     QCOMPARE(shot["width"].toInt(), 1024);
     // Power and media are accepted without effect.
@@ -273,14 +322,14 @@ private slots:
     QTRY_COMPARE(s->state(), QLocalSocket::ConnectedState);
     QVERIFY(request(*s, R"({"id":1,"op":"connect","args":{"profile":"Demo"}})")["ok"].toBool());
     QTRY_COMPARE_WITH_TIMEOUT(c.state(), QString("connected"), 10000);
-    QTRY_VERIFY(!c.lastFrame().isNull());
+    QTRY_VERIFY(!c.shown()->lastFrame.isNull());
     QVERIFY(request(*s, R"({"id":2,"op":"key","args":{"usage":225,"down":true}})")["ok"].toBool());
     QVERIFY(request(*s, R"({"id":3,"op":"pointer","args":{"x":10,"y":10,"buttons":1}})")["ok"].toBool());
     QTest::qWait(300);
-    auto before = c.changeSeq();
+    auto before = c.shown()->changeSeq;
     delete s; // the agent process goes away while holding Shift and the left button
     QTRY_COMPARE(api.clientCount(), 0);
-    QTRY_VERIFY(c.changeSeq() > before); // the demo screen redraws for the key-up/button-up
+    QTRY_VERIFY(c.shown()->changeSeq > before); // the demo screen redraws for the key-up/button-up
     bool released = false;
     for (auto v : api.activity())
       released = released || v.toMap()["text"].toString().contains("Released 2 held");

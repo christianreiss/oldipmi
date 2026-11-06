@@ -561,11 +561,88 @@ func TestConnectWaitsAndReportsFailure(t *testing.T) {
 	}
 }
 
-func TestConnectRejectsAProfileSwitchedMeanwhile(t *testing.T) {
+// Other consoles being open or changing must not disturb a connect: its polls
+// ask for its own profile only.
+func TestConnectPollsOnlyItsOwnProfile(t *testing.T) {
 	f := &fake{result: map[string]string{"connect": `{"state":"logging_in","profile":{"id":"a","name":"A"}}`},
-		statuses: []string{`{"state":"connected","width":800,"height":600,"profile":{"id":"b","name":"B"}}`}}
-	if res := callTool(t, f, "connect", `{"profile":"A"}`); res["isError"] != true || !strings.Contains(content(res), "another profile (B)") {
+		statuses: []string{`{"state":"connected","width":800,"height":600}`}}
+	if res := callTool(t, f, "connect", `{"profile":"A"}`); res["isError"] == true || !strings.Contains(content(res), "800x600") {
 		t.Fatalf("%v", res)
+	}
+	polled := 0
+	for _, c := range f.calls {
+		if c.op == "status" {
+			polled++
+			if c.args["profile"] != "a" {
+				t.Errorf("status poll without the connect's profile: %v", c.args)
+			}
+		}
+	}
+	if polled == 0 {
+		t.Fatal("no status poll")
+	}
+}
+
+func TestProfileReachesEveryBackendCall(t *testing.T) {
+	f := &fake{statuses: []string{`{"state":"connected","width":800,"height":600}`}}
+	if res := callTool(t, f, "key", `{"name":"a","profile":"Wide"}`); res["isError"] == true {
+		t.Fatalf("%v", res)
+	}
+	if len(f.calls) == 0 {
+		t.Fatal("no calls")
+	}
+	for _, c := range f.calls {
+		if c.args["profile"] != "Wide" {
+			t.Errorf("%s sent without the profile: %v", c.op, c.args)
+		}
+	}
+	// Without one, nothing is added: the app resolves the only open console itself.
+	f = &fake{}
+	callTool(t, f, "key", `{"name":"a"}`)
+	for _, c := range f.calls {
+		if _, ok := c.args["profile"]; ok {
+			t.Errorf("%s got a profile nobody asked for: %v", c.op, c.args)
+		}
+	}
+	if res := callTool(t, &fake{}, "key", `{"name":"a","profile":""}`); res["isError"] != true {
+		t.Error("an empty profile must be rejected")
+	}
+}
+
+func TestSessionToolsTakeAProfile(t *testing.T) {
+	rs := rpc(t, &fake{}, `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
+	for _, x := range rs[0]["result"].(map[string]any)["tools"].([]any) {
+		tool := x.(map[string]any)
+		name := tool["name"].(string)
+		props := tool["inputSchema"].(map[string]any)["properties"].(map[string]any)
+		_, has := props["profile"]
+		switch name {
+		case "list_profiles", "list_keys", "wait":
+			if has {
+				t.Errorf("%s is not tied to a console but takes a profile", name)
+			}
+		default:
+			if !has {
+				t.Errorf("%s lacks the profile argument", name)
+			}
+		}
+	}
+}
+
+func TestDisconnectAll(t *testing.T) {
+	f := &fake{result: map[string]string{"disconnect": `{"closed":[{"name":"A"},{"name":"B"}],"state":"disconnected"}`}}
+	if c := content(callTool(t, f, "disconnect", `{"all":true}`)); !strings.Contains(c, "Disconnected A, B.") {
+		t.Fatal(c)
+	}
+	if f.calls[0].args["all"] != true {
+		t.Fatalf("all not forwarded: %v", f.calls[0].args)
+	}
+	if res := callTool(t, &fake{}, "disconnect", `{"all":true,"profile":"A"}`); res["isError"] != true {
+		t.Error("all together with profile must fail")
+	}
+	f = &fake{result: map[string]string{"disconnect": `{"previous":"connected","profile":{"name":"A"},"stillOpen":[{"name":"B"}],"state":"disconnected"}`}}
+	if c := content(callTool(t, f, "disconnect", `{"profile":"A"}`)); !strings.Contains(c, "Disconnected from A. Still open: B.") {
+		t.Fatal(c)
 	}
 }
 
@@ -655,10 +732,10 @@ func TestEmptyRepliesAreSentences(t *testing.T) {
 func TestUnknownArgumentsAreRejected(t *testing.T) {
 	f := &fake{statuses: []string{`{"state":"connected","width":800,"height":600}`}}
 	r := callTool(t, f, "wait_for_change", `{"timeout":100}`)
-	if r["isError"] != true || !strings.Contains(content(r), "Unknown argument timeout for wait_for_change (allowed: timeout_ms)") {
+	if r["isError"] != true || !strings.Contains(content(r), "Unknown argument timeout for wait_for_change (allowed: profile, timeout_ms)") {
 		t.Fatalf("misspelt argument: %v", r)
 	}
-	if r := callTool(t, f, "status", `{"verbose":true}`); r["isError"] != true || !strings.Contains(content(r), "takes no arguments") {
+	if r := callTool(t, f, "list_profiles", `{"verbose":true}`); r["isError"] != true || !strings.Contains(content(r), "takes no arguments") {
 		t.Fatalf("argument for a tool without arguments: %v", r)
 	}
 	if len(f.calls) != 0 {

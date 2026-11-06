@@ -29,7 +29,6 @@ ColumnLayout {
             .filter(p => !q || (p.name || "").toLowerCase().includes(q) || (p.host || "").toLowerCase().includes(q))
             .sort((a, b) => (a.name || a.host).localeCompare(b.name || b.host, undefined, {sensitivity: "base"}));
     }
-    readonly property bool busy: controller.state !== "disconnected"
 
     QQC2.ToolBar {
         Layout.fillWidth: true
@@ -119,10 +118,12 @@ ColumnLayout {
                 required property var modelData
                 required property int index
                 readonly property var profile: modelData
-                readonly property bool active: controller.activeProfile.id === profile.id && controller.state !== "disconnected"
-                readonly property bool failed: controller.activeProfile.id === profile.id && controller.state === "disconnected" && controller.errorStage !== ""
-                readonly property string stateText: !active ? (failed ? Families.failedTitle(controller.errorStage) : "")
-                    : controller.state === "connected" ? "Connected" : "Connecting…"
+                // Every connection has its own session; any number can be open at once.
+                readonly property var sess: controller.sessions[profile.id] || ({state: "disconnected", errorStage: ""})
+                readonly property bool active: sess.state !== "disconnected"
+                readonly property bool failed: sess.state === "disconnected" && sess.errorStage !== ""
+                readonly property string stateText: !active ? (failed ? Families.failedTitle(sess.errorStage) : "")
+                    : sess.state === "connected" ? "Connected" : "Connecting…"
 
                 width: ListView.view.width
                 highlighted: ListView.isCurrentItem
@@ -143,7 +144,7 @@ ColumnLayout {
                             visible: row.active || row.failed
                             anchors { right: parent.right; bottom: parent.bottom }
                             width: Kirigami.Units.iconSizes.small; height: width
-                            source: row.failed ? "data-error" : controller.state === "connected" ? "emblem-success" : "emblem-synchronizing"
+                            source: row.failed ? "data-error" : row.sess.state === "connected" ? "emblem-success" : "emblem-synchronizing"
                         }
                     }
                     ColumnLayout {
@@ -167,18 +168,18 @@ ColumnLayout {
                         }
                     }
                     QQC2.ToolButton {
-                        icon.name: "media-playback-start"
-                        text: "Connect to " + (row.profile.name || row.profile.host)
+                        icon.name: row.active ? "network-disconnect" : "media-playback-start"
+                        text: (row.active ? "Disconnect " : "Connect to ") + (row.profile.name || row.profile.host)
                         display: QQC2.AbstractButton.IconOnly
                         // Always laid out, only faded in: toggling visible resized the
                         // row on hover and made the whole list jump.
-                        readonly property bool shown: !row.active && (row.hovered || row.highlighted)
+                        readonly property bool shown: row.hovered || row.highlighted
                         opacity: shown ? 1 : 0
                         enabled: shown
                         Accessible.ignored: !shown
                         QQC2.ToolTip.visible: hovered
-                        QQC2.ToolTip.text: root.busy ? "Disconnect the open console and connect" : "Connect"
-                        onClicked: root.connectRequested(row.profile)
+                        QQC2.ToolTip.text: row.active ? "Disconnect this console" : "Connect"
+                        onClicked: row.active ? controller.disconnectProfile(row.profile.id) : root.connectRequested(row.profile)
                     }
                 }
 
@@ -188,10 +189,11 @@ ColumnLayout {
                 }
                 QQC2.Menu {
                     id: contextMenu
-                    QQC2.MenuItem { text: "Connect"; icon.name: "media-playback-start"; enabled: !row.active; onTriggered: root.connectRequested(row.profile) }
+                    QQC2.MenuItem { text: row.active ? "Show" : "Connect"; icon.name: "media-playback-start"; onTriggered: root.connectRequested(row.profile) }
+                    QQC2.MenuItem { text: "Disconnect"; icon.name: "network-disconnect"; enabled: row.active; onTriggered: controller.disconnectProfile(row.profile.id) }
                     QQC2.MenuItem {
                         text: "Connect with JNLP file…"; icon.name: "document-open"
-                        enabled: !root.busy && Families.hasMedia(row.profile.family)
+                        enabled: !row.active && Families.hasMedia(row.profile.family)
                         onTriggered: root.jnlpRequested(row.profile)
                     }
                     QQC2.MenuSeparator {}

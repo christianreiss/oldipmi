@@ -1,14 +1,15 @@
 #pragma once
 #include "credentials.h"
+#include "session.h"
 #include <QImage>
 #include <QJsonObject>
 #include <QLocalSocket>
 #include <QObject>
 #include <QProcess>
 #include <QVariantList>
-#include <QElapsedTimer>
+#include <QHash>
 #include <functional>
-#include <map>
+#include <memory>
 
 class Controller : public QObject {
   Q_OBJECT
@@ -22,18 +23,38 @@ class Controller : public QObject {
   // Setup stage that failed last ("logging_in", "discovering", "connecting"), else empty.
   Q_PROPERTY(QString errorStage READ errorStage NOTIFY changed)
   Q_PROPERTY(bool hasFrame READ hasFrame NOTIFY changed)
+  // Every session the app holds (open, failed or ended), by profile id:
+  // {state, errorStage, message}. Re-evaluates whenever any session changes.
+  Q_PROPERTY(QVariantMap sessions READ sessions NOTIFY changed)
+  Q_PROPERTY(int openCount READ openCount NOTIFY changed)
+  // Profile id of the session the console view shows; empty when none.
+  Q_PROPERTY(QString shownId READ shownId NOTIFY changed)
 public:
   explicit Controller(QObject *parent = nullptr, Credentials *credentials = nullptr,
                       QString configFile = {});
   ~Controller();
   QVariantList hosts() const { return m_hosts; }
-  QString state() const { return m_state; }
-  QString message() const { return m_message; }
-  QVariantMap consoleInfo() const { return m_consoleInfo; }
-  bool mounted() const { return m_mounted; }
-  QVariantMap activeProfile() const { return m_activeProfile; }
-  QString errorStage() const { return m_errorStage; }
-  bool hasFrame() const { return !m_lastFrame.isNull(); }
+  // The single-session properties describe the shown session (or "disconnected").
+  QString state() const { return m_shown ? m_shown->state : QString("disconnected"); }
+  QString message() const;
+  QVariantMap consoleInfo() const { return m_shown ? m_shown->consoleInfo : QVariantMap(); }
+  bool mounted() const { return m_shown && m_shown->mounted; }
+  QVariantMap activeProfile() const { return m_shown ? m_shown->profile : QVariantMap(); }
+  QString errorStage() const { return m_shown ? m_shown->errorStage : QString(); }
+  bool hasFrame() const { return m_shown && !m_shown->lastFrame.isNull(); }
+  QVariantMap sessions() const;
+  int openCount() const;
+  QString shownId() const { return m_shown ? m_shown->id : QString(); }
+  Session *shown() const { return m_shown; }
+  Session *session(const QString &id) const { return m_sessions.value(id); }
+  QList<Session *> allSessions() const { return m_sessions.values(); }
+  // Profile ids of sessions that are set up or connected (not failed/ended ones).
+  QStringList openIds() const;
+  Q_INVOKABLE bool isOpen(QString id) const;
+  // Show an existing session in the console view; an empty or unknown id shows none.
+  Q_INVOKABLE void show(QString id);
+  Q_INVOKABLE void disconnectProfile(QString id);
+  Q_INVOKABLE void disconnectAll();
   Q_INVOKABLE QVariantMap duplicateHost(QString id);
   Q_INVOKABLE QVariantMap host(QString id) const;
   Q_INVOKABLE void sendKeys(QVariantList usages);
@@ -54,17 +75,14 @@ public:
   Q_INVOKABLE void mountISO();
   Q_INVOKABLE void ejectISO();
   Q_INVOKABLE void power(QString action);
+  // Power action for a specific session (by profile id); the shown one when id is empty.
+  Q_INVOKABLE void powerFor(QString id, QString action);
   Q_INVOKABLE void openJNLP(QVariantMap profile);
   Q_INVOKABLE QString chooseCertificate(bool key);
   void preview();
   // Result callback: (ok, message). Invoked when the backend answers command `id`.
-  using Result = std::function<void(bool, QString)>;
-  void command(QJsonObject obj, Result done = {});
+  using Result = Session::Result;
   void agentNote(QString message);
-  QImage lastFrame() const { return m_lastFrame; }
-  qint64 frameSeq() const { return m_frameSeq; }
-  qint64 changeSeq() const { return m_changeSeq; }
-  qint64 msSinceChange() const { return m_sinceChange.isValid() ? m_sinceChange.elapsed() : 0; }
 signals:
   void changed();
   void hostsChanged();
@@ -75,31 +93,20 @@ signals:
 
 private:
   QVariantList m_hosts;
-  QVariantMap m_consoleInfo, m_pendingProfile, m_activeProfile;
-  QString m_errorStage;
-  QString m_pendingPassword, m_configFile;
+  QVariantMap m_pendingProfile;
+  QString m_pendingPassword, m_configFile, m_message;
+  quint64 m_messageStamp = 0;
   bool m_profilesReadable = true;
   std::unique_ptr<Credentials> m_ownedCredentials;
   Credentials *m_credentials;
-  QString m_state = "disconnected",
-          m_message;
-  bool m_mounted = false;
-  QProcess *m_process = nullptr;
-  QLocalSocket *m_control = nullptr, *m_video = nullptr;
-  QByteArray m_controlBuffer, m_videoBuffer;
-  int m_id = 0;
-  QImage m_lastFrame;
-  qint64 m_frameSeq = 0, m_changeSeq = 0;
-  size_t m_frameHash = 0;
-  QElapsedTimer m_sinceChange;
-  std::map<int, Result> m_pending;
-  void failPending(const QString &why);
-  void start(QVariantMap profile, QString password, QString jnlp = {});
+  QHash<QString, Session *> m_sessions;
+  Session *m_shown = nullptr;
+  void setMessage(const QString &m);
   void fail(QString message);
-  void readControl();
-  void readVideo();
+  void start(QVariantMap profile, QString password, QString jnlp = {});
+  void setShown(Session *s);
+  void removeSession(Session *s);
   bool persist(const QVariantList &hosts);
   void loadProfiles();
-  void stop();
   void stamp(const QString &id);
 };

@@ -11,10 +11,12 @@
 #include <memory>
 
 // Local, authentication-less control socket used by oldipmi-mcp. It only calls
-// Controller methods on the GUI thread; the socket file is owner-only.
+// Controller and Session methods on the GUI thread; the socket file is owner-only.
 //
 // Protocol: one JSON object per line, {"id":N,"op":"...","args":{...}} ->
 // {"id":N,"ok":true,"result":{...}} or {"id":N,"ok":false,"error":"..."}.
+// Zero or more console sessions can be open at once; session-bound operations take an
+// optional args.profile (id, name or host) and otherwise act on the only open session.
 // Several clients may be connected; each one's held keys and mouse buttons are
 // released when it disconnects.
 class AgentApi : public QObject {
@@ -82,7 +84,6 @@ private:
   QList<Entry> m_activity;
   QString m_passwordFor; // profile name whose password prompt is open after an agent connect
   QString m_requesting;  // profile name while an agent's connectHost() call runs
-  QVariantMap m_active;  // profile of the current or last console session
   void accept();
   void readClient(Client *c);
   void dropClient(Client *c);
@@ -91,4 +92,7 @@ private:
   void log(const QString &who, const QString &kind, const QString &text, bool coalesce = false);
   void note(const QString &what);
   QVariantMap findProfile(const QString &key) const;
+  // The session a request targets: args.profile, else the only open one. Null with an empty
+  // `error` when nothing matches or nothing is open; null with `error` set when ambiguous.
+  Session *resolve(const QJsonObject &args, QString *error) const;
 };

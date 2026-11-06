@@ -9,6 +9,7 @@
 #include <QLocalSocket>
 #include <QStandardPaths>
 #include <QTimer>
+#include <algorithm>
 #include <unistd.h>
 
 static constexpr int MaxLine = 1 << 20;            // one request line
@@ -20,8 +21,11 @@ struct AgentApi::Client {
   QByteArray buf;
   QString name, version, protocol;
   QDateTime since = QDateTime::currentDateTime();
-  QSet<int> keys; // usages this client pressed and has not released
-  int buttons = 0, x = 0, y = 0;
+  struct Held { // what this client pressed on one session and has not released
+    QSet<int> keys;
+    int buttons = 0, x = 0, y = 0;
+  };
+  QMap<QString, Held> held; // by session id
   bool closing = false;
   QString label() const {
     if (name.isEmpty())
@@ -57,18 +61,21 @@ AgentApi::AgentApi(Controller *c, QString path, QObject *parent)
       start();
   });
   connect(&m_server, &QLocalServer::newConnection, this, &AgentApi::accept);
-  connect(m_c, &Controller::profileActivated, this, [this](QVariantMap p) { m_active = p; });
   connect(m_c, &Controller::passwordRequired, this, [this] {
     if (!m_requesting.isEmpty())
       m_passwordFor = m_requesting;
   });
   connect(m_c, &Controller::changed, this, [this] {
-    if (m_c->state() != "disconnected")
-      m_passwordFor.clear();
-    if (m_c->state() != "connected") // a new session starts with nothing held
-      for (auto &cl : m_clients) {
-        cl->keys.clear();
-        cl->buttons = 0;
+    if (!m_passwordFor.isEmpty() && m_c->pendingProfile().isEmpty())
+      m_passwordFor.clear(); // the prompt was answered or dismissed
+    // A session that is no longer connected has nothing held; a new one starts clean.
+    for (auto &cl : m_clients)
+      for (auto it = cl->held.begin(); it != cl->held.end();) {
+        auto *s = m_c->session(it.key());
+        if (s && s->connected())
+          ++it;
+        else
+          it = cl->held.erase(it);
       }
   });
 }
@@ -231,13 +238,17 @@ void AgentApi::dropClient(Client *c) {
   emit clientsChanged();
 }
 void AgentApi::releaseHeld(Client *c) {
-  int n = c->keys.size() + (c->buttons ? 1 : 0);
-  for (int u : std::as_const(c->keys))
-    m_c->key(u, false);
-  if (c->buttons)
-    m_c->pointer(c->x, c->y, 0, 0);
-  c->keys.clear();
-  c->buttons = 0;
+  int n = 0;
+  for (auto it = c->held.cbegin(); it != c->held.cend(); ++it) {
+    n += it->keys.size() + (it->buttons ? 1 : 0);
+    if (auto *s = m_c->session(it.key())) {
+      for (int u : it->keys)
+        s->key(u, false);
+      if (it->buttons)
+        s->pointer(it->x, it->y, 0, 0);
+    }
+  }
+  c->held.clear();
   if (n)
     log(label(c), "release", QString("Released %1 held key(s)/button(s) of this agent").arg(n));
 }
@@ -302,13 +313,45 @@ static QJsonObject profileJson(const QVariantMap &p) {
   return {{"id", p["id"].toString()}, {"name", p["name"].toString()}, {"host", p["host"].toString()},
           {"family", p["family"].toString()}};
 }
+Session *AgentApi::resolve(const QJsonObject &a, QString *error) const {
+  error->clear();
+  auto key = a.value("profile").toString();
+  if (!key.isEmpty()) {
+    auto p = findProfile(key);
+    if (p.isEmpty()) {
+      QStringList names;
+      for (const auto &v : m_c->hosts())
+        names << v.toMap().value("name").toString();
+      *error = "No profile named '" + key + "'. Available: " + names.join(", ") + ".";
+      return nullptr;
+    }
+    return m_c->session(p.value("id").toString());
+  }
+  auto open = m_c->openIds();
+  if (open.size() > 1) {
+    QStringList names;
+    for (const auto &id : open)
+      names << "'" + m_c->session(id)->profile.value("name").toString() + "'";
+    *error = "Several consoles are open (" + names.join(", ") + "). Say which one with the profile argument.";
+    return nullptr;
+  }
+  return open.isEmpty() ? nullptr : m_c->session(open.first());
+}
 void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Client *client) {
   auto fail = [&](const QString &m) { reply(false, m); };
-  auto needConnected = [&]() {
-    if (m_c->state() == "connected")
-      return true;
-    fail("Not connected (state: " + m_c->state() + "). Use connect first.");
-    return false;
+  // The targeted session, which must be connected; replies with the error and returns null otherwise.
+  auto needConnected = [&]() -> Session * {
+    QString err;
+    auto *s = resolve(a, &err);
+    if (!err.isEmpty()) {
+      fail(err);
+      return nullptr;
+    }
+    if (!s || !s->connected()) {
+      fail("Not connected (state: " + (s ? s->state : QString("disconnected")) + "). Use connect first.");
+      return nullptr;
+    }
+    return s;
   };
   auto done = [reply](bool ok, QString m) { reply(ok, ok ? QJsonValue(QJsonObject{{"message", m}}) : QJsonValue(m)); };
   QString who = label(client);
@@ -333,21 +376,47 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     log(label(client), "profiles", "Listed profiles ×%1", true);
     reply(true, QJsonObject{{"profiles", list}});
   } else if (op == "status") {
-    auto img = m_c->lastFrame();
-    QJsonObject st{{"state", m_c->state()}, {"message", m_c->message()},
-                   {"mounted", m_c->mounted()},
-                   {"width", img.width()}, {"height", img.height()},
-                   {"frameSeq", double(m_c->frameSeq())},
-                   {"changeSeq", double(m_c->changeSeq())},
-                   {"msSinceChange", double(m_c->msSinceChange())},
-                   {"passwordRequired", !m_passwordFor.isEmpty()},
-                   // Only the open session's; a closed one's would mislead.
-                   {"consoleInfo", m_c->state() == "disconnected" ? QJsonObject{}
-                                                                  : QJsonObject::fromVariantMap(m_c->consoleInfo())}};
+    QString err;
+    auto *s = resolve(a, &err);
+    if (!err.isEmpty())
+      return fail(err);
+    QJsonArray sessions;
+    auto all = m_c->allSessions();
+    std::sort(all.begin(), all.end(), [](Session *x, Session *y) {
+      return x->profile.value("name").toString().toLower() < y->profile.value("name").toString().toLower();
+    });
+    for (auto *o : all) {
+      auto j = profileJson(o->profile);
+      j["state"] = o->state;
+      sessions.append(j);
+    }
+    QJsonObject st{{"sessions", sessions}, {"passwordRequired", !m_passwordFor.isEmpty()}};
     if (!m_passwordFor.isEmpty())
       st["passwordProfile"] = m_passwordFor;
-    if (m_c->state() != "disconnected" && !m_active.isEmpty())
-      st["profile"] = profileJson(m_active);
+    if (s) {
+      st["state"] = s->state;
+      st["message"] = s->message;
+      st["mounted"] = s->mounted;
+      st["width"] = s->lastFrame.width();
+      st["height"] = s->lastFrame.height();
+      st["frameSeq"] = double(s->frameSeq);
+      st["changeSeq"] = double(s->changeSeq);
+      st["msSinceChange"] = double(s->msSinceChange());
+      // Only an open session's; a closed one's would mislead.
+      st["consoleInfo"] = s->state == "disconnected" ? QJsonObject{} : QJsonObject::fromVariantMap(s->consoleInfo);
+      if (s->state != "disconnected")
+        st["profile"] = profileJson(s->profile);
+    } else {
+      st["state"] = "disconnected";
+      st["message"] = m_c->message();
+      st["mounted"] = false;
+      st["width"] = 0;
+      st["height"] = 0;
+      st["frameSeq"] = 0;
+      st["changeSeq"] = 0;
+      st["msSinceChange"] = 0;
+      st["consoleInfo"] = QJsonObject{};
+    }
     reply(true, st);
   } else if (op == "connect") {
     auto key = a.value("profile").toString();
@@ -359,42 +428,81 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       return fail("No profile named '" + key + "'. Available: " + names.join(", ") + ".");
     }
     auto name = p.value("name").toString();
-    if (m_c->state() != "disconnected") {
-      if (m_active.value("id") == p.value("id"))
-        return reply(true, QJsonObject{{"state", m_c->state()}, {"profile", profileJson(p)}, {"already", true}});
-      return fail("The console is busy (" + m_c->state() + " for '" + m_active.value("name").toString() +
-                  "'). Disconnect first.");
-    }
+    auto id = p.value("id").toString();
+    if (m_c->isOpen(id))
+      return reply(true, QJsonObject{{"state", m_c->session(id)->state}, {"profile", profileJson(p)}, {"already", true}});
+    if (auto pending = m_c->pendingProfile(); !pending.isEmpty() && pending.value("id") != p.value("id"))
+      return fail("A password prompt for '" + pending.value("name").toString() +
+                  "' is open in OldIPMI. Wait until the user answers or cancels it.");
     // Always ask again: the user may have dismissed an earlier password prompt.
     note("opening " + name);
     log(label(client), "connect", "Open console '" + name + "'");
     m_requesting = name;
     m_c->connectHost(p, "");
     m_requesting.clear();
-    if (m_c->state() == "disconnected") {
+    auto *s = m_c->session(id);
+    if (!s || s->state == "disconnected") {
       if (m_passwordFor == name) {
         log(label(client), "connect", "Waiting for the user to enter the password for '" + name + "'");
-        return reply(true, QJsonObject{{"state", m_c->state()}, {"passwordRequired", true}, {"profile", profileJson(p)}});
+        return reply(true, QJsonObject{{"state", "disconnected"}, {"passwordRequired", true}, {"profile", profileJson(p)}});
       }
       return fail(m_c->message());
     }
-    reply(true, QJsonObject{{"state", m_c->state()}, {"profile", profileJson(p)}});
+    reply(true, QJsonObject{{"state", s->state}, {"profile", profileJson(p)}});
   } else if (op == "disconnect") {
-    QJsonObject r{{"previous", m_c->state()}, {"promptDismissed", !m_passwordFor.isEmpty()}};
-    if (m_c->state() != "disconnected" && !m_active.isEmpty())
-      r["profile"] = profileJson(m_active);
-    if (m_c->state() != "disconnected" || !m_passwordFor.isEmpty()) {
-      note("disconnect");
-      log(label(client), "connect", "Disconnect");
+    QString err;
+    auto *s = resolve(a, &err);
+    bool all = a.value("all").toBool();
+    if (!err.isEmpty() && !all)
+      return fail(err);
+    bool explicitProfile = !a.value("profile").toString().isEmpty();
+    QJsonObject r;
+    if (all) {
+      QJsonArray closed;
+      for (auto *o : m_c->allSessions())
+        if (o->state != "disconnected")
+          closed.append(profileJson(o->profile));
+      r["closed"] = closed;
+      r["promptDismissed"] = !m_passwordFor.isEmpty();
+      if (!closed.isEmpty() || !m_passwordFor.isEmpty()) {
+        note("disconnect all");
+        log(label(client), "connect", "Disconnect all consoles");
+      }
+      m_passwordFor.clear();
+      m_c->disconnectAll();
+    } else {
+      auto prof = explicitProfile ? findProfile(a.value("profile").toString()) : QVariantMap{};
+      bool promptHere = !m_passwordFor.isEmpty() &&
+                        (!explicitProfile || prof.value("name").toString() == m_passwordFor);
+      r["previous"] = s ? s->state : QString("disconnected");
+      r["promptDismissed"] = promptHere;
+      if (s && s->state != "disconnected")
+        r["profile"] = profileJson(s->profile);
+      if ((s && s->state != "disconnected") || promptHere) {
+        note("disconnect");
+        log(label(client), "connect", "Disconnect");
+      }
+      QString target = s ? s->id : explicitProfile ? prof.value("id").toString()
+                                   : (m_passwordFor.isEmpty() ? m_c->shownId() : QString());
+      if (promptHere)
+        m_passwordFor.clear();
+      m_c->disconnectProfile(target);
     }
-    m_passwordFor.clear();
-    m_c->disconnectHost();
-    r["state"] = m_c->state();
+    r["state"] = "disconnected";
+    QJsonArray remaining;
+    for (const auto &id : m_c->openIds())
+      remaining.append(profileJson(m_c->session(id)->profile));
+    r["stillOpen"] = remaining;
     reply(true, r);
   } else if (op == "screenshot") {
-    auto img = m_c->lastFrame();
+    QString err;
+    auto *s = resolve(a, &err);
+    if (!err.isEmpty())
+      return fail(err);
+    auto img = s ? s->lastFrame : QImage();
     if (img.isNull())
-      return fail("No frame yet (state: " + m_c->state() + "). Connect first, or wait_for_change after connecting.");
+      return fail("No frame yet (state: " + (s ? s->state : QString("disconnected")) +
+                  "). Connect first, or wait_for_change after connecting.");
     int fw = img.width(), fh = img.height();
     int x = a.value("x").toInt(0), y = a.value("y").toInt(0);
     int w = a.value("width").toInt(fw - x), h = a.value("height").toInt(fh - y);
@@ -420,37 +528,40 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
                             {"height", out.height()}, {"fullWidth", fw}, {"fullHeight", fh},
                             {"x", x}, {"y", y}, {"regionW", w}, {"regionH", h}});
   } else if (op == "key") {
-    if (!needConnected())
+    auto *s = needConnected();
+    if (!s)
       return;
     int u = a.value("usage").toInt();
     if (u < 4 || u > 231)
       return fail("Invalid key usage.");
     bool down = a.value("down").toBool();
-    m_c->key(u, down);
+    s->key(u, down);
     if (client) {
       if (down)
-        client->keys.insert(u);
+        client->held[s->id].keys.insert(u);
       else
-        client->keys.remove(u);
+        client->held[s->id].keys.remove(u);
     }
     if (down) // never log which key: the agent may be typing a password
       log(label(client), "keys", "Keyboard input: %1 key presses", true);
     reply(true, QJsonObject{});
   } else if (op == "pointer") {
-    if (!needConnected())
+    auto *s = needConnected();
+    if (!s)
       return;
-    auto img = m_c->lastFrame();
+    auto img = s->lastFrame;
     if (img.isNull())
       return fail("No frame yet.");
     int x = a.value("x").toInt(), y = a.value("y").toInt();
     if (x < 0 || y < 0 || x >= img.width() || y >= img.height())
       return fail(QString("Point %1,%2 is outside the %3x%4 framebuffer.").arg(x).arg(y).arg(img.width()).arg(img.height()));
     int buttons = a.value("buttons").toInt() & 7;
-    m_c->pointer(x, y, buttons, qBound(-1, a.value("wheel").toInt(), 1));
+    s->pointer(x, y, buttons, qBound(-1, a.value("wheel").toInt(), 1));
     if (client) {
-      client->buttons = buttons;
-      client->x = x;
-      client->y = y;
+      auto &h = client->held[s->id];
+      h.buttons = buttons;
+      h.x = x;
+      h.y = y;
     }
     log(who, "pointer", "Pointer input ×%1, last at " + QString::number(x) + "," + QString::number(y), true);
     reply(true, QJsonObject{});
@@ -459,30 +570,44 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       if (client)
         releaseHeld(client);
     } else {
-      m_c->releaseInput();
+      QString err;
+      auto key = a.value("profile").toString();
+      Session *only = nullptr;
+      if (!key.isEmpty()) {
+        only = resolve(a, &err);
+        if (!err.isEmpty())
+          return fail(err);
+      }
+      for (auto *s : m_c->allSessions())
+        if (!only || s == only)
+          s->releaseInput();
       for (auto &cl : m_clients) {
-        cl->keys.clear();
-        cl->buttons = 0;
+        if (only)
+          cl->held.remove(only->id);
+        else
+          cl->held.clear();
       }
       log(who, "release", "Released all keys and buttons");
     }
     reply(true, QJsonObject{});
   } else if (op == "power") {
-    if (!needConnected())
+    auto *s = needConnected();
+    if (!s)
       return;
     auto action = a.value("action").toString();
     if (!QStringList{"on", "off", "reset", "soft"}.contains(action))
       return fail("Unknown power action.");
-    m_c->releaseInput();
+    s->releaseInput();
     note("power " + action);
     log(label(client), "power", "Power " + action + " requested");
-    m_c->command({{"op", "power"}, {"action", action}}, [this, action, done, who](bool ok, QString m) {
+    s->command({{"op", "power"}, {"action", action}}, [this, action, done, who](bool ok, QString m) {
       note(ok ? "power " + action + " accepted" : "power " + action + " failed: " + m);
       log(who, "power", ok ? "Power " + action + " accepted" : "Power " + action + " failed");
       done(ok, ok ? "Power action '" + action + "' accepted." : m);
     });
   } else if (op == "mount") {
-    if (!needConnected())
+    auto *s = needConnected();
+    if (!s)
       return;
     QFileInfo f(a.value("path").toString());
     if (!f.isAbsolute() || !f.isFile() || !f.isReadable() ||
@@ -490,13 +615,14 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       return fail("path must be an absolute, readable .iso file.");
     note("mount " + f.fileName());
     log(label(client), "media", "Mount ISO " + f.fileName());
-    m_c->command({{"op", "mount"}, {"path", f.canonicalFilePath()}}, done);
+    s->command({{"op", "mount"}, {"path", f.canonicalFilePath()}}, done);
   } else if (op == "eject") {
-    if (!needConnected())
+    auto *s = needConnected();
+    if (!s)
       return;
     note("eject ISO");
     log(label(client), "media", "Eject ISO");
-    m_c->command({{"op", "eject"}}, done);
+    s->command({{"op", "eject"}}, done);
   } else if (op == "instructions") {
     reply(true, QJsonObject{{"text", mcpInstructions()}});
   } else {

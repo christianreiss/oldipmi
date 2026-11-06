@@ -349,42 +349,133 @@ func poll(ctx context.Context, timeoutMS int, check func() (bool, error)) (bool,
 	}
 }
 
+// profileProp is the optional selector every session-bound tool takes: several
+// consoles can be open at once, so a call names the one it means.
+var profileProp = prop("string", "Which open console to act on: profile name, id or host. "+
+	"Optional while exactly one console is open; required when several are (see status → sessions).")
+
+// scoped sends every call with args.profile set, unless the call names one itself.
+type scoped struct {
+	Backend
+	profile string
+}
+
+func (s scoped) Call(op string, args map[string]any) (json.RawMessage, error) {
+	if _, ok := args["profile"]; !ok && s.profile != "" {
+		cp := make(map[string]any, len(args)+1)
+		for k, v := range args {
+			cp[k] = v
+		}
+		cp["profile"] = s.profile
+		args = cp
+	}
+	return s.Backend.Call(op, args)
+}
+
+// sessionBound adds the optional profile argument to a tool and routes all its
+// backend calls (status polls, key events, cleanup) to that console.
+func sessionBound(t Tool) Tool {
+	switch t.Name {
+	case "list_profiles", "list_keys", "wait", "connect": // not tied to one console (connect takes its own profile)
+		return t
+	}
+	props := map[string]any{}
+	for k, v := range t.Schema["properties"].(map[string]any) {
+		props[k] = v
+	}
+	props["profile"] = profileProp
+	schema := map[string]any{}
+	for k, v := range t.Schema {
+		schema[k] = v
+	}
+	schema["properties"] = props
+	t.Schema = schema
+	run := t.Run
+	t.Run = func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
+		if v, ok := a["profile"]; ok && v != nil {
+			name, isStr := v.(string)
+			if !isStr || name == "" {
+				return nil, fmt.Errorf("profile must be a non-empty string")
+			}
+			b = scoped{b, name}
+		}
+		return run(ctx, b, a)
+	}
+	return t
+}
+
 func tools() []Tool {
+	all := rawTools()
+	for i := range all {
+		all[i] = sessionBound(all[i])
+	}
+	return all
+}
+
+func rawTools() []Tool {
 	return []Tool{
 		simple(Tool{Name: "list_profiles", Title: "List BMC profiles", ReadOnly: true,
 			Description: "List the BMC profiles saved in OldIPMI: id, name, host, family, username and whether a password is saved. Never returns passwords.",
 			Schema:      obj(map[string]any{})}, "list_profiles"),
 		simple(Tool{Name: "status", Title: "Console status", ReadOnly: true,
-			Description: "Connection state (disconnected, logging_in, discovering, connecting, connected), status message, active profile, whether a password prompt is waiting for the user, console info, mounted ISO, framebuffer size and screen-change counters.",
+			Description: "Several consoles can be open at once. Always lists them in sessions (profile, state). For one console (the profile argument, or the only open one): connection state (disconnected, logging_in, discovering, connecting, connected), status message, profile, console info, mounted ISO, framebuffer size and screen-change counters. Also whether a password prompt is waiting for the user. With several open and no profile this is an error that names them.",
 			Schema:      obj(map[string]any{})}, "status"),
 		connectTool(),
 		{Name: "disconnect", Title: "Disconnect console", Idempotent: true,
-			Description: "Close the console session, or cancel one that is being set up (also dismisses a pending password prompt).",
-			Schema:      obj(map[string]any{}),
-			Run: func(_ context.Context, b Backend, _ map[string]any) ([]Content, error) {
-				raw, err := call(b, "disconnect", map[string]any{})
+			Description: "Close one console session (profile argument, or the only open one), or cancel one that is being set up (also dismisses a pending password prompt). all=true closes every open console. Other consoles stay open.",
+			Schema:      obj(map[string]any{"all": prop("boolean", "Close every open console instead of one")}),
+			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
+				all, _ := a["all"].(bool)
+				if _, ok := a["profile"]; ok && all {
+					return nil, fmt.Errorf("give either profile or all, not both")
+				}
+				args := map[string]any{}
+				if all {
+					args["all"] = true
+				}
+				raw, err := call(b, "disconnect", args)
 				if err != nil {
 					return nil, err
 				}
 				var r struct {
-					Previous        string                `json:"previous"`
-					PromptDismissed bool                  `json:"promptDismissed"`
-					Profile         struct{ Name string } `json:"profile"`
+					Previous        string                  `json:"previous"`
+					PromptDismissed bool                    `json:"promptDismissed"`
+					Profile         struct{ Name string }   `json:"profile"`
+					Closed          []struct{ Name string } `json:"closed"`
+					StillOpen       []struct{ Name string } `json:"stillOpen"`
 				}
 				json.Unmarshal(raw, &r)
+				others := ""
+				if len(r.StillOpen) > 0 {
+					var names []string
+					for _, o := range r.StillOpen {
+						names = append(names, o.Name)
+					}
+					others = " Still open: " + strings.Join(names, ", ") + "."
+				}
 				name := ""
 				if r.Profile.Name != "" {
 					name = " " + r.Profile.Name
 				}
 				switch {
-				case r.Previous == "connected":
-					return text("Disconnected" + strings.Replace(name, " ", " from ", 1) + "."), nil
-				case r.Previous != "" && r.Previous != "disconnected":
-					return text("Cancelled the connection" + strings.Replace(name, " ", " to ", 1) + " (it was " + strings.ReplaceAll(r.Previous, "_", " ") + ")."), nil
-				case r.PromptDismissed:
+				case all && len(r.Closed) > 0:
+					var names []string
+					for _, o := range r.Closed {
+						names = append(names, o.Name)
+					}
+					return text("Disconnected " + strings.Join(names, ", ") + "."), nil
+				case all && r.PromptDismissed:
 					return text("Dismissed the password prompt; no console was open."), nil
+				case all:
+					return text("No console was open; nothing to disconnect."), nil
+				case r.Previous == "connected":
+					return text("Disconnected" + strings.Replace(name, " ", " from ", 1) + "." + others), nil
+				case r.Previous != "" && r.Previous != "disconnected":
+					return text("Cancelled the connection" + strings.Replace(name, " ", " to ", 1) + " (it was " + strings.ReplaceAll(r.Previous, "_", " ") + ")." + others), nil
+				case r.PromptDismissed:
+					return text("Dismissed the password prompt; no console was open." + others), nil
 				}
-				return text("No console was open; nothing to disconnect."), nil
+				return text("No console was open; nothing to disconnect." + others), nil
 			}},
 		screenshotTool(),
 		{Name: "wait_for_change", Title: "Wait for screen change", ReadOnly: true,
@@ -824,6 +915,7 @@ func connectTool() Tool {
 	return Tool{Name: "connect", Title: "Open console", Idempotent: true,
 		Description: "Open the console of a saved profile (by name, id or host) and wait until it is connected with a first frame, or report the failing stage. " +
 			"Uses the password saved in KWallet. If none is saved, OldIPMI asks the USER for it in its window; this tool keeps waiting for that (password_wait_ms) — tell the user to type it there. " +
+			"Other consoles that are already open stay open (several can be open at once; address each with the profile argument of the other tools). " +
 			"Calling connect again for the profile that is already connecting or connected just waits for it.",
 		Schema: obj(map[string]any{"profile": prop("string", "Profile name, id or host (see list_profiles)"),
 			"timeout_ms":       intProp("Time allowed for login and console setup, default 45000", 1000, maxWaitMS),
@@ -849,6 +941,12 @@ func connectTool() Tool {
 				Profile struct{ ID, Name string } `json:"profile"`
 			}
 			json.Unmarshal(raw, &started)
+			// From here on only this profile's console is of interest, whatever else is open.
+			if started.Profile.ID != "" {
+				b = scoped{b, started.Profile.ID}
+			} else {
+				b = scoped{b, name}
+			}
 			label := started.Profile.Name
 			if label == "" {
 				label = name
@@ -875,9 +973,6 @@ func connectTool() Tool {
 			done, err := poll(ctx, timeout, func() (bool, error) {
 				if s, err = getStatus(b); err != nil {
 					return false, err
-				}
-				if id, _ := s.Profile["id"].(string); id != "" && started.Profile.ID != "" && id != started.Profile.ID && s.State != "disconnected" {
-					return false, fmt.Errorf("another profile (%v) was opened in OldIPMI meanwhile; %s is not connected", s.Profile["name"], label)
 				}
 				switch s.State {
 				case "connected":

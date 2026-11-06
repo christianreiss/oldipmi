@@ -25,7 +25,10 @@ The window has two panes (see [DESIGN.md](DESIGN.md)):
 
 * **Connections** (left) lists every saved BMC with its address, console type and
   live state. Filter with Ctrl+F. Double-click, Enter or the play button connects;
-  if another console is open, it is disconnected first. The context menu offers Connect with JNLP file, Edit (F2), Duplicate and Delete (Del).
+  any number of consoles can be open at once, and selecting an open connection shows
+  its console while the others keep running. The play button of an open row
+  disconnects it; Ctrl+D disconnects the shown console, Ctrl+Shift+D all of them.
+  The context menu offers Show/Connect, Disconnect, Connect with JNLP file, Edit (F2), Duplicate and Delete (Del).
   **+** (Ctrl+N) opens **New connection**; **Settings** and **Quit** (Ctrl+Q) sit at
   the bottom of the list.
 * **New / Edit connection** is a dialog: BMC address (a pasted URL is reduced to
@@ -155,6 +158,11 @@ claude mcp add oldipmi -- /path/to/oldipmi-mcp
 From the AppImage the bundled path changes on every run: copy `oldipmi-mcp` (a static binary) to a
 stable place such as `~/.local/bin`; the settings page then shows that path.
 
+Several consoles can be open at once. Every tool except `list_profiles`, `list_keys`,
+`wait` and `connect` takes an optional `profile` (name, id or host); it may be left out
+while exactly one console is open, and is required (the error names the open ones) when
+several are. `status` lists them under `sessions`; `disconnect` takes `profile` or `all`.
+
 Tools: `list_profiles`, `status`, `connect` (waits up to 60 s for the user to type a
 missing password in the window), `disconnect`, `screenshot` (PNG image content; crop,
 `scale`, `max_size` default 1568 px, with the exact image-to-framebuffer mapping),
@@ -233,7 +241,7 @@ requested. Never commit real console captures or credential-bearing JNLP files.
 
 ## Architecture
 
-The GUI owns one backend child per connection. Two inherited AF_UNIX socketpairs
+The GUI owns one backend child per open connection (any number at once, one `Session` each). Two inherited AF_UNIX socketpairs
 carry version-1 control messages and RGBA video frames. There are no listening
 ports or installed background services. Control records are length-prefixed JSON
 (maximum 1 MiB); setup state events include `logging_in`, `discovering`,

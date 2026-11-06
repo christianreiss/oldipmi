@@ -30,7 +30,7 @@ Other MCP clients (stdio transport):
    exact formula (framebuffer_x = x + image_x / scale).
 4. Act: `type_text`, `key`, `mouse_click`, ... then `wait_for_stable` and
    `screenshot` again to verify. Never assume an input worked.
-5. `disconnect` when done.
+5. `disconnect` when done (`disconnect` with `all: true` closes every console).
 
 ## Tools
 
@@ -69,8 +69,14 @@ Other MCP clients (stdio transport):
   (`wait_for_stable`) before judging the screen.
 - Some BIOS screens drop fast typing; use `delay_ms` (e.g. 40) in `type_text`.
 - Relative-pointer guests are not supported; the pointer is absolute.
-- Only one console session exists at a time; `connect` to another profile
-  while connected fails until you `disconnect`.
+- Several consoles can be open at once (the user may have some open too).
+  `status` lists them under `sessions`. Every tool except `list_profiles`,
+  `list_keys`, `wait` and `connect` takes an optional `profile` (name, id or
+  host) naming the console it acts on. With exactly one console open you may
+  leave it out; with several open the call fails and names them — always
+  pass `profile` then. `connect` leaves other consoles alone, and the newest
+  console is the one shown in the OldIPMI window. Held keys are tracked per
+  console, so `release_input` with a `profile` releases only that one.
 - The user may type in the same window at the same time; check the screen.
 - Errors come back as tool results with a reason; read them and adapt.
 - A profile with family `demo` opens a synthetic test console (no BMC) that

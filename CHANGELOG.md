@@ -2,6 +2,16 @@
 
 ## 0.2.0 (2026-11-06)
 
+### Multiple consoles
+* Any number of consoles can be open at once (0..N) instead of one: connecting another
+  profile no longer closes the open one. Selecting an open connection shows its console;
+  the others keep running. Rows show their own state; the row button disconnects an open
+  one; Ctrl+Shift+D disconnects all. The title shows "(+N)" for the other open consoles.
+* MCP: all console tools take an optional `profile`; it may be omitted while one console
+  is open and is required when several are (the error names them). `status` lists
+  `sessions`; `disconnect` takes `profile` or `all`. `connect` no longer fails with
+  "console is busy", and held input is tracked per console.
+
 ### Interface
 * New two-pane layout: a connection manager (filter, live state as emblem and text,
   context menu with Connect, Connect with JNLP file, Edit, Duplicate, Delete) and a

@@ -10,7 +10,8 @@ Kirigami.ApplicationWindow {
     id: window
 
     title: (controller.activeProfile.name && controller.state !== "disconnected")
-           ? controller.activeProfile.name + " — OldIPMI" : "OldIPMI"
+           ? controller.activeProfile.name + (controller.openCount > 1 ? " (+" + (controller.openCount - 1) + ")" : "") + " — OldIPMI"
+           : "OldIPMI"
     width: Kirigami.Units.gridUnit * 70
     height: Kirigami.Units.gridUnit * 44
     minimumWidth: Kirigami.Units.gridUnit * 36
@@ -30,14 +31,11 @@ Kirigami.ApplicationWindow {
 
     // Used by --probe-ui and the agent API: select (and show) a profile.
     function loadHost(p) { selectedId = (p && p.id) || "" }
-    // Connect (double-click, Enter, row button, context menu). Another open or
-    // opening console is disconnected first; the same one is left alone.
+    // Connect (double-click, Enter, row button, context menu). Other consoles stay
+    // open; a profile that is already open or opening is just brought to the front.
     function connectProfile(p) {
         if (!p || !p.host) return;
-        if (controller.state !== "disconnected") {
-            if (p.id && controller.activeProfile.id === p.id) { selectedId = p.id; return }
-            controller.disconnectHost();
-        }
+        if (p.id && controller.isOpen(p.id)) { selectedId = p.id; controller.show(p.id); return }
         selectedId = p.id || selectedId;
         controller.connectHost(p, "");
     }
@@ -54,7 +52,15 @@ Kirigami.ApplicationWindow {
     function quitApp() { close(); Qt.quit() }
     function toggleFullscreen() { visibility = fullscreen ? Window.Windowed : Window.FullScreen }
 
-    onSelectedIdChanged: if (selectedId) settings.lastProfile = selectedId
+    // The console view follows the sidebar selection: an open session is shown,
+    // any other profile shows its idle page while the open consoles keep running.
+    onSelectedIdChanged: {
+        if (selectedId) settings.lastProfile = selectedId;
+        controller.show(selectedId);
+    }
+    // A console that comes to the front by itself (an agent opened it) takes the selection along.
+    readonly property string shownId: controller.shownId
+    onShownIdChanged: if (shownId) selectedId = shownId
     Component.onCompleted: {
         const g = settings.windowGeometry;
         if (g.width > 0 && g.height > 0) { x = g.x; y = g.y; width = g.width; height = g.height }
@@ -69,6 +75,7 @@ Kirigami.ApplicationWindow {
     Shortcut { sequence: "F9"; onActivated: settings.showSidebar = !settings.showSidebar }
     Shortcut { sequences: [StandardKey.FullScreen, "F11"]; onActivated: window.toggleFullscreen() }
     Shortcut { sequence: "Ctrl+D"; enabled: controller.state !== "disconnected"; onActivated: controller.disconnectHost() }
+    Shortcut { sequence: "Ctrl+Shift+D"; enabled: controller.openCount > 1; onActivated: controller.disconnectAll() }
     Shortcut { sequences: [StandardKey.Quit]; onActivated: window.quitApp() }
     Shortcut { sequence: "Escape"; enabled: window.fullscreen && !consolePane.consoleView.captured; onActivated: window.toggleFullscreen() }
 
@@ -164,7 +171,7 @@ Kirigami.ApplicationWindow {
             Kirigami.Action {
                 text: powerDialog.info.verb
                 icon.name: window.pendingPower === "on" ? "system-run" : "system-shutdown"
-                onTriggered: { powerDialog.close(); controller.power(window.pendingPower) }
+                onTriggered: { powerDialog.close(); controller.powerFor(window.powerProfile.id || "", window.pendingPower) }
             }
         ]
     }

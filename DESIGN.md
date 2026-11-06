@@ -29,9 +29,11 @@ marketing.
 
 * **Connection manager** (left): sorted list, filter, per-row state as emblem *and* text,
   context menu (Connect, Connect with JNLP, Edit, Duplicate, Delete), keyboard
-  (Enter connects, F2 edits, Del deletes). Connecting another profile while a console
-  is open or opening switches to it (no confirmation: one click away from undoing);
-  connecting the open one again does nothing.
+  (Enter connects, F2 edits, Del deletes). Any number of consoles can be open at once:
+  connecting another profile opens it next to the others, selecting an open row shows
+  its console (the others keep running in the background), the row's play button turns
+  into Disconnect, and connecting an open profile again just shows it. Keyboard and
+  mouse always go to the console in front.
 * **New / Edit connection** is a modal dialog with grouped form cards (Server,
   Account, collapsed Advanced). Security exceptions sit behind Advanced and show a
   warning when enabled.

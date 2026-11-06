@@ -12,6 +12,8 @@ Kirigami.Dialog {
 
     property var original: ({})
     readonly property bool editing: !!original.id
+    // Connecting an open profile only brings it to the front, so its edits would not be saved.
+    readonly property bool openNow: editing && (controller.sessions[original.id] || {state: "disconnected"}).state !== "disconnected"
     property string certPath: ""
     property string keyPath: ""
     property bool showAdvanced: false
@@ -39,7 +41,7 @@ Kirigami.Dialog {
         Kirigami.Action {
             text: "Save and Connect"
             icon.name: "media-playback-start"
-            enabled: dialog.valid && controller.state === "disconnected"
+            enabled: dialog.valid && !dialog.openNow
             onTriggered: dialog.save(true)
         }
     ]
@@ -161,7 +163,7 @@ Kirigami.Dialog {
                 placeholderText: dialog.editing && dialog.original.remember && rememberSwitch.checked
                     ? "Saved in KWallet; leave empty to keep it"
                     : rememberSwitch.checked ? "Optional; asked for on first connect" : "Asked for on every connect"
-                onAccepted: if (dialog.valid) dialog.save(controller.state === "disconnected")
+                onAccepted: if (dialog.valid) dialog.save(!dialog.openNow)
             }
             FormCard.FormDelegateSeparator {}
             FormCard.FormSwitchDelegate {

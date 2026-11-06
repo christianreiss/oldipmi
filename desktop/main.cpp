@@ -91,13 +91,13 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
       {"09-power-confirm", [=] { root->setProperty("pendingPower", "reset");
          if (auto *d = root->findChild<QObject *>("powerDialog")) QMetaObject::invokeMethod(d, "open"); }, 700},
       {"10-switch", [=] {
-         // Connecting another profile while one is open switches consoles.
+         // Connecting another profile opens it next to the first; both stay connected.
          closePopups();
          call("connectProfile", QVariantMap{{"name", "Demo wide"}, {"host", "demo-1920x1080"}, {"family", "demo"}});
        }, 1500},
       {"11-empty", [=, &controller] {
          closePopups();
-         controller.disconnectHost();
+         controller.disconnectAll();
          for (const auto &h : controller.hosts()) controller.removeHost(h.toMap().value("id").toString());
          call("loadHost", QVariantMap{});
        }, 600},
