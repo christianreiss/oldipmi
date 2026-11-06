@@ -20,7 +20,7 @@ FormCard.FormCardPage {
         text: agent.listening
             ? "Agents can control the open console: screen, keyboard, mouse, power and ISO images. There is no authentication; any program running as your user can use the socket."
             : settings.agentApiEnabled
-              ? "The agent socket is not active: another OldIPMI window owns it, or the app was started with --no-agent-api."
+              ? (agent.errorString || "The agent socket is not active (the app was started with --no-agent-api).")
               : "Agent control is off."
     }
 
@@ -68,16 +68,22 @@ FormCard.FormCardPage {
         }
     }
 
-    FormCard.FormHeader { title: "Recent agent activity"; visible: (agent.activity || []).length > 0 }
+    FormCard.FormHeader { title: "Recent agent activity"; visible: agent.activity.length > 0 }
     FormCard.FormCard {
-        visible: (agent.activity || []).length > 0
+        visible: agent.activity.length > 0
         Repeater {
-            model: (agent.activity || []).slice().reverse()
+            model: agent.activity
             delegate: FormCard.FormTextDelegate {
                 required property var modelData
-                text: modelData.text || modelData
-                description: modelData.time ? new Date(modelData.time).toLocaleTimeString() : ""
+                text: modelData.text
+                description: Qt.formatTime(modelData.time, "hh:mm:ss") + (modelData.client ? " · " + modelData.client : "")
             }
+        }
+        FormCard.FormDelegateSeparator {}
+        FormCard.FormButtonDelegate {
+            text: "Clear activity"
+            icon.name: "edit-clear-history"
+            onClicked: agent.clearActivity()
         }
     }
 

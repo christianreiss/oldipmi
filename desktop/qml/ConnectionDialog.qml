@@ -68,7 +68,7 @@ Kirigami.Dialog {
     readonly property string host: hostField.text.trim().replace(/^[a-z]+:\/\//i, "").replace(/[\/?#].*$/, "")
     readonly property string family: Families.list[Math.max(0, familyBox.currentIndex)].id
     readonly property string hostProblem: host === "" ? "" : /[\s@\\]/.test(host) ? "Enter a hostname or IP address only." : ""
-    readonly property bool valid: host !== "" && hostProblem === "" && userField.text !== ""
+    readonly property bool valid: host !== "" && hostProblem === "" && (userField.text !== "" || !Families.needsAccount(family))
 
     function profile() {
         const p = Object.assign({}, original);

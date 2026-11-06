@@ -8,7 +8,9 @@ var list = [
     { id: "avocent", name: "Dell iDRAC (Avocent)",
       hint: "Dell PowerEdge 12th generation and older with an Avocent-based iDRAC 6/7 virtual console." },
     { id: "cisco", name: "Cisco IMC",
-      hint: "Cisco UCS C-Series Integrated Management Controller (Avocent-based KVM)." }
+      hint: "Cisco UCS C-Series Integrated Management Controller (Avocent-based KVM)." },
+    { id: "demo", name: "Demo console (no hardware)",
+      hint: "A synthetic console that echoes keys, pointer and clicks. For trying OldIPMI and testing AI agents without a BMC. Address \"demo\", or e.g. \"demo-1920x1080\"." }
 ];
 function index(id) {
     for (var i = 0; i < list.length; ++i)
@@ -23,6 +25,7 @@ function name(id) {
 function names() { return list.map(function (f) { return f.name; }); }
 // ISO mount and JNLP import exist only for the AMI and ATEN adapters.
 function hasMedia(id) { return id === "ami" || id === "aten"; }
+function needsAccount(id) { return id !== "demo"; }
 
 var stages = [
     { id: "logging_in", name: "Logging in", failed: "Login failed" },

@@ -70,9 +70,9 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
        }, 4000},
       {"08-console", [=, &controller] {
          controller.disconnectHost();
-         controller.preview();
+         controller.connectHost(QVariantMap{{"name", "Demo console"}, {"host", "demo"}, {"family", "demo"}}, {});
          if (auto *d = root->findChild<QObject *>("consoleDetails")) d->setProperty("checked", true);
-       }, 700},
+       }, 1500},
       {"09-power-confirm", [=] { root->setProperty("pendingPower", "reset");
          if (auto *d = root->findChild<QObject *>("powerDialog")) QMetaObject::invokeMethod(d, "open"); }, 700},
       {"10-empty", [=, &controller] {

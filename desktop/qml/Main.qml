@@ -143,8 +143,9 @@ Kirigami.ApplicationWindow {
         id: powerDialog
         objectName: "powerDialog"
         readonly property var info: window.powerText[window.pendingPower] || ({title: "", verb: "OK", text: ""})
-        title: info.title + ": " + (window.powerProfile.name || window.powerProfile.host || "")
-        subtitle: info.text + "\n\nBMC: " + (window.powerProfile.host || "")
+        readonly property var target: window.powerProfile.host ? window.powerProfile : controller.activeProfile
+        title: info.title + ": " + (target.name || target.host || "")
+        subtitle: info.text + "\n\nBMC: " + (target.host || "")
         standardButtons: Kirigami.Dialog.NoButton
         customFooterActions: [
             Kirigami.Action { text: "Cancel"; icon.name: "dialog-cancel"; onTriggered: powerDialog.close() },

@@ -21,9 +21,24 @@
 * Power dialogs name the server and the consequence; delete names the connection.
   ISO actions appear only when the console reports read-only ISO support.
 * Window title follows the connection; window geometry and last selection persist.
-* `--self-test --screenshots DIR` renders every UI state offscreen for review.
+* `--self-test --screenshots DIR` renders every UI state offscreen for review; new
+  console input tests cover capture, the swallowed capturing click and Right Ctrl release.
   DESIGN.md and docs/slop-review-2026-11-06.md document the review.
 * Requires Kirigami Addons (`kf6-kirigami-addons`); the AppImage bundles it.
+
+### AI agents (MCP)
+* MCP 2025-11-25 and 2026-07-28 protocol support, JSON-RPC error handling, `ping` and
+  cancellation during long tools, in-order tool execution (a pipelining bug found live).
+* Full key coverage (F1–F24, keypad, SysRq/Break, locks, Menu, left/right modifiers),
+  `key_down`/`key_up`/`repeat`, `list_keys`, `wait`; screenshots downscale to `max_size`
+  with an exact coordinate mapping; `connect` waits for a password typed by the user.
+* App side: several clients, per-client release of held input on failure or disconnect,
+  robust line handling, runtime enable/disable, client name, activity list (no typed
+  text) and a toolbar indicator while an agent is connected.
+* New `demo` console family: a synthetic console for hardware-free tests.
+* Verified: unit tests, Qt socket tests and a live offscreen run through `oldipmi-mcp`
+  (all printable ASCII, combos, F13–F24, pointer clicks, scaling). Not run on hardware:
+  F13–F24, keypad and SysRq on real BMCs.
 
 ### Supermicro (ATEN)
 * Detect the base64 + `check=00` login form of later X10/X11 firmware from the login

@@ -94,7 +94,15 @@ ColumnLayout {
             clip: true
             keyNavigationEnabled: true
             activeFocusOnTab: true
-            currentIndex: root.profiles.findIndex(p => p.id === root.selectedId)
+            // Imperative: ListView resets currentIndex on model changes, which breaks a binding.
+            function syncCurrent() { currentIndex = root.profiles.findIndex(p => p.id === root.selectedId) }
+            Component.onCompleted: syncCurrent()
+            onCountChanged: Qt.callLater(syncCurrent)
+            Connections {
+                target: root
+                function onSelectedIdChanged() { list.syncCurrent() }
+                function onProfilesChanged() { Qt.callLater(list.syncCurrent) }
+            }
             Accessible.name: "Connections"
 
             Keys.onReturnPressed: if (currentItem) root.connectRequested(currentItem.profile)
@@ -102,7 +110,8 @@ ColumnLayout {
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_F2 && currentItem) { root.editRequested(currentItem.profile); event.accepted = true }
             }
-            onCurrentIndexChanged: if (currentItem && currentItem.profile.id !== root.selectedId) root.selected(currentItem.profile.id)
+            // Only keyboard navigation selects; model resets must not change the selection.
+            onCurrentIndexChanged: if (activeFocus && currentItem && currentItem.profile.id !== root.selectedId) root.selected(currentItem.profile.id)
 
             delegate: QQC2.ItemDelegate {
                 id: row

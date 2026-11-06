@@ -46,7 +46,9 @@ ColumnLayout {
             }
             ColumnLayout {
                 spacing: 0
-                Layout.fillWidth: true
+                // Title takes what it needs; the action bar gets the rest so it does not collapse.
+                Layout.fillWidth: false
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 18
                 Layout.leftMargin: Kirigami.Units.smallSpacing
                 Kirigami.Heading {
                     level: 2
@@ -64,6 +66,16 @@ ColumnLayout {
                         ? [controller.consoleInfo.protocol, controller.consoleInfo.resolution].filter(x => !!x).join(" · ")
                         : root.shown.host ? root.shown.host + " · " + Families.name(root.family) : ""
                 }
+            }
+            QQC2.ToolButton {
+                // Visible whenever an AI agent is attached to the control socket.
+                visible: agent.clientCount > 0
+                icon.name: "dialog-scripts"
+                text: "AI agent connected"
+                display: QQC2.AbstractButton.IconOnly
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.text: "AI agent connected: " + agent.clientName + (agent.activity.length ? "\nLast action: " + agent.activity[0].text : "")
+                onClicked: mainWindow.openSettings("agents")
             }
             Kirigami.ActionToolBar {
                 Layout.fillWidth: true

@@ -136,27 +136,40 @@ implemented. Unsupported formats fail explicitly rather than launch Java.
 
 `oldipmi-mcp` is a stdio [MCP](https://modelcontextprotocol.io) server that
 controls the **running OldIPMI window**, so everything the agent does is visible.
-Click **MCP** in the toolbar for the full instructions written for the AI (with
-the exact path of `oldipmi-mcp` and a copy button); the same text is sent to MCP
-clients as the server `instructions`.
+**Settings → AI agents (MCP)** shows the register command with the exact path of
+`oldipmi-mcp` (Copy button), the full instructions written for the AI (the same text
+is sent to MCP clients as the server `instructions`), whether the socket is
+listening, which agent is connected (its MCP client name) and its recent actions.
+Typed text and key names are never recorded there; keyboard input is only counted.
+While an agent is connected, an indicator in the console toolbar names it.
 
 ```sh
 claude mcp add oldipmi -- /path/to/oldipmi-mcp
 ```
 
 From the AppImage the bundled path changes on every run: copy `oldipmi-mcp` (a static binary) to a
-stable place such as `~/.local/bin`; the MCP button then shows that path.
+stable place such as `~/.local/bin`; the settings page then shows that path.
 
-Tools: `list_profiles`, `status`, `connect`, `disconnect`, `screenshot` (PNG, optional
-crop/scale), `wait_for_change`, `wait_for_stable`, `type_text`, `key`, `key_combo`,
-`release_input`, `mouse_move`, `mouse_click`, `mouse_double_click`, `mouse_drag`,
-`mouse_scroll`, `power`, `mount_iso`, `eject_iso`. Passwords stay in KWallet and are never
-visible to the agent; `connect` uses the saved password.
+Tools: `list_profiles`, `status`, `connect` (waits up to 60 s for the user to type a
+missing password in the window), `disconnect`, `screenshot` (PNG image content; crop,
+`scale`, `max_size` default 1568 px, with the exact image-to-framebuffer mapping),
+`wait_for_change`, `wait_for_stable`, `wait`, `list_keys`, `type_text` (all printable
+US-ASCII), `key` (`ctrl+alt+f1` style, `repeat`), `key_combo`, `key_down`, `key_up`,
+`release_input`, `mouse_move`, `mouse_click` (with modifiers), `mouse_double_click`,
+`mouse_drag`, `mouse_scroll`, `power`, `mount_iso`, `eject_iso`. Keys: F1–F24, keypad,
+SysRq/Break, Caps/Num/Scroll lock, Menu, left/right modifiers, Super. A failing tool
+releases only the keys and buttons it holds; when an agent disconnects, everything it
+held is released. Passwords stay in KWallet and are never visible to the agent.
+
+Protocol: MCP 2024-11-05 through 2025-11-25 and 2026-07-28; `ping` and
+`notifications/cancelled` are handled while a long tool runs; tool calls run one at a
+time in arrival order.
 
 The app listens on a Unix socket, `$XDG_RUNTIME_DIR/oldipmi/agent.sock` (owner-only, no
 TCP port). **There is no authentication**: any process of your user can control the
-console, including `power` (immediate, no confirmation) and ISO mounting. Start OldIPMI
-with `--no-agent-api` to disable it; `OLDIPMI_AGENT_SOCKET` overrides the path (Unix socket
+console, including `power` (immediate, no confirmation) and ISO mounting. Switch it off
+in Settings → AI agents (takes effect immediately, remembered), or start OldIPMI with
+`--no-agent-api`; `OLDIPMI_AGENT_SOCKET` overrides the path (Unix socket
 paths are limited to about 107 bytes). A second OldIPMI instance does not take over a live socket.
 
 ## Portable bundle
@@ -196,7 +209,13 @@ stdin and checks live video without injecting keys or changing power/media.
 `oldipmi --probe-ui` accepts the same stdin JSON, resolves a saved profile by
 hostname, and tests the complete desktop flow (including KWallet when enabled);
 it prints only connection stages and allowlisted console information.
-`oldipmi --preview` with the MCP server gives a BMC-free end-to-end check of `screenshot`.
+A connection of type **Demo console (no hardware)** (family `demo`, address `demo`,
+`demo-1920x1080` for another size, `demo-fail` / `demo-slow` for failing or slow setup)
+opens a synthetic console that echoes every key, pointer move and click: a BMC-free
+end-to-end check of the UI and of all MCP tools.
+`oldipmi --self-test --screenshots DIR` walks through every UI state offscreen
+(test-mode profiles only; the error state uses `oldipmi.invalid`) and saves PNGs
+for review.
 `--capture PATH` saves the first frame to a new mode-0600 PNG, only when explicitly
 requested. Never commit real console captures or credential-bearing JNLP files.
 
