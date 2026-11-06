@@ -37,6 +37,11 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 	}()
 	if len(jnlp) > 0 {
 		protocol.Report(ctx, "discovering", nil)
+		if mode, e := p.ConsoleModeValue(); e != nil {
+			return c, e
+		} else if mode == protocol.ConsoleHTML5 {
+			return c, fmt.Errorf("an imported JNLP starts the Java iKVM, but this profile's console mode is HTML5; set the console mode to Auto or Java, or connect without the JNLP")
+		}
 		c.launch, err = protocol.ParseJNLP(jnlp)
 	} else {
 		c.web, err = protocol.NewWeb(p)
@@ -57,10 +62,14 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 	} else {
 		c.wire, err = protocol.Dial(ctx, p, c.launch.Port, c.launch.Secure)
 	}
-	if err != nil {
-		return c, err
+	if err == nil {
+		err = c.negotiate(ctx)
 	}
-	return c, c.negotiate(ctx)
+	if err != nil && c.launch.Redfish && ctx.Err() == nil {
+		// The AST2600-generation console stream is not verified (see protocol/web.go).
+		err = fmt.Errorf("%w (this console was found through the Supermicro Redfish iKVM resource, as on X12/X13 boards, whose HTML5 console stream OldIPMI has not been verified with; use the BMC web interface's Remote Console and report the BMC model and firmware version)", err)
+	}
+	return c, err
 }
 
 // negotiate performs the RFB-style handshake on the dialed console connection.
@@ -104,7 +113,7 @@ func (c *Client) negotiate(ctx context.Context) (err error) {
 	if _, err = protocol.Read(c.wire, 24); err != nil {
 		return err
 	}
-	if len(c.launch.Token) > 24 {
+	if len(c.launch.Token) > 24 || len(c.launch.PasswordToken) > 24 {
 		return fmt.Errorf("ATEN token exceeds credential field")
 	}
 	if err = c.wire.WritePacket(c.tokenAuth()); err != nil {
@@ -115,7 +124,7 @@ func (c *Client) negotiate(ctx context.Context) (err error) {
 		return err
 	}
 	if binary.BigEndian.Uint32(result) != 0 {
-		return fmt.Errorf("ATEN token rejected")
+		return fmt.Errorf("the BMC rejected the console session token (it expired or was already used); reconnect to obtain a fresh one")
 	}
 	shared := byte(0)
 	if c.launch.HTML5 {

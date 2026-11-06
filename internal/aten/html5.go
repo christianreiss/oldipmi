@@ -87,7 +87,7 @@ func dialHTML5(ctx context.Context, p protocol.Profile, l protocol.Launch) (*pro
 		return nil, ctx.Err()
 	case r := <-done:
 		if r.err != nil {
-			return nil, fmt.Errorf("HTML5 console connection failed: %w", r.err)
+			return nil, fmt.Errorf("the HTML5 console WebSocket on port %d failed: %w; check that the BMC web port is reachable and no other viewer holds the console, then retry", l.Port, r.err)
 		}
 		return &protocol.Wire{Conn: &wsConn{Conn: r.ws}}, nil
 	}
@@ -149,7 +149,11 @@ func (c *Client) tokenAuth() []byte {
 		return auth
 	}
 	copy(auth[:24], c.launch.Token)
-	copy(auth[24:], c.launch.Token)
+	if c.launch.PasswordToken != "" {
+		copy(auth[24:], c.launch.PasswordToken) // older JNLPs carry distinct user/password fields
+	} else {
+		copy(auth[24:], c.launch.Token)
+	}
 	return auth
 }
 
