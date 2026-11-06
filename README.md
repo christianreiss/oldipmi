@@ -26,7 +26,8 @@ The window has two panes (see [DESIGN.md](DESIGN.md)):
 * **Connections** (left) lists every saved BMC with its address, console type and
   live state. Filter with Ctrl+F. Double-click, Enter or the play button connects;
   if another console is open, it is disconnected first. The context menu offers Connect with JNLP file, Edit (F2), Duplicate and Delete (Del).
-  **+** (Ctrl+N) opens **New connection**.
+  **+** (Ctrl+N) opens **New connection**; **Settings** and **Quit** (Ctrl+Q) sit at
+  the bottom of the list.
 * **New / Edit connection** is a dialog: BMC address (a pasted URL is reduced to
   its host), name, console type, username, password and *Remember password in
   KWallet*. **Advanced options** hold the Supermicro console mode, the per-host

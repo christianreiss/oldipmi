@@ -18,6 +18,7 @@ ColumnLayout {
     signal jnlpRequested(var profile)
     signal newRequested()
     signal settingsRequested(string module)
+    signal quitRequested()
 
     property alias searchText: search.text
     function focusSearch() { search.forceActiveFocus(); search.selectAll() }
@@ -67,7 +68,7 @@ ColumnLayout {
                     QQC2.MenuItem { text: "AI agents (MCP)…"; icon.name: "dialog-scripts"; onTriggered: root.settingsRequested("agents") }
                     QQC2.MenuSeparator {}
                     QQC2.MenuItem { text: "About OldIPMI"; icon.name: "help-about"; onTriggered: root.settingsRequested("about") }
-                    QQC2.MenuItem { text: "Quit"; icon.name: "application-exit"; onTriggered: Qt.quit() }
+                    QQC2.MenuItem { text: "Quit"; icon.name: "application-exit"; onTriggered: root.quitRequested() }
                 }
             }
         }
@@ -207,6 +208,30 @@ ColumnLayout {
                 explanation: "No connection name or address contains “" + search.text + "”."
                 helpfulAction: Kirigami.Action { text: "Clear filter"; icon.name: "edit-clear"; onTriggered: search.clear() }
             }
+        }
+    }
+
+    // Footer: Settings and Quit, always one click away.
+    Kirigami.Separator { Layout.fillWidth: true }
+    RowLayout {
+        Layout.fillWidth: true
+        Layout.margins: Kirigami.Units.smallSpacing
+        spacing: Kirigami.Units.smallSpacing
+        QQC2.ToolButton {
+            icon.name: "configure"
+            text: "Settings"
+            QQC2.ToolTip.visible: hovered
+            QQC2.ToolTip.text: "Settings (Ctrl+,)"
+            onClicked: root.settingsRequested("general")
+        }
+        Item { Layout.fillWidth: true }
+        QQC2.ToolButton {
+            objectName: "quitButton"
+            icon.name: "application-exit"
+            text: "Quit"
+            QQC2.ToolTip.visible: hovered
+            QQC2.ToolTip.text: "Quit OldIPMI (Ctrl+Q)"
+            onClicked: root.quitRequested()
         }
     }
 }

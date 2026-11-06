@@ -49,6 +49,9 @@ Kirigami.ApplicationWindow {
         settingsView.open(module || "general");
     }
     function showMcpInstructions() { mcpDialog.open() }
+    // Close first so onClosing stores the window geometry, then end the app
+    // (the settings window would otherwise keep it running).
+    function quitApp() { close(); Qt.quit() }
     function toggleFullscreen() { visibility = fullscreen ? Window.Windowed : Window.FullScreen }
 
     onSelectedIdChanged: if (selectedId) settings.lastProfile = selectedId
@@ -66,7 +69,7 @@ Kirigami.ApplicationWindow {
     Shortcut { sequence: "F9"; onActivated: settings.showSidebar = !settings.showSidebar }
     Shortcut { sequences: [StandardKey.FullScreen, "F11"]; onActivated: window.toggleFullscreen() }
     Shortcut { sequence: "Ctrl+D"; enabled: controller.state !== "disconnected"; onActivated: controller.disconnectHost() }
-    Shortcut { sequences: [StandardKey.Quit]; onActivated: Qt.quit() }
+    Shortcut { sequences: [StandardKey.Quit]; onActivated: window.quitApp() }
     Shortcut { sequence: "Escape"; enabled: window.fullscreen && !consolePane.consoleView.captured; onActivated: window.toggleFullscreen() }
 
     RowLayout {
@@ -88,6 +91,7 @@ Kirigami.ApplicationWindow {
             onJnlpRequested: p => { window.selectedId = p.id; controller.openJNLP(p) }
             onNewRequested: window.newConnection()
             onSettingsRequested: module => window.openSettings(module)
+            onQuitRequested: window.quitApp()
         }
         Kirigami.Separator { Layout.fillHeight: true; visible: sidebar.visible }
 

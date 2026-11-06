@@ -26,6 +26,8 @@
   window shortcuts (Ctrl+N, F11) staying with the server while captured.
   DESIGN.md and docs/slop-review-2026-11-06.md document the review.
 * Cancelling the password prompt clears its hint from the console pane.
+* Settings and Quit buttons at the bottom of the connection list; Quit (also Ctrl+Q
+  and the menu) stores the window geometry before exiting.
 * Double-click, Enter, the row button or Connect on another connection switches
   consoles: the open one is disconnected first.
 * slop native review (160 screenshots, light/dark, two sizes, scale 1/2, text 1/1.5):
