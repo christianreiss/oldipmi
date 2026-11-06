@@ -31,6 +31,13 @@
   RLE text mode is not drawn yet and fails with an explicit message. A console that
   connects but never delivers a picture shows "waiting for the first picture" and,
   on error, the connection-failed state. `OLDIPMI_TRACE_AVPT` traces AVPT packets.
+* MCP deep dive: misspelt or unknown tool arguments are rejected instead of silently
+  falling back to defaults; disconnect says what it did (disconnected from, cancelled,
+  dismissed the prompt, nothing open); a second disconnect no longer turns the status
+  message into "Connection cancelled."; status no longer reports the console info of a
+  closed session; wait_for_stable's timeout message names the quiet time it missed.
+* Hovering the connection list no longer makes the rows jump: the row's connect button
+  keeps its space and only fades in.
 * A second OldIPMI window takes over the agent socket once the first one closes
   (it used to stay without agent control until restarted).
 * Settings and Quit buttons at the bottom of the connection list; Quit (also Ctrl+Q

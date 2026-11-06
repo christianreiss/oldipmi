@@ -373,6 +373,10 @@ func (s *Server) handle(raw []byte, async func(*response)) *response {
 		if len(cp.Arguments) > 0 && string(cp.Arguments) != "null" && json.Unmarshal(cp.Arguments, &args) != nil {
 			return errResp(m.ID, codeParams, "invalid params: arguments must be an object", nil)
 		}
+		// A misspelt argument would otherwise be ignored and its default used.
+		if msg := t.unknownArgs(args); msg != "" {
+			return ok(map[string]any{"content": []Content{{Type: "text", Text: msg}}, "isError": true})
+		}
 		s.start(m.ID, t, args, func(result map[string]any) {
 			if result == nil {
 				async(nil)

@@ -162,8 +162,15 @@ private slots:
     pr = runAsync(api, "eject");
     QTRY_VERIFY(pr->called);
     QVERIFY(pr->ok);
-    QVERIFY(run(api, "disconnect").ok);
+    auto d = run(api, "disconnect");
+    QVERIFY(d.ok);
+    QCOMPARE(d.value["previous"].toString(), QString("connected"));
+    QVERIFY(!d.value["profile"].toObject()["name"].toString().isEmpty());
     QCOMPARE(c.state(), QString("disconnected"));
+    QVERIFY(run(api, "status").value["consoleInfo"].toObject().isEmpty()); // no stale session info
+    d = run(api, "disconnect");
+    QCOMPARE(d.value["previous"].toString(), QString("disconnected"));
+    QCOMPARE(c.message(), QString("Disconnected.")); // a second disconnect changes nothing
     // A failing login reports its stage.
     QVERIFY(run(api, "connect", {{"profile", "Demo Fail"}}).ok);
     QTRY_COMPARE_WITH_TIMEOUT(c.state(), QString("disconnected"), 10000);

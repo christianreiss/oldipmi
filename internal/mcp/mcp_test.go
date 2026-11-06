@@ -651,3 +651,31 @@ func TestEmptyRepliesAreSentences(t *testing.T) {
 		t.Fatalf("eject_iso with media: %s", c)
 	}
 }
+
+func TestUnknownArgumentsAreRejected(t *testing.T) {
+	f := &fake{statuses: []string{`{"state":"connected","width":800,"height":600}`}}
+	r := callTool(t, f, "wait_for_change", `{"timeout":100}`)
+	if r["isError"] != true || !strings.Contains(content(r), "Unknown argument timeout for wait_for_change (allowed: timeout_ms)") {
+		t.Fatalf("misspelt argument: %v", r)
+	}
+	if r := callTool(t, f, "status", `{"verbose":true}`); r["isError"] != true || !strings.Contains(content(r), "takes no arguments") {
+		t.Fatalf("argument for a tool without arguments: %v", r)
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("backend called despite bad arguments: %v", f.calls)
+	}
+}
+
+func TestDisconnectSaysWhatHappened(t *testing.T) {
+	for reply, want := range map[string]string{
+		`{"previous":"connected","profile":{"name":"Lab-AMI"},"state":"disconnected"}`:  "Disconnected from Lab-AMI.",
+		`{"previous":"logging_in","profile":{"name":"Lab-AMI"},"state":"disconnected"}`: "Cancelled the connection to Lab-AMI (it was logging in).",
+		`{"previous":"disconnected","promptDismissed":true,"state":"disconnected"}`:    "Dismissed the password prompt",
+		`{"previous":"disconnected","promptDismissed":false,"state":"disconnected"}`:   "nothing to disconnect",
+	} {
+		f := &fake{result: map[string]string{"disconnect": reply}}
+		if c := content(callTool(t, f, "disconnect", `{}`)); !strings.Contains(c, want) {
+			t.Errorf("%s: got %s, want %q", reply, c, want)
+		}
+	}
+}

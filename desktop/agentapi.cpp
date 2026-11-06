@@ -341,7 +341,9 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
                    {"changeSeq", double(m_c->changeSeq())},
                    {"msSinceChange", double(m_c->msSinceChange())},
                    {"passwordRequired", !m_passwordFor.isEmpty()},
-                   {"consoleInfo", QJsonObject::fromVariantMap(m_c->consoleInfo())}};
+                   // Only the open session's; a closed one's would mislead.
+                   {"consoleInfo", m_c->state() == "disconnected" ? QJsonObject{}
+                                                                  : QJsonObject::fromVariantMap(m_c->consoleInfo())}};
     if (!m_passwordFor.isEmpty())
       st["passwordProfile"] = m_passwordFor;
     if (m_c->state() != "disconnected" && !m_active.isEmpty())
@@ -378,11 +380,17 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     }
     reply(true, QJsonObject{{"state", m_c->state()}, {"profile", profileJson(p)}});
   } else if (op == "disconnect") {
+    QJsonObject r{{"previous", m_c->state()}, {"promptDismissed", !m_passwordFor.isEmpty()}};
+    if (m_c->state() != "disconnected" && !m_active.isEmpty())
+      r["profile"] = profileJson(m_active);
+    if (m_c->state() != "disconnected" || !m_passwordFor.isEmpty()) {
+      note("disconnect");
+      log(label(client), "connect", "Disconnect");
+    }
     m_passwordFor.clear();
-    note("disconnect");
-    log(label(client), "connect", "Disconnect");
     m_c->disconnectHost();
-    reply(true, QJsonObject{{"state", m_c->state()}});
+    r["state"] = m_c->state();
+    reply(true, r);
   } else if (op == "screenshot") {
     auto img = m_c->lastFrame();
     if (img.isNull())

@@ -170,7 +170,12 @@ ColumnLayout {
                         icon.name: "media-playback-start"
                         text: "Connect to " + (row.profile.name || row.profile.host)
                         display: QQC2.AbstractButton.IconOnly
-                        visible: !row.active && (row.hovered || row.highlighted)
+                        // Always laid out, only faded in: toggling visible resized the
+                        // row on hover and made the whole list jump.
+                        readonly property bool shown: !row.active && (row.hovered || row.highlighted)
+                        opacity: shown ? 1 : 0
+                        enabled: shown
+                        Accessible.ignored: !shown
                         QQC2.ToolTip.visible: hovered
                         QQC2.ToolTip.text: root.busy ? "Disconnect the open console and connect" : "Connect"
                         onClicked: root.connectRequested(row.profile)

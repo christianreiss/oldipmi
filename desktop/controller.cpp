@@ -414,6 +414,16 @@ void Controller::start(QVariantMap p, QString password, QString jnlp) {
            {"jnlp", jnlp}});
 }
 void Controller::disconnectHost() {
+  // Nothing open and no password prompt: only dismiss a shown failure and keep
+  // the last message, instead of reporting a cancellation that did not happen.
+  if (m_state == "disconnected" && m_pendingProfile.isEmpty()) {
+    if (!m_errorStage.isEmpty() || !m_activeProfile.isEmpty()) {
+      m_errorStage.clear();
+      m_activeProfile.clear();
+      emit changed();
+    }
+    return;
+  }
   bool cancelled = m_state != "connected";
   cancelCredentials();
   releaseInput();

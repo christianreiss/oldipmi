@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"oldipmi/internal/hid"
+	"sort"
 	"strings"
 	"time"
 )
@@ -27,6 +28,32 @@ func (t Tool) describe() map[string]any {
 		ann["idempotentHint"] = t.Idempotent
 	}
 	return map[string]any{"name": t.Name, "title": t.Title, "description": t.Description, "inputSchema": t.Schema, "annotations": ann}
+}
+
+// unknownArgs names arguments the schema does not declare (additionalProperties
+// is false everywhere), or returns "".
+func (t Tool) unknownArgs(args map[string]any) string {
+	props, _ := t.Schema["properties"].(map[string]any)
+	var bad []string
+	for k := range args {
+		if _, ok := props[k]; !ok {
+			bad = append(bad, k)
+		}
+	}
+	if len(bad) == 0 {
+		return ""
+	}
+	sort.Strings(bad)
+	allowed := make([]string, 0, len(props))
+	for k := range props {
+		allowed = append(allowed, k)
+	}
+	sort.Strings(allowed)
+	hint := "it takes no arguments"
+	if len(allowed) > 0 {
+		hint = "allowed: " + strings.Join(allowed, ", ")
+	}
+	return fmt.Sprintf("Unknown argument %s for %s (%s).", strings.Join(bad, ", "), t.Name, hint)
 }
 
 const (
@@ -331,9 +358,34 @@ func tools() []Tool {
 			Description: "Connection state (disconnected, logging_in, discovering, connecting, connected), status message, active profile, whether a password prompt is waiting for the user, console info, mounted ISO, framebuffer size and screen-change counters.",
 			Schema:      obj(map[string]any{})}, "status"),
 		connectTool(),
-		simple(Tool{Name: "disconnect", Title: "Disconnect console", Idempotent: true,
+		{Name: "disconnect", Title: "Disconnect console", Idempotent: true,
 			Description: "Close the console session, or cancel one that is being set up (also dismisses a pending password prompt).",
-			Schema:      obj(map[string]any{})}, "disconnect"),
+			Schema:      obj(map[string]any{}),
+			Run: func(_ context.Context, b Backend, _ map[string]any) ([]Content, error) {
+				raw, err := call(b, "disconnect", map[string]any{})
+				if err != nil {
+					return nil, err
+				}
+				var r struct {
+					Previous        string                `json:"previous"`
+					PromptDismissed bool                  `json:"promptDismissed"`
+					Profile         struct{ Name string } `json:"profile"`
+				}
+				json.Unmarshal(raw, &r)
+				name := ""
+				if r.Profile.Name != "" {
+					name = " " + r.Profile.Name
+				}
+				switch {
+				case r.Previous == "connected":
+					return text("Disconnected" + strings.Replace(name, " ", " from ", 1) + "."), nil
+				case r.Previous != "" && r.Previous != "disconnected":
+					return text("Cancelled the connection" + strings.Replace(name, " ", " to ", 1) + " (it was " + strings.ReplaceAll(r.Previous, "_", " ") + ")."), nil
+				case r.PromptDismissed:
+					return text("Dismissed the password prompt; no console was open."), nil
+				}
+				return text("No console was open; nothing to disconnect."), nil
+			}},
 		screenshotTool(),
 		{Name: "wait_for_change", Title: "Wait for screen change", ReadOnly: true,
 			Description: "Block until the remote screen content changes, or until the timeout. Use after an action whose effect takes time (boot, menu redraw).",
@@ -393,7 +445,7 @@ func tools() []Tool {
 				if stable {
 					return text(fmt.Sprintf("Stable for %d ms.", s.MSSinceChange)), nil
 				}
-				return text(fmt.Sprintf("Screen still changing after %d ms (last change %d ms ago).", t, s.MSSinceChange)), nil
+				return text(fmt.Sprintf("Not stable for %d ms within %d ms (last change %d ms ago).", q, t, s.MSSinceChange)), nil
 			}},
 		{Name: "wait", Title: "Wait", ReadOnly: true, Idempotent: true,
 			Description: "Pause for a fixed time, e.g. while a host boots.",

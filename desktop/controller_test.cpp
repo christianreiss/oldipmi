@@ -159,9 +159,11 @@ private slots:
     QTRY_COMPARE(c.state(), QString("disconnected"));
     QCOMPARE(c.errorStage(), QString("logging_in"));
     QVERIFY(c.host(p["id"].toString()).contains("lastConnected"));
+    auto failure = c.message();
     c.disconnectHost();
     QVERIFY(c.errorStage().isEmpty());
     QVERIFY(c.activeProfile().isEmpty());
+    QCOMPARE(c.message(), failure); // nothing was open, so nothing was "cancelled"
   }
   void invalidFileIsPreserved() {
     QTemporaryDir dir; FakeCredentials wallet;
