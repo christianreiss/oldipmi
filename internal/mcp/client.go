@@ -42,8 +42,8 @@ type reply struct {
 	Error  string          `json:"error"`
 }
 
-// ErrNotRunning is returned when the desktop application's socket is absent.
-var ErrNotRunning = errors.New("OldIPMI is not running (no agent socket at the expected path); ask the user to start the OldIPMI application, or to enable its agent control if it was switched off")
+// ErrNotRunning is returned when nothing answers on the agent socket.
+var ErrNotRunning = errors.New("No OldIPMI window is serving agent control (nothing answers on the agent socket). Ask the user to start OldIPMI, or, if it is open, to switch on Settings → AI agents (MCP) → \"Allow AI agents to control OldIPMI\"")
 
 func (c *Client) Call(op string, args map[string]any) (json.RawMessage, error) {
 	c.mu.Lock()
