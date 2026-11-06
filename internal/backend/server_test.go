@@ -120,3 +120,46 @@ func readEvent(t *testing.T, r io.Reader) Event {
 	}
 	return e
 }
+
+// The demo family runs the full IPC path (setup stages, video frames, input
+// acknowledgements) without any network access.
+func TestDemoFamilyOverIPC(t *testing.T) {
+	control, peer := net.Pipe()
+	video, screen := net.Pipe()
+	defer peer.Close()
+	defer screen.Close()
+	peer.SetDeadline(time.Now().Add(5 * time.Second))
+	screen.SetDeadline(time.Now().Add(5 * time.Second))
+	done := make(chan error, 1)
+	go func() { done <- Serve(context.Background(), control, video) }()
+	writeCommand(t, peer, Command{Op: "connect", Profile: protocol.Profile{Family: "demo", Host: "demo-640x480"}})
+	for {
+		e := readEvent(t, peer)
+		if e.State == "connected" {
+			break
+		}
+		if e.State == "disconnected" {
+			t.Fatal(e.Message)
+		}
+	}
+	h := make([]byte, 12)
+	if _, err := io.ReadFull(screen, h); err != nil {
+		t.Fatal(err)
+	}
+	if w, hh := binary.BigEndian.Uint32(h[4:]), binary.BigEndian.Uint32(h[8:]); w != 640 || hh != 480 {
+		t.Fatalf("frame %dx%d", w, hh)
+	}
+	go io.Copy(io.Discard, screen)
+	writeCommand(t, peer, Command{ID: 7, Op: "key", Input: protocol.Input{Usage: 4, Down: true}})
+	if e := readEvent(t, peer); e.ID != 7 || e.Type != "ok" {
+		t.Fatal(e)
+	}
+	writeCommand(t, peer, Command{ID: 8, Op: "power", Action: "soft"})
+	if e := readEvent(t, peer); e.ID != 8 || e.Type != "ok" {
+		t.Fatal(e)
+	}
+	writeCommand(t, peer, Command{Op: "disconnect"})
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"oldipmi/internal/ami"
 	"oldipmi/internal/aten"
 	"oldipmi/internal/avocent"
+	"oldipmi/internal/demo"
 	"oldipmi/internal/protocol"
 	"sync"
 	"sync/atomic"
@@ -70,6 +71,8 @@ func Open(ctx context.Context, p protocol.Profile, password string, jnlp []byte)
 		return ami.Connect(ctx, p, password, jnlp)
 	case "aten":
 		return aten.Connect(ctx, p, password, jnlp)
+	case "demo": // synthetic console for BMC-free end-to-end checks; never touches the network
+		return demo.Connect(ctx, p)
 	default:
 		return nil, fmt.Errorf("unsupported BMC family; select AMI, ATEN, Avocent or Cisco")
 	}

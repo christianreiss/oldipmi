@@ -120,15 +120,12 @@ int main(int argc, char **argv) {
   // --no-agent-api, and switchable at runtime in Settings → AI agents.
   bool agentAllowed = !test && !app.arguments().contains("--no-agent-api");
   auto applyAgentSetting = [&] {
-    if (!agentAllowed)
+    if (!agentAllowed || settings.agentApiEnabled() == agent.enabled())
       return;
-    if (settings.agentApiEnabled() && !agent.listening()) {
-      if (!agent.start())
-        fprintf(stderr, "Agent API unavailable at %s: %s\n", qPrintable(agent.socketPath()),
-                qPrintable(agent.errorString()));
-    } else if (!settings.agentApiEnabled() && agent.listening()) {
-      agent.stop();
-    }
+    agent.setEnabled(settings.agentApiEnabled());
+    if (agent.enabled() && !agent.listening())
+      fprintf(stderr, "Agent API unavailable at %s: %s\n", qPrintable(agent.socketPath()),
+              qPrintable(agent.errorString()));
   };
   applyAgentSetting();
   QObject::connect(&settings, &AppSettings::changed, &agent, applyAgentSetting);
