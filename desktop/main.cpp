@@ -1,6 +1,9 @@
 #include "agentapi.h"
 #include "console.h"
 #include "controller.h"
+#include "i18n.h"
+#include "settings.h"
+#include <QIcon>
 #include <QApplication>
 #include <QFile>
 #include <QJsonDocument>
@@ -10,27 +13,135 @@
 #include <QQuickWindow>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QWindow>
+#include <functional>
+#include <memory>
+// Developer aid (--screenshots DIR, with --self-test): walks through the UI
+// states and saves one PNG per state and window. Never contacts a real BMC:
+// the error state uses the reserved name "oldipmi.invalid".
+static void call0(QObject *root, const char *method, const QVariant &arg) {
+  QMetaObject::invokeMethod(root, method, Q_ARG(QVariant, arg));
+}
+static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
+                             Controller &controller, const QString &dir) {
+  auto *root = engine.rootObjects().first();
+  // A previous tour removed all test-mode profiles; seed examples again.
+  if (controller.hosts().isEmpty()) {
+    controller.saveHost({{"name", "Lab-AMI"}, {"host", "lab-ami.example.net"}, {"family", "ami"}, {"username", "ADMIN"}}, {}, false);
+    controller.saveHost({{"name", "Lab-ATEN"}, {"host", "lab-aten.example.net"}, {"family", "aten"}, {"username", "ADMIN"}}, {}, false);
+    controller.saveHost({{"name", "Lab-Avocent"}, {"host", "lab-avocent.example.net"}, {"family", "avocent"}, {"username", "root"}, {"legacyTLS", true}}, {}, false);
+    call0(root, "loadHost", controller.hosts().first());
+  }
+  struct Step { QString name; std::function<void()> act; int wait; };
+  auto call = [root](const char *method, QVariant arg = {}) {
+    if (arg.isValid())
+      QMetaObject::invokeMethod(root, method, Q_ARG(QVariant, arg));
+    else
+      QMetaObject::invokeMethod(root, method);
+  };
+  auto closePopups = [root] {
+    for (auto *o : root->findChildren<QObject *>())
+      if (o->inherits("QQuickPopup") && o->property("opened").toBool())
+        QMetaObject::invokeMethod(o, "close");
+  };
+  QVariantMap demo{{"name", "Demo BMC"}, {"host", "oldipmi.invalid"}, {"family", "aten"},
+                   {"username", "ADMIN"}, {"remember", false}};
+  // A private address with no host behind it: the login stays pending until cancelled.
+  QVariantMap pending{{"name", "Lab server"}, {"host", "10.255.255.1"}, {"family", "ami"},
+                      {"username", "ADMIN"}, {"remember", false}};
+  auto steps = std::make_shared<QList<Step>>(QList<Step>{
+      {"01-selected", [] {}, 600},
+      {"02-new-connection", [=] { call("newConnection"); }, 700},
+      {"03-edit-connection", [=, &controller] {
+         closePopups();
+         auto p = controller.hosts().first().toMap();
+         call("editConnection", p);
+       }, 700},
+      {"04-settings-general", [=] { closePopups(); call("openSettings", QString("general")); }, 900},
+      {"05-settings-agents", [=] { call("openSettings", QString("agents")); }, 900},
+      {"06-connecting", [=, &controller] {
+         for (auto *w : QGuiApplication::topLevelWindows())
+           if (w != qobject_cast<QWindow *>(root)) w->close();
+         controller.connectHost(pending, "not-a-real-password");
+       }, 800},
+      {"07-error", [=, &controller] {
+         controller.disconnectHost();
+         controller.connectHost(demo, "not-a-real-password");
+       }, 4000},
+      {"08-console", [=, &controller] {
+         controller.disconnectHost();
+         controller.preview();
+         if (auto *d = root->findChild<QObject *>("consoleDetails")) d->setProperty("checked", true);
+       }, 700},
+      {"09-power-confirm", [=] { root->setProperty("pendingPower", "reset");
+         if (auto *d = root->findChild<QObject *>("powerDialog")) QMetaObject::invokeMethod(d, "open"); }, 700},
+      {"10-empty", [=, &controller] {
+         closePopups();
+         controller.disconnectHost();
+         for (const auto &h : controller.hosts()) controller.removeHost(h.toMap().value("id").toString());
+         call("loadHost", QVariantMap{});
+       }, 600},
+  });
+  auto index = std::make_shared<int>(0);
+  auto next = std::make_shared<std::function<void()>>();
+  *next = [=, &app] {
+    if (*index > 0) {
+      const auto &done = (*steps)[*index - 1];
+      int n = 0;
+      for (auto *w : QGuiApplication::topLevelWindows())
+        if (auto *qw = qobject_cast<QQuickWindow *>(w); qw && qw->isVisible())
+          qw->grabWindow().save(dir + "/" + done.name + (n++ ? "-" + QString::number(n) : "") + ".png");
+    }
+    if (*index >= steps->size()) { app.exit(0); return; }
+    auto &step = (*steps)[(*index)++];
+    step.act();
+    QTimer::singleShot(step.wait, &app, *next);
+  };
+  QTimer::singleShot(300, &app, *next);
+  return app.exec();
+}
 int main(int argc, char **argv) {
   QApplication app(argc, argv);
   app.setApplicationName("OldIPMI");
   app.setOrganizationName("OldIPMI");
-  app.setApplicationVersion("0.1.0");
+  app.setApplicationVersion(OLDIPMI_VERSION);
+  app.setApplicationDisplayName("OldIPMI");
+  app.setDesktopFileName("net.alpha_labs.OldIPMI");
+  app.setWindowIcon(QIcon::fromTheme("oldipmi", QIcon(":/oldipmi.svg")));
   bool test = app.arguments().contains("--self-test"),
        preview = app.arguments().contains("--preview");
   if (test)
     QStandardPaths::setTestModeEnabled(true);
   qmlRegisterType<Console>("OldIPMI", 1, 0, "ConsoleView");
   Controller controller;
+  AppSettings settings;
   AgentApi agent(&controller);
-  // Auth-less local control socket for oldipmi-mcp; skipped by self-test and --no-agent-api.
-  if (!test && !app.arguments().contains("--no-agent-api") && !agent.start())
-    fprintf(stderr, "Agent API unavailable at %s: %s\n", qPrintable(agent.socketPath()), qPrintable(agent.errorString()));
+  // Auth-less local control socket for oldipmi-mcp; skipped by self-test and
+  // --no-agent-api, and switchable at runtime in Settings → AI agents.
+  bool agentAllowed = !test && !app.arguments().contains("--no-agent-api");
+  auto applyAgentSetting = [&] {
+    if (!agentAllowed)
+      return;
+    if (settings.agentApiEnabled() && !agent.listening()) {
+      if (!agent.start())
+        fprintf(stderr, "Agent API unavailable at %s: %s\n", qPrintable(agent.socketPath()),
+                qPrintable(agent.errorString()));
+    } else if (!settings.agentApiEnabled() && agent.listening()) {
+      agent.stop();
+    }
+  };
+  applyAgentSetting();
+  QObject::connect(&settings, &AppSettings::changed, &agent, applyAgentSetting);
   QQmlApplicationEngine engine;
+  LocalizedContext i18n;
+  engine.rootContext()->setContextObject(&i18n);
   engine.rootContext()->setContextProperty("controller", &controller);
   engine.rootContext()->setContextProperty("agent", &agent);
-  engine.load(QUrl("qrc:/desktop/Main.qml"));
+  engine.rootContext()->setContextProperty("settings", &settings);
+  engine.load(QUrl("qrc:/desktop/qml/Main.qml"));
   if (engine.rootObjects().isEmpty())
     return 1;
+  engine.rootContext()->setContextProperty("mainWindow", engine.rootObjects().first());
   auto console = engine.rootObjects().first()->findChild<Console *>("console");
   if (!console)
     return 2;
@@ -97,6 +208,9 @@ int main(int argc, char **argv) {
       app.exit(4);
     });
   }
+  // Only with --self-test: the tour deletes profiles, which must be test-mode copies.
+  if (int i = app.arguments().indexOf("--screenshots"); test && i > 0 && i + 1 < app.arguments().size())
+    return runScreenshotTour(app, engine, controller, app.arguments()[i + 1]);
   if (test || preview)
     QTimer::singleShot(100, &controller, &Controller::preview);
   if (test)

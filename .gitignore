@@ -6,3 +6,6 @@
 *.pem
 *.key
 __pycache__/
+/build-*/
+.slop/
+.claude/worktrees/

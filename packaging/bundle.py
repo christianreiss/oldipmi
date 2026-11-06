@@ -42,8 +42,11 @@ if APP.exists():
 subprocess.run(['cmake', '--install', str(BUILD), '--prefix', str(APP / 'usr')], check=True)
 qml = Path(run('qmake6', '-query', 'QT_INSTALL_QML').strip())
 plugins = Path(run('qmake6', '-query', 'QT_INSTALL_PLUGINS').strip())
-for name in ('QtQuick', 'QtQml', 'org/kde/kirigami'):
-    shutil.copytree(qml / name, APP / 'usr/qml' / name, symlinks=False)
+# Kirigami Addons (form cards, settings window) and the modules it imports.
+for name in ('QtQuick', 'QtQml', 'org/kde/kirigami', 'org/kde/kirigamiaddons', 'org/kde/coreaddons',
+             'org/kde/kitemmodels', 'org/kde/config', 'org/kde/sonnet'):
+    if (qml / name).exists():
+        shutil.copytree(qml / name, APP / 'usr/qml' / name, symlinks=False)
 # Do not ship unrelated network/browser/3D plugins merely present on the build host.
 for name in ('Scene2D', 'Scene3D', 'VirtualKeyboard', 'Pdf', 'Studio'):
     p = APP / 'usr/qml/QtQuick' / name
@@ -84,7 +87,7 @@ copy(Path('/lib64/ld-linux-x86-64.so.2'), lib / 'ld-linux-x86-64.so.2')
 license_packages.add('glibc')
 
 # Copy license texts from installed distro packages, plus our provenance.
-for package in sorted(license_packages | {'qt6-qtbase', 'qt6-qtdeclarative', 'kf6-kirigami', 'kf6-kwallet', 'dejavu-sans-fonts'}):
+for package in sorted(license_packages | {'qt6-qtbase', 'qt6-qtdeclarative', 'kf6-kirigami', 'kf6-kirigami-addons', 'kf6-kwallet', 'dejavu-sans-fonts'}):
     src = Path('/usr/share/licenses') / package
     if src.is_dir(): shutil.copytree(src, APP / 'usr/share/licenses' / package, dirs_exist_ok=True)
 (APP / 'usr/share/doc/OldIPMI').mkdir(parents=True,exist_ok=True)

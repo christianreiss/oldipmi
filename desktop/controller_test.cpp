@@ -124,6 +124,45 @@ private slots:
     p = c.saveHost(p, {}, true);
     QVERIFY(!wallet.values.contains(p["id"].toString()));
   }
+  void duplicateAndNewFieldsPersist() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    QString path = dir.filePath("hosts.json");
+    Controller c(nullptr, &wallet, path);
+    auto p = c.saveHost({{"host", " bmc.example.invalid "}, {"username", "ADMIN"}, {"family", "aten"},
+                         {"consoleMode", "html5"}, {"lastConnected", "2026-11-01T10:00:00Z"}},
+                        "fixture-secret", true);
+    QCOMPARE(p["host"].toString(), "bmc.example.invalid");
+    QCOMPARE(p["name"].toString(), "bmc.example.invalid"); // empty name falls back to host
+    QCOMPARE(p["consoleMode"].toString(), "html5");
+    // Editing without lastConnected keeps the recorded value.
+    auto edited = p; edited.remove("lastConnected"); edited["name"] = "Edited";
+    edited = c.saveHost(edited, {}, true);
+    QCOMPARE(edited["lastConnected"].toString(), "2026-11-01T10:00:00Z");
+    auto copy = c.duplicateHost(p["id"].toString());
+    QVERIFY(!copy.isEmpty());
+    QVERIFY(copy["id"] != p["id"]);
+    QCOMPARE(copy["name"].toString(), "Edited (copy)");
+    QCOMPARE(copy["consoleMode"].toString(), "html5");
+    QVERIFY(!copy.contains("lastConnected"));
+    QVERIFY(!copy["remember"].toBool());             // the copy has no wallet entry
+    QVERIFY(!wallet.values.contains(copy["id"].toString()));
+    QCOMPARE(c.host(copy["id"].toString()), copy);
+    Controller reloaded(nullptr, &wallet, path);
+    QCOMPARE(reloaded.host(p["id"].toString())["consoleMode"].toString(), "html5");
+  }
+  void failedStageAndActiveProfile() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    auto p = c.hosts()[0].toMap(); p["family"] = "fixture";
+    c.connectHost(p, "fixture-secret");
+    QCOMPARE(c.activeProfile().value("id"), p["id"]);
+    QTRY_COMPARE(c.state(), QString("disconnected"));
+    QCOMPARE(c.errorStage(), QString("logging_in"));
+    QVERIFY(c.host(p["id"].toString()).contains("lastConnected"));
+    c.disconnectHost();
+    QVERIFY(c.errorStage().isEmpty());
+    QVERIFY(c.activeProfile().isEmpty());
+  }
   void invalidFileIsPreserved() {
     QTemporaryDir dir; FakeCredentials wallet;
     QString path = dir.filePath("hosts.json");

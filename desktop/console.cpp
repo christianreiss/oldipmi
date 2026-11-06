@@ -3,6 +3,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QQuickWindow>
 #include <QWheelEvent>
 Console::Console(QQuickItem *p) : QQuickPaintedItem(p) {
   setAcceptedMouseButtons(Qt::AllButtons);
@@ -12,8 +13,33 @@ Console::Console(QQuickItem *p) : QQuickPaintedItem(p) {
   setAntialiasing(false);
 }
 void Console::setFrame(QImage im) {
+  bool resized = im.size() != m_image.size();
   m_image = im;
   update();
+  if (resized)
+    emit frameSizeChanged();
+  if (m_image.isNull() && hasActiveFocus())
+    release();
+}
+void Console::release() {
+  if (hasActiveFocus())
+    setFocus(false);
+  if (auto *w = window(); w && w->activeFocusItem() == this)
+    w->contentItem()->forceActiveFocus();
+}
+bool Console::event(QEvent *e) {
+  // While captured, every key belongs to the remote host: application
+  // shortcuts (Ctrl+N, F11, Ctrl+Q, ...) must not fire.
+  if (e->type() == QEvent::ShortcutOverride && hasActiveFocus() && !m_image.isNull()) {
+    e->accept();
+    return true;
+  }
+  return QQuickPaintedItem::event(e);
+}
+void Console::focusInEvent(QFocusEvent *e) {
+  update();
+  emit capturedChanged();
+  QQuickPaintedItem::focusInEvent(e);
 }
 QRectF Console::imageRect() const {
   if (m_image.isNull())
@@ -25,18 +51,17 @@ QRectF Console::imageRect() const {
                 s.width(), s.height());
 }
 void Console::paint(QPainter *p) {
-  p->fillRect(boundingRect(), QColor("#101318"));
-  if (m_image.isNull()) {
-    p->setPen(QColor("#a8b3c2"));
-    p->drawText(boundingRect(), Qt::AlignCenter,
-                "OldIPMI\nConnect to a BMC to open its console");
+  // Letterbox in black: the remote screen is the content, not the chrome.
+  p->fillRect(boundingRect(), Qt::black);
+  if (m_image.isNull())
     return;
-  }
   p->setRenderHint(QPainter::SmoothPixmapTransform, m_fit);
   p->drawImage(imageRect(), m_image);
   if (hasActiveFocus()) {
-    p->setPen(QColor("#3daee9"));
-    p->drawRect(boundingRect().adjusted(1, 1, -1, -1));
+    QPen pen(m_accent);
+    pen.setWidth(2);
+    p->setPen(pen);
+    p->drawRect(imageRect().adjusted(1, 1, -1, -1));
   }
 }
 int Console::usage(QKeyEvent *e) const {
@@ -128,12 +153,13 @@ void Console::keyPressEvent(QKeyEvent *e) {
     return;
   }
   int u = usage(e);
+  m_lonePress = u == 228 && m_pressed.isEmpty();
   if (u) {
     m_pressed.insert(u);
     emit keyInput(u, true);
     e->accept();
   } else
-    e->ignore();
+    e->accept(); // unmapped keys must not leak to the application either
 }
 void Console::keyReleaseEvent(QKeyEvent *e) {
   if (e->isAutoRepeat()) {
@@ -144,13 +170,18 @@ void Console::keyReleaseEvent(QKeyEvent *e) {
   if (u) {
     m_pressed.remove(u);
     emit keyInput(u, false);
-    e->accept();
-  } else
-    e->ignore();
+  }
+  e->accept();
+  if (u == 228 && m_lonePress && m_rightCtrlReleases && m_pressed.isEmpty())
+    release();
+  if (u != 228)
+    m_lonePress = false;
 }
 void Console::focusOutEvent(QFocusEvent *e) {
   m_pressed.clear();
+  m_lonePress = false;
   emit releaseInput();
+  emit capturedChanged();
   update();
   QQuickPaintedItem::focusOutEvent(e);
 }
@@ -167,16 +198,35 @@ void Console::pointer(QPointF pos, int buttons, int wheel) {
   emit pointerInput(x, y, buttons & 7, wheel);
 }
 void Console::mousePressEvent(QMouseEvent *e) {
-  forceActiveFocus();
+  if (m_image.isNull()) {
+    e->ignore();
+    return;
+  }
+  if (!hasActiveFocus()) {
+    // The first click only captures; it is not sent to the remote host.
+    forceActiveFocus(Qt::MouseFocusReason);
+    m_swallow = true;
+    e->accept();
+    return;
+  }
   update();
   pointer(e->position(), e->buttons(), 0);
   e->accept();
 }
 void Console::mouseReleaseEvent(QMouseEvent *e) {
+  if (m_swallow || !hasActiveFocus()) {
+    m_swallow = false;
+    e->accept();
+    return;
+  }
   pointer(e->position(), e->buttons(), 0);
   e->accept();
 }
 void Console::mouseMoveEvent(QMouseEvent *e) {
+  if (m_swallow || !hasActiveFocus()) {
+    e->accept();
+    return;
+  }
   pointer(e->position(), e->buttons(), 0);
   e->accept();
 }
@@ -186,6 +236,10 @@ void Console::hoverMoveEvent(QHoverEvent *e) {
   e->accept();
 }
 void Console::wheelEvent(QWheelEvent *e) {
+  if (!hasActiveFocus()) {
+    e->ignore();
+    return;
+  }
   pointer(e->position(), e->buttons(), e->angleDelta().y() > 0 ? 1 : -1);
   e->accept();
 }

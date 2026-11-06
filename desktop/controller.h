@@ -17,6 +17,11 @@ class Controller : public QObject {
   Q_PROPERTY(QString message READ message NOTIFY changed)
   Q_PROPERTY(QVariantMap consoleInfo READ consoleInfo NOTIFY changed)
   Q_PROPERTY(bool mounted READ mounted NOTIFY changed)
+  // Profile of the session being set up or shown; empty when idle.
+  Q_PROPERTY(QVariantMap activeProfile READ activeProfile NOTIFY changed)
+  // Setup stage that failed last ("logging_in", "discovering", "connecting"), else empty.
+  Q_PROPERTY(QString errorStage READ errorStage NOTIFY changed)
+  Q_PROPERTY(bool hasFrame READ hasFrame NOTIFY changed)
 public:
   explicit Controller(QObject *parent = nullptr, Credentials *credentials = nullptr,
                       QString configFile = {});
@@ -26,6 +31,16 @@ public:
   QString message() const { return m_message; }
   QVariantMap consoleInfo() const { return m_consoleInfo; }
   bool mounted() const { return m_mounted; }
+  QVariantMap activeProfile() const { return m_activeProfile; }
+  QString errorStage() const { return m_errorStage; }
+  bool hasFrame() const { return !m_lastFrame.isNull(); }
+  Q_INVOKABLE QVariantMap duplicateHost(QString id);
+  Q_INVOKABLE QVariantMap host(QString id) const;
+  Q_INVOKABLE void sendKeys(QVariantList usages);
+  Q_INVOKABLE void clearMessage();
+  Q_INVOKABLE QString profilesPath() const { return m_configFile; }
+  // Profile waiting for a password (after passwordRequired/walletUnavailable).
+  Q_INVOKABLE QVariantMap pendingProfile() const { return m_pendingProfile; }
   Q_INVOKABLE QVariantMap saveHost(QVariantMap profile, QString password,
                                    bool remember);
   Q_INVOKABLE bool removeHost(QString id);
@@ -60,13 +75,14 @@ signals:
 
 private:
   QVariantList m_hosts;
-  QVariantMap m_consoleInfo, m_pendingProfile;
+  QVariantMap m_consoleInfo, m_pendingProfile, m_activeProfile;
+  QString m_errorStage;
   QString m_pendingPassword, m_configFile;
   bool m_profilesReadable = true;
   std::unique_ptr<Credentials> m_ownedCredentials;
   Credentials *m_credentials;
   QString m_state = "disconnected",
-          m_message = "Choose a profile and open its console.";
+          m_message;
   bool m_mounted = false;
   QProcess *m_process = nullptr;
   QLocalSocket *m_control = nullptr, *m_video = nullptr;
@@ -85,4 +101,5 @@ private:
   bool persist(const QVariantList &hosts);
   void loadProfiles();
   void stop();
+  void stamp(const QString &id);
 };

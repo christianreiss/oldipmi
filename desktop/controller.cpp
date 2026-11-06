@@ -9,6 +9,7 @@
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUuid>
+#include <QDateTime>
 #include <QtEndian>
 #include <fcntl.h>
 #include <memory>
@@ -112,7 +113,8 @@ QVariantMap Controller::saveHost(QVariantMap p, QString password, bool remember)
   }
   QVariantMap clean, previous;
   for (auto k : {"id", "name", "host", "username", "family", "http", "legacyTLS",
-                "allowPlainConsole", "jnlpPath", "clientCert", "clientKey"})
+                "allowPlainConsole", "jnlpPath", "clientCert", "clientKey", "consoleMode",
+                "lastConnected"})
     if (p.contains(k))
       clean[k] = p[k];
   clean["host"] = clean.value("host").toString().trimmed();
@@ -131,6 +133,10 @@ QVariantMap Controller::saveHost(QVariantMap p, QString password, bool remember)
       break;
     }
   clean["remember"] = remember;
+  if (!clean.contains("lastConnected") && previous.contains("lastConnected"))
+    clean["lastConnected"] = previous["lastConnected"];
+  if (clean.value("name").toString().trimmed().isEmpty())
+    clean["name"] = clean["host"];
   if (remember && !password.isEmpty()) {
     if (!m_credentials->write(clean["id"].toString(), password)) {
       fail("KWallet is unavailable; the password was not saved.");
@@ -177,6 +183,57 @@ bool Controller::removeHost(QString id) {
     }
   return false;
 }
+QVariantMap Controller::host(QString id) const {
+  for (const auto &v : m_hosts)
+    if (v.toMap().value("id").toString() == id)
+      return v.toMap();
+  return {};
+}
+QVariantMap Controller::duplicateHost(QString id) {
+  auto p = host(id);
+  if (p.isEmpty())
+    return {};
+  p.remove("id");
+  p.remove("lastConnected");
+  p["name"] = p.value("name").toString() + " (copy)";
+  // The copy gets its own wallet entry; it starts without a saved password.
+  auto saved = saveHost(p, {}, false);
+  if (!saved.isEmpty()) {
+    m_message = "Duplicated as \"" + saved.value("name").toString() + "\".";
+    emit changed();
+  }
+  return saved;
+}
+void Controller::stamp(const QString &id) {
+  auto profiles = m_hosts;
+  for (auto &v : profiles) {
+    auto p = v.toMap();
+    if (p.value("id").toString() != id)
+      continue;
+    p["lastConnected"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    v = p;
+    if (persist(profiles)) {
+      m_hosts = profiles;
+      emit hostsChanged();
+    }
+    return;
+  }
+}
+void Controller::clearMessage() {
+  m_errorStage.clear();
+  m_message.clear();
+  emit changed();
+}
+void Controller::sendKeys(QVariantList usages) {
+  // Press in order, release in reverse: a chord such as Ctrl+Alt+Del.
+  if (m_state != "connected")
+    return;
+  releaseInput();
+  for (const auto &u : usages)
+    key(u.toInt(), true);
+  for (auto it = usages.crbegin(); it != usages.crend(); ++it)
+    key(it->toInt(), false);
+}
 void Controller::failPending(const QString &why) {
   auto pending = std::move(m_pending);
   m_pending.clear();
@@ -214,6 +271,7 @@ void Controller::connectHost(QVariantMap p, QString password) {
   if (m_state != "disconnected")
     return;
   m_consoleInfo.clear();
+  m_errorStage.clear();
   m_pendingProfile = p;
   m_pendingPassword.clear();
   bool entered = !password.isEmpty();
@@ -230,7 +288,8 @@ void Controller::connectHost(QVariantMap p, QString password) {
     }
   }
   if (password.isEmpty()) {
-    fail("Enter this profile's password to open its console.");
+    fail("Enter the password for " + p.value("username").toString() + "@" +
+         p.value("host").toString() + " to open its console.");
     emit passwordRequired();
     return;
   }
@@ -244,6 +303,7 @@ void Controller::connectHost(QVariantMap p, QString password) {
   m_pendingProfile.clear();
   emit profileActivated(saved);
   start(saved, password);
+  stamp(saved.value("id").toString());
 }
 void Controller::continueWithoutWallet() {
   if (m_pendingPassword.isEmpty())
@@ -261,6 +321,8 @@ void Controller::start(QVariantMap p, QString password, QString jnlp) {
   stop();
   emit frameReady(QImage());
   m_consoleInfo.clear();
+  m_errorStage.clear();
+  m_activeProfile = p;
   m_state = jnlp.isEmpty() ? "logging_in" : "discovering";
   m_message = "Opening console on " + p.value("host").toString() + "…";
   emit changed();
@@ -351,6 +413,8 @@ void Controller::disconnectHost() {
   releaseInput();
   stop();
   m_state = "disconnected";
+  m_errorStage.clear();
+  m_activeProfile.clear();
   m_message = cancelled ? "Connection cancelled." : "Disconnected.";
   emit frameReady(QImage());
   emit changed();
@@ -397,6 +461,8 @@ void Controller::readControl() {
       m_process->terminate();
       return;
     }
+    if (o["type"] == "error" && m_state != "connected" && m_state != "disconnected")
+      m_errorStage = m_state;
     if (o.contains("state"))
       m_state = o["state"].toString();
     if (o["type"] == "error")
@@ -461,8 +527,11 @@ void Controller::readVideo() {
       m_sinceChange.restart();
     }
     ++m_frameSeq;
+    bool first = m_lastFrame.isNull();
     m_lastFrame = latest;
     emit frameReady(latest);
+    if (first)
+      emit changed();
   }
 }
 void Controller::key(int usage, bool down) {
@@ -519,6 +588,7 @@ void Controller::preview() {
   ++m_changeSeq;
   m_sinceChange.restart();
   emit frameReady(im);
+  m_activeProfile = {{"id", ""}, {"name", "Preview"}, {"host", "synthetic framebuffer"}};
   m_message = "Desktop preview — no BMC connection";
   emit changed();
 }

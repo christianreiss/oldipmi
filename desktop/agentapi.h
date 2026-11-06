@@ -15,6 +15,7 @@ class AgentApi : public QObject {
 public:
   explicit AgentApi(Controller *controller, QString socketPath = {}, QObject *parent = nullptr);
   bool start();
+  void stop() { m_server.close(); emit listeningChanged(); }
   bool listening() const { return m_server.isListening(); }
   QString socketPath() const { return m_path; }
   QString mcpPath() const;
