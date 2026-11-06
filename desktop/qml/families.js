@@ -22,6 +22,14 @@ function name(id) {
         if (list[i].id === id) return list[i].name;
     return id || "Unknown";
 }
+// Bundled illustration per family (desktop/images, compiled into the binary).
+function image(id) {
+    for (var i = 0; i < list.length; ++i)
+        if (list[i].id === id) return "qrc:/images/family-" + id + ".png";
+    return "qrc:/images/family-aten.png";
+}
+var emptyImage = "qrc:/images/empty-state.png";
+var errorImage = "qrc:/images/error-state.png";
 function names() { return list.map(function (f) { return f.name; }); }
 // ISO mount exists only for the AMI and ATEN adapters.
 function hasMedia(id) { return id === "ami" || id === "aten"; }

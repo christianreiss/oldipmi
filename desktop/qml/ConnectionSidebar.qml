@@ -141,7 +141,7 @@ ColumnLayout {
                 contentItem: RowLayout {
                     spacing: Kirigami.Units.largeSpacing
                     Kirigami.Icon {
-                        source: "computer"
+                        source: Families.image(row.profile.family)
                         implicitWidth: Kirigami.Units.iconSizes.medium
                         implicitHeight: implicitWidth
                         Layout.alignment: Qt.AlignVCenter

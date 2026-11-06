@@ -10,7 +10,12 @@ pressure (server down, BIOS prompt, boot failure).
 Product UI, not brand. It must look like a KDE application next to Dolphin or
 System Settings: Breeze, Kirigami and Kirigami Addons components, system font,
 system colours, system light/dark. No custom palette, gradients or decorative
-accents. Copy is plain and specific ("Login failed", "Check the BMC address"), never
+accents in the chrome. The only artwork is one set of matching illustrations
+(`desktop/images`): one per console family in the connection list and on the
+selected-connection page, plus the first-run and error states. They share one style
+(flat Breeze/Papirus look, slate body, one accent colour each, no text or vendor
+logos) and must read on light and dark themes at 32 px; new ones are derived from
+`family-aten.png` so the set stays uniform. Copy is plain and specific ("Login failed", "Check the BMC address"), never
 marketing.
 
 ## Layout

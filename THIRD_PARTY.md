@@ -25,6 +25,9 @@ The native application contains no vendor Java code, JARs or shared libraries.
   credentials, validate login responses, and correct frame reassembly and pixel
   pattern continuation using observations from the owner's iDRAC.
   License: `licenses/beefkvm-MIT.txt`.
+* The illustrations in `desktop/images` were generated for this project with xAI
+  Imagine (one master image, the others derived from it by image editing) and then
+  made transparent. They contain no vendor logos, trademarks or text.
 * Go IPMI dependency versions are locked in `go.mod` / `go.sum`. No external
   `ipmitool` process is used.
 * Qt 6 and KDE Frameworks 6 are dynamically linked. Bundle license texts are

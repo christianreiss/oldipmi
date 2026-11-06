@@ -14,6 +14,14 @@
   main menu. Ctrl+Shift+D also works with a single open console. Quit stays in the
   console toolbar, the main menu and on Ctrl+Q.
 
+### Artwork
+* Each console family has its own illustration (Supermicro 1U server, AMI mainboard
+  with BMC chip, Dell 2U server, Cisco blade, demo terminal) in the connection list
+  and on the selected-connection page; the first run and failed connections show
+  matching empty-rack and unplugged-server pictures instead of generic theme icons.
+  The images are compiled into the binary, so they also show without an installed
+  icon theme.
+
 ### Fixed
 * ATEN / Supermicro HTML5 console on X12/X13-generation firmware connected but then
   timed out ("i/o timeout"): their console expects a client-type byte after the session

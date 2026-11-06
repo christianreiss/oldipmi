@@ -302,7 +302,10 @@ ColumnLayout {
                     id: errorMessage
                     anchors.centerIn: parent
                     width: Math.min(errorScroll.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 30)
-                    icon.name: "dialog-error"
+                    icon.source: Families.errorImage
+                    // The illustrations carry generous padding; show them larger than a theme icon.
+                    icon.width: Math.round(Kirigami.Units.iconSizes.enormous * 1.25)
+                    icon.height: icon.width
                     text: Families.failedTitle(controller.errorStage)
                     explanation: Families.explainError(controller.message)
                     helpfulAction: Kirigami.Action {
@@ -325,7 +328,10 @@ ColumnLayout {
                 anchors.centerIn: parent
                 width: Math.min(parent.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 26)
                 visible: root.connState === "disconnected" && !controller.hasFrame && controller.errorStage === "" && !!root.selected.id
-                icon.name: "computer"
+                icon.source: Families.image(root.selected.family)
+                // The illustrations carry generous padding; show them larger than a theme icon.
+                icon.width: Math.round(Kirigami.Units.iconSizes.enormous * 1.25)
+                icon.height: icon.width
                 text: root.selected.name || root.selected.host || ""
                 explanation: (root.selected.username ? root.selected.username + "@" : "") + (root.selected.host || "")
                              + "\n" + Families.name(root.selected.family)
@@ -343,7 +349,10 @@ ColumnLayout {
                 anchors.centerIn: parent
                 width: Math.min(parent.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 26)
                 visible: root.connState === "disconnected" && !controller.hasFrame && controller.errorStage === "" && !root.selected.id
-                icon.source: "qrc:/oldipmi.svg" // bundled: the themed icon is missing when not installed
+                icon.source: controller.hosts.length ? "qrc:/oldipmi.svg" : Families.emptyImage // bundled: themed icons are missing when not installed
+                // The illustrations carry generous padding; show them larger than a theme icon.
+                icon.width: Math.round(Kirigami.Units.iconSizes.enormous * 1.25)
+                icon.height: icon.width
                 text: controller.hosts.length ? "Select a connection" : "No connections yet"
                 explanation: controller.hosts.length
                     ? "Choose a BMC in the list, or add a new one."

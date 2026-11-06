@@ -12,6 +12,8 @@ configure_file(internal/mcp/instructions.md ${CMAKE_BINARY_DIR}/mcp_instructions
 file(GLOB QML_FILES CONFIGURE_DEPENDS RELATIVE ${CMAKE_SOURCE_DIR} desktop/qml/*.qml desktop/qml/*.js)
 qt_add_resources(oldipmi qml PREFIX "/" FILES ${QML_FILES})
 qt_add_resources(oldipmi icon PREFIX "/" BASE packaging FILES packaging/oldipmi.svg)
+file(GLOB IMAGE_FILES CONFIGURE_DEPENDS RELATIVE ${CMAKE_SOURCE_DIR} desktop/images/*.png)
+qt_add_resources(oldipmi images PREFIX "/" BASE desktop FILES ${IMAGE_FILES})
 qt_add_resources(oldipmi mcp PREFIX "/" BASE ${CMAKE_BINARY_DIR} FILES ${CMAKE_BINARY_DIR}/mcp_instructions.md)
 target_link_libraries(oldipmi PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::Network KF6::Wallet)
 find_program(GO_EXECUTABLE go REQUIRED)
