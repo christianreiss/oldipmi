@@ -10,6 +10,7 @@ import (
 	"oldipmi/internal/avocent/apcp"
 	"oldipmi/internal/avocent/video"
 	"oldipmi/internal/protocol"
+	"os"
 	"sync"
 	"time"
 )
@@ -104,6 +105,19 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 	}
 	return c, nil
 }
+
+// OLDIPMI_TRACE_AVPT=1 logs AVPT packet types and the first 12 payload bytes
+// (the header) to stderr for diagnosis; never screen content.
+var trace = os.Getenv("OLDIPMI_TRACE_AVPT") == "1"
+var dumped int
+
+func head(b []byte) []byte {
+	if len(b) > 12 {
+		return b[:12]
+	}
+	return b
+}
+
 func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -131,9 +145,16 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 	if c.video != c.control {
 		go func() {
 			for {
-				if _, e := apcp.ReadAVPTFrame(c.control); e != nil {
+				f, e := apcp.ReadAVPTFrame(c.control)
+				if e != nil {
+					if trace {
+						fmt.Fprintf(os.Stderr, "avpt control closed: %v\n", e)
+					}
 					cancel()
 					return
+				}
+				if trace {
+					fmt.Fprintf(os.Stderr, "avpt control id=%d len=%d head=% x\n", f.ID, len(f.Payload), head(f.Payload))
 				}
 			}
 		}()
@@ -150,6 +171,17 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 		if e != nil {
 			return e
 		}
+		if trace {
+			fmt.Fprintf(os.Stderr, "%s avpt video id=%d len=%d head=% x\n", time.Now().Format("15:04:05.000"), f.ID, len(f.Payload), head(f.Payload))
+			// Developer-only: payloads contain screen content; mode 0600, never by default.
+			if dir := os.Getenv("OLDIPMI_TRACE_AVPT_DUMP"); dir != "" {
+				dumped++
+				if fh, e := os.OpenFile(fmt.Sprintf("%s/%04d-%d.bin", dir, dumped, f.ID), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600); e == nil {
+					fh.Write(f.Payload)
+					fh.Close()
+				}
+			}
+		}
 
 		ack++
 		if e = c.video.WritePacket((apcp.AVPTFrame{ID: 0, Payload: []byte{ack, 0, 0, 0, 0, 0, 0, 0}}).Encode()); e != nil {
@@ -157,6 +189,10 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 		}
 		if f.ID == 134 || f.ID == 34310 {
 			return fmt.Errorf("unsupported Avocent packet-134 codec")
+		} else if f.ID == 139 || f.ID == 34315 {
+			// Cisco IMC (seen on APCP 2.34): its own compressed format, not the
+			// 129-131 opcode stream. Fail visibly instead of showing nothing.
+			return fmt.Errorf("unsupported video format: this BMC sends Avocent packet 139 (Cisco IMC video), which OldIPMI cannot decode yet")
 		} else if f.ID == 129 || f.ID == 130 || f.ID == 131 || f.ID == 34305 || f.ID == 34306 || f.ID == 34307 {
 			if len(f.Payload) < 12 {
 				return fmt.Errorf("short Avocent video packet")

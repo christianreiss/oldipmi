@@ -469,6 +469,9 @@ void Controller::readControl() {
     }
     if (o["type"] == "error" && m_state != "connected" && m_state != "disconnected")
       m_errorStage = m_state;
+    // A console that never delivered a picture failed while connecting.
+    if (o["type"] == "error" && m_state == "connected" && m_lastFrame.isNull())
+      m_errorStage = "connecting";
     if (o.contains("state"))
       m_state = o["state"].toString();
     if (o["type"] == "error")

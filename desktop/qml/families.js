@@ -52,6 +52,7 @@ function explainError(message) {
         [/connection refused/i, "The BMC refused the connection. Its web or KVM service may be disabled or on another port."],
         [/certificate|x509|tls:|handshake/i, "TLS failed. Old BMCs often need \"Accept legacy or unverified TLS\" in the connection's advanced options."],
         [/rejected login|login was not accepted|status 401|status 403|token rejected|551/i, "Check the username and password. Some BMCs also lock an account after failed attempts."],
+        [/packet 139/i, "Login and the KVM channel work, but OldIPMI cannot decode this BMC's video format yet. Use the BMC's own web console for now."],
         [/unencrypted|plain-console/i, "This BMC offers only an unencrypted console. Enable it in the connection's advanced options if the network is trusted."]
     ];
     for (var i = 0; i < hints.length; ++i)

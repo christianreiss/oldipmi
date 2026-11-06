@@ -216,7 +216,7 @@ ColumnLayout {
             ColumnLayout {
                 anchors.centerIn: parent
                 width: Math.min(parent.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 22)
-                visible: root.settingUp && !controller.hasFrame
+                visible: (root.settingUp || root.connState === "connected") && !controller.hasFrame
                 spacing: Kirigami.Units.largeSpacing
                 Kirigami.Heading {
                     level: 2
@@ -258,10 +258,17 @@ ColumnLayout {
                         }
                     }
                 }
+                QQC2.Label {
+                    visible: root.connState === "connected"
+                    text: "Connected. Waiting for the first picture from the BMC…"
+                    wrapMode: Text.Wrap
+                    horizontalAlignment: Text.AlignHCenter
+                    Layout.fillWidth: true
+                }
                 QQC2.Button {
                     Layout.alignment: Qt.AlignHCenter
-                    text: "Cancel"
-                    icon.name: "dialog-cancel"
+                    text: root.connState === "connected" ? "Disconnect" : "Cancel"
+                    icon.name: root.connState === "connected" ? "network-disconnect" : "dialog-cancel"
                     onClicked: controller.disconnectHost()
                 }
             }
