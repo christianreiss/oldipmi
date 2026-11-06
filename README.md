@@ -208,6 +208,32 @@ Without FUSE, use `--appimage-extract-and-run`, or `--appimage-extract` and run
 KWallet requires the host desktop's wallet service; without it use a session-only
 password. Runtime license texts and an inventory of file checksums are included.
 
+## Fedora RPM
+
+```sh
+packaging/fedora/build-rpm.sh
+sudo dnf install dist/rpm/RPMS/x86_64/oldipmi-[0-9]*.rpm
+```
+
+The script packages the committed `HEAD` (it refuses a dirty worktree unless
+`--allow-dirty`, and even then packages only `HEAD`), vendors the Go modules
+into a second source tarball so the build needs no network, renders
+`packaging/fedora/oldipmi.spec.in` with the version from `CMakeLists.txt`, and
+runs `rpmbuild -ba` with `dist/rpm` as its top directory: the SRPM lands in
+`dist/rpm/SRPMS/`, the binary RPMs in `dist/rpm/RPMS/x86_64/`. The
+`oldipmi-[0-9]*` pattern skips the `-debuginfo`/`-debugsource` packages. Each
+run replaces `dist/rpm/`. The spec's `%check` runs `go vet`, `go test -race`,
+the CTest suite offscreen and `desktop-file-validate`.
+
+It needs `rpm-build` and the build dependencies of the native build above
+(`sudo dnf builddep dist/rpm/SPECS/oldipmi.spec` installs them after a first
+run). `--mock` rebuilds the SRPM in a clean mock chroot instead
+(`--mock-root fedora-43-x86_64` to choose one; results in `dist/rpm/mock/`),
+`--release N` sets the release, and arguments after `--` go to `rpmbuild`.
+rpmlint runs when installed. The package's `License` tag carries
+`LicenseRef-Unspecified` for OldIPMI's own code until the repository declares a
+license.
+
 ## Checks
 
 ```sh

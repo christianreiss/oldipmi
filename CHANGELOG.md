@@ -2,6 +2,13 @@
 
 ## 0.2.0 (2026-11-06)
 
+### Added
+* Fedora RPM: `packaging/fedora/build-rpm.sh` builds a source and a binary RPM into
+  `dist/rpm/` from the committed HEAD, with the Go modules vendored into a second
+  source tarball so the build (also in mock/COPR) needs no network. The spec's
+  `%check` runs the Go tests, CTest offscreen and `desktop-file-validate`. The
+  version comes from `CMakeLists.txt`. See README, "Fedora RPM".
+
 ### Single instance
 * Only one OldIPMI runs per user session. Starting it again (menu, `oldipmi`) brings the
   running window to the front (passing the launcher's Wayland activation token) and

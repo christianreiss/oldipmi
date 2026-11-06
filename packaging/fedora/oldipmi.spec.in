@@ -1,0 +1,108 @@
+# Template: packaging/fedora/build-rpm.sh fills in the @NAME@ placeholders
+# (version from project() in CMakeLists.txt, release, commit, changelog).
+
+# The repository does not declare a license for OldIPMI's own code yet (there
+# is no LICENSE file). Replace LicenseRef-Unspecified once it does. The other
+# terms cover the vendored Go modules and the MIT code listed in THIRD_PARTY.md.
+%global oldipmi_license LicenseRef-Unspecified
+
+# Shared Go settings for the build and check steps: vendored modules only, never the
+# network or a downloaded toolchain.
+%global go_env \
+export GOPROXY=off GOTOOLCHAIN=local GOSUMDB=off \
+export GOCACHE="$PWD/.gocache" GOPATH="$PWD/.gopath"
+
+Name:           oldipmi
+Version:        @VERSION@
+Release:        @RELEASE@%{?dist}
+Summary:        Native KVM console for older server BMCs, without Java
+License:        %{oldipmi_license} AND MIT AND Apache-2.0 AND BSD-3-Clause
+Source0:        %{name}-%{version}.tar.gz
+# go mod vendor output of the same commit, so the build needs no network
+# (mock, COPR).
+Source1:        %{name}-%{version}-vendor.tar.gz
+
+ExclusiveArch:  %{golang_arches}
+
+BuildRequires:  cmake >= 3.22
+BuildRequires:  ninja-build
+BuildRequires:  gcc-c++
+BuildRequires:  golang >= 1.24
+BuildRequires:  desktop-file-utils
+BuildRequires:  cmake(Qt6Core) >= 6.6
+BuildRequires:  cmake(Qt6Gui)
+BuildRequires:  cmake(Qt6Widgets)
+BuildRequires:  cmake(Qt6Network)
+BuildRequires:  cmake(Qt6Test)
+BuildRequires:  cmake(Qt6Quick)
+BuildRequires:  cmake(Qt6Qml)
+BuildRequires:  cmake(KF6Wallet)
+BuildRequires:  cmake(KF6Kirigami)
+# qt6-qtbase-devel, qt6-qtdeclarative-devel, kf6-kwallet-devel and
+# kf6-kirigami-devel provide the cmake() names above.
+
+# QML imports are not ELF dependencies, so rpm cannot find them itself:
+# org.kde.kirigami and org.kde.kirigamiaddons.formcard/.settings.
+Requires:       kf6-kirigami%{?_isa}
+Requires:       kf6-kirigami-addons%{?_isa}
+Requires:       hicolor-icon-theme
+# Desktop look of Kirigami controls outside Plasma, and the wallet service
+# for saved passwords (without it OldIPMI asks for a session-only password).
+Recommends:     kf6-qqc2-desktop-style
+Recommends:     kf6-kwallet
+
+%description
+OldIPMI opens the remote KVM console of older server BMCs (Supermicro/ATEN,
+AMI MegaRAC, Dell iDRAC (Avocent) and Cisco IMC) in a native Qt 6/Kirigami
+window. A Go protocol engine (oldipmi-core) decodes the video directly; no
+Java, browser, container or VNC bridge is needed. oldipmi-mcp lets an AI agent
+drive an open console through the Model Context Protocol.
+
+Built from git commit @COMMIT@.
+
+%prep
+%autosetup -n %{name}-%{version}
+tar -xzf %{SOURCE1}
+
+%build
+%{go_env}
+# CMake's custom commands run "go build" and inherit this environment.
+# -B gobuildid gives the Go binaries the GNU build-id note that debuginfo
+# extraction needs.
+export GOFLAGS="-mod=vendor -buildmode=pie -ldflags=-B=gobuildid"
+%cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
+%cmake_build
+
+%install
+%cmake_install
+
+%check
+%{go_env}
+export GOFLAGS=-mod=vendor
+go vet ./...
+go test -race ./...
+desktop-file-validate %{buildroot}%{_datadir}/applications/net.alpha_labs.OldIPMI.desktop
+# Unix socket paths must stay below ~107 bytes, and the tests must not touch
+# the builder's real config or a running OldIPMI, so use short private dirs.
+# Serial on purpose: the single-instance lock is shared per XDG_RUNTIME_DIR.
+testtmp=$(mktemp -d /tmp/oi.XXXX)
+trap 'rm -rf "$testtmp"' EXIT
+mkdir -m 0700 "$testtmp/run" "$testtmp/home"
+XDG_RUNTIME_DIR="$testtmp/run" HOME="$testtmp/home" \
+XDG_CONFIG_HOME="$testtmp/home/.config" XDG_DATA_HOME="$testtmp/home/.local/share" \
+XDG_CACHE_HOME="$testtmp/home/.cache" QT_QPA_PLATFORM=offscreen \
+  ctest --test-dir %{_vpath_builddir} --output-on-failure
+
+%files
+%license THIRD_PARTY.md
+%license licenses/ATENtion-MIT.txt licenses/beefkvm-MIT.txt licenses/rd450x-MIT.txt
+%license licenses/go
+%doc README.md CHANGELOG.md DESIGN.md
+%{_bindir}/oldipmi
+%{_bindir}/oldipmi-core
+%{_bindir}/oldipmi-mcp
+%{_datadir}/applications/net.alpha_labs.OldIPMI.desktop
+%{_datadir}/icons/hicolor/scalable/apps/oldipmi.svg
+
+%changelog
+@CHANGELOG@
