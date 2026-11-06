@@ -25,12 +25,14 @@ func SocketPath() string {
 }
 
 // Client is a Backend that talks to the desktop application over its Unix socket.
+// It reconnects on demand and re-introduces the MCP client after every reconnect.
 type Client struct {
-	Path string
-	mu   sync.Mutex
-	conn net.Conn
-	rd   *bufio.Reader
-	id   int
+	Path  string
+	mu    sync.Mutex
+	conn  net.Conn
+	rd    *bufio.Reader
+	id    int
+	hello map[string]any
 }
 
 type reply struct {
@@ -39,6 +41,9 @@ type reply struct {
 	Result json.RawMessage `json:"result"`
 	Error  string          `json:"error"`
 }
+
+// ErrNotRunning is returned when the desktop application's socket is absent.
+var ErrNotRunning = errors.New("OldIPMI is not running (no agent socket at the expected path); ask the user to start the OldIPMI application, or to enable its agent control if it was switched off")
 
 func (c *Client) Call(op string, args map[string]any) (json.RawMessage, error) {
 	c.mu.Lock()
@@ -52,6 +57,18 @@ func (c *Client) Call(op string, args map[string]any) (json.RawMessage, error) {
 	}
 }
 
+// Hello records the MCP client's identity and tells the app (now, or on the next connect).
+func (c *Client) Hello(name, version, protocol string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.hello = map[string]any{"name": name, "version": version, "protocol": protocol}
+	if c.conn != nil {
+		c.roundTrip("hello", c.hello)
+	} else {
+		c.dial() // dial sends the hello
+	}
+}
+
 func (c *Client) drop() {
 	if c.conn != nil {
 		c.conn.Close()
@@ -59,19 +76,36 @@ func (c *Client) drop() {
 	c.conn, c.rd = nil, nil
 }
 
+func (c *Client) dial() error {
+	conn, err := net.DialTimeout("unix", c.Path, 2*time.Second)
+	if err != nil {
+		return ErrNotRunning
+	}
+	c.conn, c.rd = conn, bufio.NewReaderSize(conn, 1<<20)
+	if c.hello != nil {
+		if _, err, _ := c.roundTrip("hello", c.hello); err != nil && c.conn == nil {
+			return errors.New("connection to OldIPMI lost")
+		}
+	}
+	return nil
+}
+
 // once returns retry=true when the failure happened before the request could have been acted on.
 func (c *Client) once(op string, args map[string]any) (json.RawMessage, error, bool) {
 	if c.conn == nil {
-		conn, err := net.DialTimeout("unix", c.Path, 2*time.Second)
-		if err != nil {
-			return nil, errors.New("OldIPMI is not running (no agent socket); start the OldIPMI application first"), false
+		if err := c.dial(); err != nil {
+			return nil, err, false
 		}
-		c.conn, c.rd = conn, bufio.NewReaderSize(conn, 1<<20)
 	}
+	return c.roundTrip(op, args)
+}
+
+func (c *Client) roundTrip(op string, args map[string]any) (json.RawMessage, error, bool) {
 	c.id++
 	b, _ := json.Marshal(map[string]any{"id": c.id, "op": op, "args": args})
 	c.conn.SetDeadline(time.Now().Add(60 * time.Second))
 	if _, err := c.conn.Write(append(b, '\n')); err != nil {
+		c.drop()
 		return nil, errors.New("connection to OldIPMI lost"), true
 	}
 	for {

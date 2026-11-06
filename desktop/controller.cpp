@@ -217,7 +217,9 @@ void Controller::connectHost(QVariantMap p, QString password) {
   m_pendingProfile = p;
   m_pendingPassword.clear();
   bool entered = !password.isEmpty();
-  if (!entered && p.value("remember").toBool()) {
+  // The synthetic "demo" console (internal/demo) needs no password and never touches KWallet.
+  bool demo = p.value("family").toString() == "demo";
+  if (!entered && !demo && p.value("remember").toBool()) {
     // Do not reuse a stored credential after changing its host or account.
     for (const auto &v : m_hosts) {
       auto saved = v.toMap();
@@ -229,7 +231,7 @@ void Controller::connectHost(QVariantMap p, QString password) {
       }
     }
   }
-  if (password.isEmpty()) {
+  if (password.isEmpty() && !demo) {
     fail("Enter this profile's password to open its console.");
     emit passwordRequired();
     return;
