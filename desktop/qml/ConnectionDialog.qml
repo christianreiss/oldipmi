@@ -20,6 +20,8 @@ Kirigami.Dialog {
 
     title: editing ? "Edit connection" : "New connection"
     preferredWidth: Kirigami.Units.gridUnit * 30
+    // Leave room for the open animation: a dialog as tall as the window loops on y.
+    maximumHeight: absoluteMaximumHeight - Kirigami.Units.gridUnit * 4
     padding: 0
     standardButtons: Kirigami.Dialog.NoButton
     customFooterActions: [

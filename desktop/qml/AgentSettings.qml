@@ -20,7 +20,7 @@ FormCard.FormCardPage {
         text: agent.listening
             ? "Agents can control the open console: screen, keyboard, mouse, power and ISO images. There is no authentication; any program running as your user can use the socket."
             : settings.agentApiEnabled
-              ? (agent.errorString || "The agent socket is not active (the app was started with --no-agent-api).")
+              ? (agent.errorString || "The agent socket is off for this session (started with --no-agent-api or --self-test).")
               : "Agent control is off."
     }
 

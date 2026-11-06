@@ -1,0 +1,71 @@
+{
+  "platform": "linux",
+  "command": [
+    "python3",
+    "-I",
+    "tools/slop/capture.py",
+    "{state}",
+    "{theme}",
+    "{width}",
+    "{height}",
+    "{dpr}",
+    "{textScale}",
+    "{output}"
+  ],
+  "env": {
+    "OLDIPMI_BIN": "build/oldipmi",
+    "OLDIPMI_CACHE": ".slop/capture-cache"
+  },
+  "timeoutSeconds": 180,
+  "states": [
+    "selected",
+    "new-connection",
+    "edit-connection",
+    "settings-general",
+    "settings-agents",
+    "connecting",
+    "error",
+    "console",
+    "power-confirm",
+    "empty"
+  ],
+  "requiredStates": [
+    "selected",
+    "new-connection",
+    "edit-connection",
+    "settings-general",
+    "settings-agents",
+    "connecting",
+    "error",
+    "console",
+    "power-confirm",
+    "empty"
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "sizes": [
+    {
+      "width": 1200,
+      "height": 800
+    },
+    {
+      "width": 720,
+      "height": 480
+    }
+  ],
+  "dprs": [
+    1,
+    2
+  ],
+  "textScales": [
+    1,
+    1.5
+  ],
+  "renderChecks": {
+    "maxBlack": 0.25,
+    "maxUniform": 0.98
+  },
+  "jobs": 1
+}

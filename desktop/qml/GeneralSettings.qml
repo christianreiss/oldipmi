@@ -44,7 +44,7 @@ FormCard.FormCardPage {
             delegate: FormCard.FormTextDelegate {
                 required property var modelData
                 text: modelData[0]
-                trailing: QQC2.Label { text: modelData[1]; color: Kirigami.Theme.disabledTextColor }
+                trailing: QQC2.Label { text: modelData[1]; color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.15) }
             }
         }
         FormCard.FormSectionText {

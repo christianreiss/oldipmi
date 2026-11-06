@@ -53,6 +53,15 @@ marketing.
 
 ## Verification
 
-`oldipmi --self-test --screenshots DIR` renders every state above offscreen (no BMC
-contact) for review. The `slop` source scanner does not parse QML; review uses the
-screenshots against `slop rubric` and its P0/P1 checklists.
+`oldipmi --self-test --screenshots DIR [--size WxH]` renders every state above
+offscreen (no BMC contact) for review. `slop scan desktop` checks the QML/C++
+sources; `slop native --config tools/slop/native.json` captures the state matrix
+in light and dark, two window sizes, scale 1 and 2 and text scale 1 and 1.5, and
+`slop measure` checks text contrast on those PNGs. The console and power-confirm
+states legitimately contain ~16% pure black (the letterbox around the remote
+screen), so `renderChecks.maxBlack` is 0.25 instead of 0.10.
+
+Secondary text (host · type, subtitles, info captions, shortcut keys) uses the
+text colour mixed 15% towards the background, not `disabledTextColor`: the
+disabled colour measured 2.5–2.8:1 in Breeze Light, the mix 5.0–5.2:1 (dark
+7.3–7.7:1).

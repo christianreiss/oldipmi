@@ -3,7 +3,10 @@
 #include "controller.h"
 #include "i18n.h"
 #include "settings.h"
+#include <QCursor>
 #include <QIcon>
+#include <algorithm>
+#include <cstring>
 #include <QApplication>
 #include <QFile>
 #include <QJsonDocument>
@@ -23,8 +26,20 @@ static void call0(QObject *root, const char *method, const QVariant &arg) {
   QMetaObject::invokeMethod(root, method, Q_ARG(QVariant, arg));
 }
 static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
-                             Controller &controller, const QString &dir) {
+                             Controller &controller, const QString &dir, QSize size) {
   auto *root = engine.rootObjects().first();
+  // Optional --size WxH: every grabbed window (main, dialogs' host, settings)
+  // gets the same logical size, so review tools can compare a fixed matrix.
+  auto fit = [size] {
+    if (size.isEmpty())
+      return;
+    for (auto *w : QGuiApplication::topLevelWindows())
+      if (w->isVisible() && w->size() != size) w->resize(size);
+  };
+  fit();
+  // Offscreen Qt puts the pointer at the window origin, which renders false
+  // hover states (tooltips); park it outside every window.
+  QCursor::setPos(-10000, -10000);
   // A previous tour removed all test-mode profiles; seed examples again.
   if (controller.hosts().isEmpty()) {
     controller.saveHost({{"name", "Lab-AMI"}, {"host", "lab-ami.example.net"}, {"family", "ami"}, {"username", "ADMIN"}}, {}, false);
@@ -95,12 +110,18 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
     if (*index >= steps->size()) { app.exit(0); return; }
     auto &step = (*steps)[(*index)++];
     step.act();
+    QTimer::singleShot(qMin(300, step.wait / 2), &app, fit);
     QTimer::singleShot(step.wait, &app, *next);
   };
   QTimer::singleShot(300, &app, *next);
   return app.exec();
 }
 int main(int argc, char **argv) {
+  // Test mode must be on before QApplication: the platform theme reads
+  // kdeglobals (colours, icon theme, fonts) during construction.
+  bool test = std::any_of(argv + 1, argv + argc, [](const char *a) { return !strcmp(a, "--self-test"); });
+  if (test)
+    QStandardPaths::setTestModeEnabled(true);
   QApplication app(argc, argv);
   app.setApplicationName("OldIPMI");
   app.setOrganizationName("OldIPMI");
@@ -108,10 +129,7 @@ int main(int argc, char **argv) {
   app.setApplicationDisplayName("OldIPMI");
   app.setDesktopFileName("net.alpha_labs.OldIPMI");
   app.setWindowIcon(QIcon::fromTheme("oldipmi", QIcon(":/oldipmi.svg")));
-  bool test = app.arguments().contains("--self-test"),
-       preview = app.arguments().contains("--preview");
-  if (test)
-    QStandardPaths::setTestModeEnabled(true);
+  bool preview = app.arguments().contains("--preview");
   qmlRegisterType<Console>("OldIPMI", 1, 0, "ConsoleView");
   Controller controller;
   AppSettings settings;
@@ -206,8 +224,19 @@ int main(int argc, char **argv) {
     });
   }
   // Only with --self-test: the tour deletes profiles, which must be test-mode copies.
-  if (int i = app.arguments().indexOf("--screenshots"); test && i > 0 && i + 1 < app.arguments().size())
-    return runScreenshotTour(app, engine, controller, app.arguments()[i + 1]);
+  if (int i = app.arguments().indexOf("--screenshots"); test && i > 0 && i + 1 < app.arguments().size()) {
+    QSize size;
+    if (int s = app.arguments().indexOf("--size"); s > 0 && s + 1 < app.arguments().size()) {
+      auto wh = app.arguments()[s + 1].split('x');
+      if (wh.size() == 2)
+        size = {wh[0].toInt(), wh[1].toInt()};
+      if (size.isEmpty()) {
+        fprintf(stderr, "--size expects WIDTHxHEIGHT\n");
+        return 1;
+      }
+    }
+    return runScreenshotTour(app, engine, controller, app.arguments()[i + 1], size);
+  }
   if (test || preview)
     QTimer::singleShot(100, &controller, &Controller::preview);
   if (test)

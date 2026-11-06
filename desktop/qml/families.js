@@ -45,6 +45,7 @@ function failedTitle(id) {
 // heading) and add the most likely next step for common causes.
 function explainError(message) {
     var m = (message || "").replace(/^[A-Za-z ]+ failed: /, "");
+    m = m.charAt(0).toUpperCase() + m.slice(1);
     var hints = [
         [/no such host|server misbehaving/i, "Check the BMC address; it does not resolve in DNS."],
         [/i\/o timeout|deadline exceeded|no route to host|network is unreachable/i, "The BMC did not answer. Check that it is reachable from this computer (VPN, management network)."],
@@ -54,7 +55,7 @@ function explainError(message) {
         [/unencrypted|plain-console/i, "This BMC offers only an unencrypted console. Enable it in the connection's advanced options if the network is trusted."]
     ];
     for (var i = 0; i < hints.length; ++i)
-        if (hints[i][0].test(m)) return m + "\n\n" + hints[i][1];
+        if (hints[i][0].test(m)) return hints[i][1] + "\n\n" + m; // next step first, detail below
     return m;
 }
 function relativeTime(iso) {

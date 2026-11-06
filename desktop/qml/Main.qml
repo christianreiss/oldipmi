@@ -22,8 +22,10 @@ Kirigami.ApplicationWindow {
     readonly property var selectedProfile: controller.hosts.find(p => p.id === selectedId) || ({})
     readonly property bool fullscreen: visibility === Window.FullScreen
     property string pendingPower: ""
-    // Both panes' toolbars share one height so their bottom edges line up.
-    readonly property real headerHeight: Kirigami.Units.gridUnit * 2 + Kirigami.Units.largeSpacing * 2
+    // Both panes' toolbars share one height so their bottom edges line up; it grows
+    // with the title and subtitle when the system font is larger.
+    readonly property real headerHeight: Math.max(Kirigami.Units.gridUnit * 2 + Kirigami.Units.largeSpacing * 2,
+                                                  consolePane.headerNeeds)
     property var powerProfile: ({})
 
     // Used by --probe-ui and the agent API: select (and show) a profile.

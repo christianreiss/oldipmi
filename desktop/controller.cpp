@@ -588,7 +588,7 @@ QString Controller::chooseCertificate(bool key) {
 }
 void Controller::preview() {
   QImage im(800, 600, QImage::Format_RGBA8888);
-  im.fill(QColor("#223548"));
+  im.fill(QColor("#223548")); // slop-ok: synthetic framebuffer content, not UI chrome
   m_lastFrame = im;
   ++m_frameSeq;
   ++m_changeSeq;

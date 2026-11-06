@@ -26,6 +26,14 @@
   window shortcuts (Ctrl+N, F11) staying with the server while captured.
   DESIGN.md and docs/slop-review-2026-11-06.md document the review.
 * Cancelling the password prompt clears its hint from the console pane.
+* slop native review (160 screenshots, light/dark, two sizes, scale 1/2, text 1/1.5):
+  info panel capped at 40% of the pane with word wrap, scrollable error state with
+  the hint before the raw error, toolbar grows with larger fonts, secondary text
+  contrast 5:1 or better (was 2.5:1 in Breeze Light), bundled empty-state icon,
+  no dialog binding loop in small windows. `--screenshots` takes `--size WxH`;
+  `tools/slop/` holds the capture adapter.
+* Self-test enables Qt test mode before `QApplication`, so it never reads the
+  user's KDE colours, icons or fonts.
 * Requires Kirigami Addons (`kf6-kirigami-addons`); the AppImage bundles it.
 
 ### AI agents (MCP)

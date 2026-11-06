@@ -29,7 +29,10 @@ ColumnLayout {
     function has(capability) { return (controller.consoleInfo.capabilities || []).indexOf(capability) >= 0 }
 
     // ── Toolbar ────────────────────────────────────────────────────────────
+    // Height the toolbar content needs (title plus subtitle and padding).
+    readonly property real headerNeeds: toolbar.implicitHeight
     QQC2.ToolBar {
+        id: toolbar
         Layout.fillWidth: true
         Layout.preferredHeight: root.headerHeight
         visible: !root.fullscreen || hoverArea.containsMouse
@@ -59,7 +62,7 @@ ColumnLayout {
                 QQC2.Label {
                     visible: text !== ""
                     font: Kirigami.Theme.smallFont
-                    color: Kirigami.Theme.disabledTextColor
+                    color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.15)
                     elide: Text.ElideRight
                     Layout.fillWidth: true
                     text: root.live
@@ -263,25 +266,36 @@ ColumnLayout {
                 }
             }
 
-            // Failure of a setup stage, with what to do next.
-            Kirigami.PlaceholderMessage {
-                anchors.centerIn: parent
-                width: Math.min(parent.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 30)
+            // Failure of a setup stage, with what to do next. Transport errors can be
+            // long, so the message scrolls instead of overflowing a small window.
+            Flickable {
+                id: errorScroll
+                anchors.fill: parent
                 visible: root.connState === "disconnected" && !controller.hasFrame && controller.errorStage !== ""
-                icon.name: "dialog-error"
-                text: Families.failedTitle(controller.errorStage)
-                explanation: Families.explainError(controller.message)
-                helpfulAction: Kirigami.Action {
-                    text: "Try again"
-                    icon.name: "view-refresh"
-                    onTriggered: root.connectRequested(controller.activeProfile)
-                }
-                QQC2.Button {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "Edit connection…"
-                    icon.name: "document-edit"
-                    flat: true
-                    onClicked: root.editRequested(controller.host(controller.activeProfile.id) || controller.activeProfile)
+                clip: true
+                contentWidth: width
+                contentHeight: Math.max(height, errorMessage.implicitHeight + Kirigami.Units.gridUnit * 2)
+                boundsBehavior: Flickable.StopAtBounds
+                QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+                Kirigami.PlaceholderMessage {
+                    id: errorMessage
+                    anchors.centerIn: parent
+                    width: Math.min(errorScroll.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 30)
+                    icon.name: "dialog-error"
+                    text: Families.failedTitle(controller.errorStage)
+                    explanation: Families.explainError(controller.message)
+                    helpfulAction: Kirigami.Action {
+                        text: "Try again"
+                        icon.name: "view-refresh"
+                        onTriggered: root.connectRequested(controller.activeProfile)
+                    }
+                    QQC2.Button {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: "Edit connection…"
+                        icon.name: "document-edit"
+                        flat: true
+                        onClicked: root.editRequested(controller.host(controller.activeProfile.id) || controller.activeProfile)
+                    }
                 }
             }
 
@@ -308,7 +322,7 @@ ColumnLayout {
                 anchors.centerIn: parent
                 width: Math.min(parent.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 26)
                 visible: root.connState === "disconnected" && !controller.hasFrame && controller.errorStage === "" && !root.selected.id
-                icon.name: "oldipmi"
+                icon.source: "qrc:/oldipmi.svg" // bundled: the themed icon is missing when not installed
                 text: controller.hosts.length ? "Select a connection" : "No connections yet"
                 explanation: controller.hosts.length
                     ? "Choose a BMC in the list, or add a new one."
@@ -327,13 +341,15 @@ ColumnLayout {
         QQC2.ScrollView {
             id: infoPanel
             visible: infoAction.checked && root.live
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            // Never wider than 40% of the pane, so the console stays usable in small windows.
+            Layout.preferredWidth: Math.max(Kirigami.Units.gridUnit * 8, Math.min(Kirigami.Units.gridUnit * 16, root.width * 0.4))
             Layout.fillHeight: true
             QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
+            contentWidth: availableWidth
             ColumnLayout {
                 width: infoPanel.availableWidth
                 spacing: Kirigami.Units.smallSpacing
-                Kirigami.Heading { level: 3; text: "Console information"; Layout.margins: Kirigami.Units.largeSpacing; Layout.bottomMargin: 0 }
+                Kirigami.Heading { level: 3; text: "Console information"; wrapMode: Text.Wrap; Layout.fillWidth: true; Layout.margins: Kirigami.Units.largeSpacing; Layout.bottomMargin: 0 }
                 Repeater {
                     model: [
                         ["Protocol", controller.consoleInfo.protocol],
@@ -348,8 +364,8 @@ ColumnLayout {
                         Layout.fillWidth: true
                         Layout.leftMargin: Kirigami.Units.largeSpacing
                         Layout.rightMargin: Kirigami.Units.largeSpacing
-                        QQC2.Label { text: modelData[0]; font: Kirigami.Theme.smallFont; color: Kirigami.Theme.disabledTextColor }
-                        QQC2.Label { text: modelData[1]; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
+                        QQC2.Label { text: modelData[0]; font: Kirigami.Theme.smallFont; color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.15) }
+                        QQC2.Label { text: modelData[1]; wrapMode: Text.Wrap; Layout.fillWidth: true }
                     }
                 }
                 QQC2.Label {
@@ -358,7 +374,7 @@ ColumnLayout {
                     wrapMode: Text.Wrap
                     Layout.fillWidth: true
                     Layout.margins: Kirigami.Units.largeSpacing
-                    color: Kirigami.Theme.disabledTextColor
+                    color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.15)
                 }
                 Kirigami.InlineMessage {
                     Layout.fillWidth: true
@@ -410,7 +426,7 @@ ColumnLayout {
             visible: text !== "" && !/^Connected/.test(text)
             elide: Text.ElideRight
             Layout.maximumWidth: root.width / 3
-            color: Kirigami.Theme.disabledTextColor
+            color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.15)
         }
     }
 }

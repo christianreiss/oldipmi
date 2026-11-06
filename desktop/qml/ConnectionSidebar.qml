@@ -162,7 +162,7 @@ ColumnLayout {
                             Layout.fillWidth: true
                             color: row.highlighted ? Kirigami.Theme.highlightedTextColor
                                  : row.failed ? Kirigami.Theme.negativeTextColor
-                                 : row.active ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.disabledTextColor
+                                 : row.active ? Kirigami.Theme.positiveTextColor : Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.15)
                         }
                     }
                     QQC2.ToolButton {

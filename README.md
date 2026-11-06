@@ -218,7 +218,10 @@ opens a synthetic console that echoes every key, pointer move and click: a BMC-f
 end-to-end check of the UI and of all MCP tools.
 `oldipmi --self-test --screenshots DIR` walks through every UI state offscreen
 (test-mode profiles only; the error state uses `oldipmi.invalid`) and saves PNGs
-for review.
+for review; `--size WxH` fixes the window size. `slop native --config
+tools/slop/native.json --root . --out .slop/native` renders the full matrix
+(10 states × light/dark × 1200x800/720x480 × scale 1/2 × text 1/1.5) for the
+`slop` UI review; build into `build/` first.
 `--capture PATH` saves the first frame to a new mode-0600 PNG, only when explicitly
 requested. Never commit real console captures or credential-bearing JNLP files.
 
