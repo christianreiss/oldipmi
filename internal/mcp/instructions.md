@@ -22,7 +22,8 @@ Other MCP clients (stdio transport):
    connected and the first frame arrived, or fails naming the failing stage.
    If no password is saved, OldIPMI asks the **user** for it in its window and
    `connect` keeps waiting (`password_wait_ms`, default 60 s): tell the user to
-   type it there. Calling `connect` again for the same profile just waits.
+   type it there. Calling `connect` again for a profile that is connecting or
+   connected just waits; for a dismissed password prompt it asks the user again.
 3. `screenshot` — PNG image of the remote screen. All other tools take
    **framebuffer** pixel coordinates, origin top-left. Large screens are
    downscaled to `max_size` (default 1568 px); the text block then gives the

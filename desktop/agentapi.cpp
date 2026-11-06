@@ -352,8 +352,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       return fail("The console is busy (" + m_c->state() + " for '" + m_active.value("name").toString() +
                   "'). Disconnect first.");
     }
-    if (m_passwordFor == name) // prompt still open from an earlier call: keep waiting for the user
-      return reply(true, QJsonObject{{"state", m_c->state()}, {"passwordRequired", true}, {"profile", profileJson(p)}});
+    // Always ask again: the user may have dismissed an earlier password prompt.
     note("opening " + name);
     log(label(client), "connect", "Open console '" + name + "'");
     m_requesting = name;

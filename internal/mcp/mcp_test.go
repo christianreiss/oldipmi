@@ -561,6 +561,14 @@ func TestConnectWaitsAndReportsFailure(t *testing.T) {
 	}
 }
 
+func TestConnectRejectsAProfileSwitchedMeanwhile(t *testing.T) {
+	f := &fake{result: map[string]string{"connect": `{"state":"logging_in","profile":{"id":"a","name":"A"}}`},
+		statuses: []string{`{"state":"connected","width":800,"height":600,"profile":{"id":"b","name":"B"}}`}}
+	if res := callTool(t, f, "connect", `{"profile":"A"}`); res["isError"] != true || !strings.Contains(content(res), "another profile (B)") {
+		t.Fatalf("%v", res)
+	}
+}
+
 func TestConnectWaitsForThePassword(t *testing.T) {
 	pw := `{"state":"disconnected","passwordRequired":true,"message":"Enter this profile's password"}`
 	f := &fake{result: map[string]string{"connect": `{"state":"disconnected","passwordRequired":true,"profile":{"name":"Lab-AMI"}}`},

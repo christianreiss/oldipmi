@@ -761,7 +761,7 @@ func connectTool() Tool {
 				return nil, err
 			}
 			var started struct {
-				Profile struct{ Name string } `json:"profile"`
+				Profile struct{ ID, Name string } `json:"profile"`
 			}
 			json.Unmarshal(raw, &started)
 			label := started.Profile.Name
@@ -770,7 +770,7 @@ func connectTool() Tool {
 			}
 			passwordPrompt := func() error {
 				return fmt.Errorf("Password required: OldIPMI is asking for the password of %q in its window and the user has not entered it. "+
-					"Ask the user to type it there (ticking 'remember' saves it in KWallet), then call connect again.", label)
+					"Ask the user to type it there (ticking 'remember' saves it in KWallet); calling connect again reopens the prompt and waits.", label)
 			}
 			// Phase 1: wait for the user while a password prompt is open.
 			var s status
@@ -790,6 +790,9 @@ func connectTool() Tool {
 			done, err := poll(ctx, timeout, func() (bool, error) {
 				if s, err = getStatus(b); err != nil {
 					return false, err
+				}
+				if id, _ := s.Profile["id"].(string); id != "" && started.Profile.ID != "" && id != started.Profile.ID && s.State != "disconnected" {
+					return false, fmt.Errorf("another profile (%v) was opened in OldIPMI meanwhile; %s is not connected", s.Profile["name"], label)
 				}
 				switch s.State {
 				case "connected":

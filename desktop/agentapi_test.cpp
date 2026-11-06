@@ -114,9 +114,9 @@ private slots:
     auto st = run(api, "status").value.toObject();
     QVERIFY(st["passwordRequired"].toBool());
     QCOMPARE(st["passwordProfile"].toString(), QString("Fake"));
-    r = run(api, "connect", {{"profile", "bmc.invalid"}}); // by host: the open prompt is reused
+    r = run(api, "connect", {{"profile", "bmc.invalid"}}); // by host; asks again (prompt may have been dismissed)
     QVERIFY(r.ok && r.value.toObject()["passwordRequired"].toBool());
-    QCOMPARE(prompts.count(), 1);
+    QCOMPARE(prompts.count(), 2);
     QVERIFY(run(api, "disconnect").ok);
     QVERIFY(!run(api, "status").value.toObject()["passwordRequired"].toBool());
   }
