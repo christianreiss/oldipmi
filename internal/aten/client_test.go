@@ -132,3 +132,56 @@ func TestHTML5TokenAuthClientTypeByte(t *testing.T) {
 		t.Fatalf("X12/X13: %q", a)
 	}
 }
+
+// fbu16 is a framebuffer update with one 16x16 RGB555 keyframe.
+func fbu16() []byte {
+	b := make([]byte, 4+20+522)
+	binary.BigEndian.PutUint16(b[2:], 1)
+	binary.BigEndian.PutUint16(b[8:], 16)
+	binary.BigEndian.PutUint16(b[10:], 16)
+	binary.BigEndian.PutUint32(b[20:], 522)
+	b[24] = 1
+	return b
+}
+
+// The mouse-status message (0x37) has a 2-byte body on old ATEN firmware
+// (live: firmware 2.50) and 3 bytes elsewhere; both must stay in sync.
+func TestJavaMouseStatusLength(t *testing.T) {
+	for _, c := range []struct {
+		name         string
+		stream       []byte
+		want, frames int
+	}{
+		{"2-byte, update follows", append([]byte{0x37, 0, 1}, fbu16()...), 2, 1},
+		{"3-byte, status 1", append([]byte{0x37, 0, 1, 1}, fbu16()...), 3, 1},
+		{"3-byte, status 0", append([]byte{0x37, 0, 1, 0}, fbu16()...), 3, 1},
+		{"2-byte twice", append(append(append([]byte{0x37, 0, 1}, fbu16()...), 0x37, 0, 1), fbu16()...), 2, 2},
+		{"3-byte, status 0, then 0x39", append(append([]byte{0x37, 0, 1, 0, 0x39}, make([]byte, 264)...), fbu16()...), 3, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			srv, cli := net.Pipe()
+			defer srv.Close()
+			go io.Copy(io.Discard, srv)
+			go srv.Write(c.stream)
+			cl := &Client{wire: &protocol.Wire{Conn: cli}, pressed: map[uint32]bool{}, controlling: true}
+			cl.dec.Resize(16, 16)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			frames := 0
+			done := make(chan error, 1)
+			go func() {
+				done <- cl.Run(ctx, func(protocol.Frame) {
+					if frames++; frames == c.frames {
+						cancel()
+					}
+				})
+			}()
+			if e := <-done; ctx.Err() != context.Canceled || frames != c.frames {
+				t.Fatalf("frames=%d err=%v", frames, e)
+			}
+			if cl.mouseLen != c.want {
+				t.Fatalf("mouseLen=%d", cl.mouseLen)
+			}
+		})
+	}
+}

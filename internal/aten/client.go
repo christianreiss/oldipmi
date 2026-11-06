@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/protocol"
 	"sync"
@@ -26,6 +27,7 @@ type Client struct {
 	ast         *codec.Decoder // HTML5 mode video decoder
 	reqW, reqH  int            // HTML5 mode update-request size
 	lastPix     []byte         // last emitted HTML5 frame, to drop unchanged ones
+	mouseLen    int            // mouse-status (0x37) body length, 0 until known
 }
 
 func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
@@ -186,14 +188,15 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 
 	stop := context.AfterFunc(ctx, func() { c.wire.Close() })
 	defer stop()
+	rd := &lookahead{r: c.wire}
 	for {
-		t, e := protocol.Read(c.wire, 1)
+		t, e := protocol.Read(rd, 1)
 		if e != nil {
 			return e
 		}
 		switch t[0] {
 		case 0:
-			b, e := protocol.Read(c.wire, 3)
+			b, e := protocol.Read(rd, 3)
 			if e != nil {
 				return e
 			}
@@ -203,7 +206,7 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 			}
 			changed := false
 			for i := 0; i < n; i++ {
-				h, e := protocol.Read(c.wire, 20)
+				h, e := protocol.Read(rd, 20)
 				if e != nil {
 					return e
 				}
@@ -211,7 +214,7 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 				if size > protocol.MaxPayload {
 					return fmt.Errorf("ATEN frame too large")
 				}
-				b, e := protocol.Read(c.wire, int(size))
+				b, e := protocol.Read(rd, int(size))
 				if e != nil {
 					return e
 				}
@@ -269,7 +272,7 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 				return e
 			}
 		case 4:
-			b, e := protocol.Read(c.wire, 20)
+			b, e := protocol.Read(rd, 20)
 			if e != nil {
 				return e
 			}
@@ -278,17 +281,25 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 				return fmt.Errorf("oversized cursor")
 			}
 			if binary.BigEndian.Uint32(b[16:]) == 1 {
-				if _, e = protocol.Read(c.wire, 4+int(w*h*2)); e != nil {
+				if _, e = protocol.Read(rd, 4+int(w*h*2)); e != nil {
 					return e
 				}
 			}
-		case 0x16, 0x35, 0x37, 0x3c:
-			size := map[byte]int{0x16: 1, 0x35: 5, 0x37: 3, 0x3c: 8}[t[0]]
-			if _, e = protocol.Read(c.wire, size); e != nil {
+		case 0x37:
+			n, e := c.mouseStatusLen(rd)
+			if e != nil {
+				return e
+			}
+			if _, e = protocol.Read(rd, n); e != nil {
+				return e
+			}
+		case 0x16, 0x35, 0x3c:
+			size := map[byte]int{0x16: 1, 0x35: 5, 0x3c: 8}[t[0]]
+			if _, e = protocol.Read(rd, size); e != nil {
 				return e
 			}
 		case 0x39:
-			b, e := protocol.Read(c.wire, 264)
+			b, e := protocol.Read(rd, 264)
 			if e != nil {
 				return e
 			}
@@ -302,6 +313,52 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 			return fmt.Errorf("unsupported ATEN message 0x%02x", t[0])
 		}
 	}
+}
+
+// lookahead returns peeked bytes before reading on.
+type lookahead struct {
+	r   io.Reader
+	buf []byte
+}
+
+func (l *lookahead) Read(p []byte) (int, error) {
+	if len(l.buf) > 0 {
+		n := copy(p, l.buf)
+		l.buf = l.buf[n:]
+		return n, nil
+	}
+	return l.r.Read(p)
+}
+
+// mouseStatusLen returns the body length of the mouse-status message (0x37).
+// Most firmware sends crypto, mode and status (3 bytes, as the noVNC clients
+// read it); old ATEN firmware (seen live: firmware 2.50, iKVM 1.69.13) sends
+// only 2, with the same banner, security type and server init. The bytes after
+// the first 0x37 decide once per session: after a 2-byte body comes a message
+// type, normally a framebuffer update with rectangles; after a 3-byte body
+// comes a status byte (0 or 1) and then a message whose next bytes read as
+// "zero rectangles". HTML5 consoles always use 3.
+func (c *Client) mouseStatusLen(rd *lookahead) (int, error) {
+	if c.launch.HTML5 {
+		return 3, nil
+	}
+	if c.mouseLen == 0 {
+		b, e := protocol.Read(rd, 6)
+		if e != nil {
+			return 0, e
+		}
+		rd.buf = append(b, rd.buf...)
+		c.mouseLen = 3
+		switch b[2] {
+		case 0:
+			if binary.BigEndian.Uint16(b[4:]) > 0 {
+				c.mouseLen = 2
+			}
+		case 4, 0x16, 0x35, 0x37, 0x39, 0x3c:
+			c.mouseLen = 2
+		}
+	}
+	return c.mouseLen, nil
 }
 func (c *Client) key(usage uint32, down bool) error {
 	b := make([]byte, 18)

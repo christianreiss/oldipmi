@@ -8,6 +8,10 @@
   token, which X10/X11 firmware must not get. OldIPMI now reads the BMC's own noVNC
   client (`/novnc/include/rfb.js`) to decide; if it cannot, it keeps the X10/X11 form.
   Verified live on two X12/X13 BMCs (cgi and Redfish discovery) and on X10/X11 HTML5.
+* ATEN Java (RFB) console on old firmware (seen on firmware 2.50, iKVM 1.69.13)
+  connected but never showed a picture: its mouse-status message (0x37) has a 2-byte
+  body instead of 3, which desynchronised the stream. The length is now detected once
+  per session from the bytes that follow. Verified live (752x413 video).
 
 ### Removed
 * Importing a `.jnlp` file ("Connect with JNLP file…", the IPC `jnlp` field and the
