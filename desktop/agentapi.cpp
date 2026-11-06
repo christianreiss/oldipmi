@@ -50,6 +50,12 @@ QString AgentApi::defaultSocketPath() {
 AgentApi::AgentApi(Controller *c, QString path, QObject *parent)
     : QObject(parent), m_c(c), m_path(path.isEmpty() ? defaultSocketPath() : path) {
   m_server.setSocketOptions(QLocalServer::UserAccessOption);
+  m_retry.setSingleShot(true);
+  m_retry.setInterval(3000);
+  connect(&m_retry, &QTimer::timeout, this, [this] {
+    if (m_enabled && !m_server.isListening())
+      start();
+  });
   connect(&m_server, &QLocalServer::newConnection, this, &AgentApi::accept);
   connect(m_c, &Controller::profileActivated, this, [this](QVariantMap p) { m_active = p; });
   connect(m_c, &Controller::passwordRequired, this, [this] {
@@ -90,8 +96,9 @@ bool AgentApi::start() {
   QLocalSocket probe;
   probe.connectToServer(m_path);
   bool ok = false;
+  const QString before = m_error;
   if (probe.waitForConnected(200)) {
-    m_error = "Another OldIPMI instance is already serving " + m_path + ".";
+    m_error = "Another OldIPMI instance is already serving " + m_path + "; this window takes over when that one closes.";
   } else {
     QLocalServer::removeServer(m_path);
     ok = m_server.listen(m_path);
@@ -100,11 +107,15 @@ bool AgentApi::start() {
                        ? "Cannot listen on " + m_path + " (path too long? max ~107 bytes)."
                        : m_server.errorString();
   }
-  log(label(nullptr), "server", ok ? "Agent control started" : "Agent control unavailable: " + m_error);
+  if (ok || m_error != before) // retries stay quiet until something changes
+    log(label(nullptr), "server", ok ? "Agent control started" : "Agent control unavailable: " + m_error);
+  if (!ok)
+    m_retry.start();
   emit listeningChanged();
   return ok;
 }
 void AgentApi::stop() {
+  m_retry.stop();
   bool was = m_enabled || m_server.isListening();
   if (m_enabled) {
     m_enabled = false;

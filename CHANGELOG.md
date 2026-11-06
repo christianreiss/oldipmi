@@ -31,6 +31,8 @@
   RLE text mode is not drawn yet and fails with an explicit message. A console that
   connects but never delivers a picture shows "waiting for the first picture" and,
   on error, the connection-failed state. `OLDIPMI_TRACE_AVPT` traces AVPT packets.
+* A second OldIPMI window takes over the agent socket once the first one closes
+  (it used to stay without agent control until restarted).
 * Settings and Quit buttons at the bottom of the connection list; Quit (also Ctrl+Q
   and the menu) stores the window geometry before exiting.
 * Double-click, Enter, the row button or Connect on another connection switches

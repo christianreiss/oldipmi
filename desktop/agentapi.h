@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QJsonObject>
 #include <QLocalServer>
+#include <QTimer>
 #include <QObject>
 #include <QPointer>
 #include <QSet>
@@ -76,6 +77,7 @@ private:
   QString m_path, m_error;
   bool m_enabled = false;
   QLocalServer m_server;
+  QTimer m_retry; // takes the socket over once another instance lets go of it
   std::vector<std::unique_ptr<Client>> m_clients;
   QList<Entry> m_activity;
   QString m_passwordFor; // profile name whose password prompt is open after an agent connect

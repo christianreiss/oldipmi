@@ -193,6 +193,10 @@ private slots:
     AgentApi second(&c, path);
     QVERIFY(!second.start());
     QVERIFY(second.errorString().contains("Another OldIPMI instance"));
+    // Once the first instance lets go, the second takes the socket over.
+    api.stop();
+    QTRY_VERIFY_WITH_TIMEOUT(second.listening(), 8000);
+    QVERIFY(second.errorString().isEmpty());
   }
   void socketRobustness() {
     QTemporaryDir dir; NoCredentials w;
