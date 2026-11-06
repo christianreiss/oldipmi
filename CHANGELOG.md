@@ -26,6 +26,8 @@
   window shortcuts (Ctrl+N, F11) staying with the server while captured.
   DESIGN.md and docs/slop-review-2026-11-06.md document the review.
 * Cancelling the password prompt clears its hint from the console pane.
+* Double-click, Enter, the row button or Connect on another connection switches
+  consoles: the open one is disconnected first.
 * slop native review (160 screenshots, light/dark, two sizes, scale 1/2, text 1/1.5):
   info panel capped at 40% of the pane with word wrap, scrollable error state with
   the hint before the raw error, toolbar grows with larger fonts, secondary text

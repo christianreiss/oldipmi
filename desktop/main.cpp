@@ -90,7 +90,12 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
        }, 1500},
       {"09-power-confirm", [=] { root->setProperty("pendingPower", "reset");
          if (auto *d = root->findChild<QObject *>("powerDialog")) QMetaObject::invokeMethod(d, "open"); }, 700},
-      {"10-empty", [=, &controller] {
+      {"10-switch", [=] {
+         // Connecting another profile while one is open switches consoles.
+         closePopups();
+         call("connectProfile", QVariantMap{{"name", "Demo wide"}, {"host", "demo-1920x1080"}, {"family", "demo"}});
+       }, 1500},
+      {"11-empty", [=, &controller] {
          closePopups();
          controller.disconnectHost();
          for (const auto &h : controller.hosts()) controller.removeHost(h.toMap().value("id").toString());

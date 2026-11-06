@@ -169,9 +169,9 @@ ColumnLayout {
                         icon.name: "media-playback-start"
                         text: "Connect to " + (row.profile.name || row.profile.host)
                         display: QQC2.AbstractButton.IconOnly
-                        visible: !root.busy && (row.hovered || row.highlighted)
+                        visible: !row.active && (row.hovered || row.highlighted)
                         QQC2.ToolTip.visible: hovered
-                        QQC2.ToolTip.text: "Connect"
+                        QQC2.ToolTip.text: root.busy ? "Disconnect the open console and connect" : "Connect"
                         onClicked: root.connectRequested(row.profile)
                     }
                 }
@@ -182,7 +182,7 @@ ColumnLayout {
                 }
                 QQC2.Menu {
                     id: contextMenu
-                    QQC2.MenuItem { text: "Connect"; icon.name: "media-playback-start"; enabled: !root.busy; onTriggered: root.connectRequested(row.profile) }
+                    QQC2.MenuItem { text: "Connect"; icon.name: "media-playback-start"; enabled: !row.active; onTriggered: root.connectRequested(row.profile) }
                     QQC2.MenuItem {
                         text: "Connect with JNLP file…"; icon.name: "document-open"
                         enabled: !root.busy && Families.hasMedia(row.profile.family)

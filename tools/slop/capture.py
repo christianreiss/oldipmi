@@ -20,7 +20,7 @@ files = {
     "edit-connection": "03-edit-connection", "settings-general": "04-settings-general-2",
     "settings-agents": "05-settings-agents-2", "connecting": "06-connecting",
     "error": "07-error", "console": "08-console", "power-confirm": "09-power-confirm",
-    "empty": "10-empty",
+    "switch": "10-switch", "empty": "11-empty",
 }
 schemes = {"light": "BreezeLight", "dark": "BreezeDark"}
 kdeglobals = Path.home() / ".qttest/config/kdeglobals"
@@ -28,7 +28,7 @@ kdeglobals = Path.home() / ".qttest/config/kdeglobals"
 Path(os.environ["OLDIPMI_CACHE"]).mkdir(parents=True, exist_ok=True)
 with open(Path(os.environ["OLDIPMI_CACHE"]) / ".lock", "w") as lock:
     fcntl.flock(lock, fcntl.LOCK_EX)
-    if not (cache / "10-empty.png").exists():
+    if not (cache / "11-empty.png").exists():
         shutil.rmtree(cache, ignore_errors=True)
         cache.mkdir(parents=True)
         colors = Path(f"/usr/share/color-schemes/{schemes[theme]}.colors").read_text()

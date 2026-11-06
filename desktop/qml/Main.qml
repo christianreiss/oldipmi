@@ -30,8 +30,14 @@ Kirigami.ApplicationWindow {
 
     // Used by --probe-ui and the agent API: select (and show) a profile.
     function loadHost(p) { selectedId = (p && p.id) || "" }
+    // Connect (double-click, Enter, row button, context menu). Another open or
+    // opening console is disconnected first; the same one is left alone.
     function connectProfile(p) {
-        if (!p || !p.host || controller.state !== "disconnected") return;
+        if (!p || !p.host) return;
+        if (controller.state !== "disconnected") {
+            if (p.id && controller.activeProfile.id === p.id) { selectedId = p.id; return }
+            controller.disconnectHost();
+        }
         selectedId = p.id || selectedId;
         controller.connectHost(p, "");
     }

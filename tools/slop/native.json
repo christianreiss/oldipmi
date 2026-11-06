@@ -27,6 +27,7 @@
     "error",
     "console",
     "power-confirm",
+    "switch",
     "empty"
   ],
   "requiredStates": [
@@ -39,6 +40,7 @@
     "error",
     "console",
     "power-confirm",
+    "switch",
     "empty"
   ],
   "themes": [
