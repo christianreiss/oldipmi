@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"oldipmi/internal/protocol"
-	"strings"
 	"testing"
 	"time"
 )
@@ -67,11 +66,16 @@ func TestNativeSessionHandshakeFrameAndCancellation(t *testing.T) {
 	defer cancel()
 	port := ln.Addr().(*net.TCPAddr).Port
 	j := fmt.Sprintf(`<jnlp><application-desc main-class="com.aten.ikvm"><argument>localhost</argument><argument>fixture-token</argument><argument>x</argument><argument>x</argument><argument>%d</argument><argument>623</argument><argument>x</argument><argument>x</argument><argument>0</argument><argument>0</argument></application-desc></jnlp>`, port)
-	c, e := Connect(ctx, protocol.Profile{Host: "127.0.0.1", AllowPlainConsole: true}, "", []byte(j))
+	launch, e := protocol.ParseJNLP([]byte(j))
 	if e != nil {
 		t.Fatal(e)
 	}
+	// Past the web login: the same path Connect takes once the BMC has handed out the launch file.
+	c := &Client{p: protocol.Profile{Host: "127.0.0.1", AllowPlainConsole: true}, pressed: map[uint32]bool{}, controlling: true, launch: launch}
 	defer c.Close()
+	if e := c.attach(ctx); e != nil {
+		t.Fatal(e)
+	}
 	frames := 0
 	e = c.Run(ctx, func(f protocol.Frame) {
 		frames++
@@ -115,15 +119,5 @@ func TestJavaTokenAuthUsesDistinctPasswordField(t *testing.T) {
 	c.launch.PasswordToken = ""
 	if a = c.tokenAuth(); !bytes.Equal(a[:24], a[24:]) {
 		t.Fatalf("%q", a)
-	}
-}
-
-func TestImportedJNLPRespectsConsoleMode(t *testing.T) {
-	jnlp := []byte(`<jnlp><application-desc main-class="tw.com.aten.ikvm.KVMMain"><argument>h</argument><argument>t</argument><argument>t</argument><argument>n</argument><argument>5900</argument><argument>623</argument><argument>0</argument><argument>0</argument></application-desc></jnlp>`)
-	for mode, want := range map[string]string{"html5": "console mode is HTML5", "bogus": "unknown console mode"} {
-		_, err := Connect(context.Background(), protocol.Profile{Host: "127.0.0.1", Family: "aten", ConsoleMode: mode}, "", jnlp)
-		if err == nil || !strings.Contains(err.Error(), want) {
-			t.Fatal(mode, err)
-		}
 	}
 }

@@ -28,32 +28,29 @@ type Client struct {
 	lastPix     []byte         // last emitted HTML5 frame, to drop unchanged ones
 }
 
-func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []byte) (c *Client, err error) {
+func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
 	c = &Client{p: p, pressed: map[uint32]bool{}, controlling: true}
 	defer func() {
 		if err != nil {
 			c.Close()
 		}
 	}()
-	if len(jnlp) > 0 {
-		protocol.Report(ctx, "discovering", nil)
-		if mode, e := p.ConsoleModeValue(); e != nil {
-			return c, e
-		} else if mode == protocol.ConsoleHTML5 {
-			return c, fmt.Errorf("an imported JNLP starts the Java iKVM, but this profile's console mode is HTML5; set the console mode to Auto or Java, or connect without the JNLP")
-		}
-		c.launch, err = protocol.ParseJNLP(jnlp)
-	} else {
-		c.web, err = protocol.NewWeb(p)
-		if err == nil {
-			c.launch, err = c.web.Login(ctx, password)
-		}
+	c.web, err = protocol.NewWeb(p)
+	if err == nil {
+		c.launch, err = c.web.Login(ctx, password)
 	}
 	if err != nil {
 		return c, err
 	}
+	err = c.attach(ctx)
+	return c, err
+}
+
+// attach dials the console described by c.launch and runs the handshake.
+func (c *Client) attach(ctx context.Context) (err error) {
+	p := c.p
 	if c.launch.Family != "aten" {
-		return c, fmt.Errorf("this JNLP requires the AMI adapter")
+		return fmt.Errorf("this BMC needs the AMI family; select it for this profile")
 	}
 	info := c.launch.ConsoleInfo(p)
 	protocol.Report(ctx, "connecting", &info)
@@ -69,7 +66,7 @@ func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []by
 		// The AST2600-generation console stream is not verified (see protocol/web.go).
 		err = fmt.Errorf("%w (this console was found through the Supermicro Redfish iKVM resource, as on X12/X13 boards, whose HTML5 console stream OldIPMI has not been verified with; use the BMC web interface's Remote Console and report the BMC model and firmware version)", err)
 	}
-	return c, err
+	return err
 }
 
 // negotiate performs the RFB-style handshake on the dialed console connection.

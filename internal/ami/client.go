@@ -27,27 +27,22 @@ type Client struct {
 	password      string
 }
 
-func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []byte) (c *Client, err error) {
+func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
 	c = &Client{p: p, pressed: map[uint32]bool{}, width: 1024, height: 768, password: password}
 	defer func() {
 		if err != nil {
 			c.Close()
 		}
 	}()
-	if len(jnlp) > 0 {
-		protocol.Report(ctx, "discovering", nil)
-		c.launch, err = protocol.ParseJNLP(jnlp)
-	} else {
-		c.web, err = protocol.NewWeb(p)
-		if err == nil {
-			c.launch, err = c.web.Login(ctx, password)
-		}
+	c.web, err = protocol.NewWeb(p)
+	if err == nil {
+		c.launch, err = c.web.Login(ctx, password)
 	}
 	if err != nil {
 		return c, err
 	}
 	if c.launch.Family != "ami" {
-		return c, fmt.Errorf("this JNLP requires the ATEN adapter")
+		return c, fmt.Errorf("this BMC needs the ATEN family; select it for this profile")
 	}
 	if c.launch.Args["singleportenabled"] == "1" {
 		return c, fmt.Errorf("AMI single-port tunneling is not supported by this firmware adapter")

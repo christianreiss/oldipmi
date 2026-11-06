@@ -15,7 +15,6 @@ ColumnLayout {
     signal connectRequested(var profile)
     signal editRequested(var profile)
     signal deleteRequested(var profile)
-    signal jnlpRequested(var profile)
     signal newRequested()
     signal settingsRequested(string module)
     signal quitRequested()
@@ -191,11 +190,6 @@ ColumnLayout {
                     id: contextMenu
                     QQC2.MenuItem { text: row.active ? "Show" : "Connect"; icon.name: "media-playback-start"; onTriggered: root.connectRequested(row.profile) }
                     QQC2.MenuItem { text: "Disconnect"; icon.name: "network-disconnect"; enabled: row.active; onTriggered: controller.disconnectProfile(row.profile.id) }
-                    QQC2.MenuItem {
-                        text: "Connect with JNLP file…"; icon.name: "document-open"
-                        enabled: !row.active && Families.hasMedia(row.profile.family)
-                        onTriggered: root.jnlpRequested(row.profile)
-                    }
                     QQC2.MenuSeparator {}
                     QQC2.MenuItem { text: "Edit…"; icon.name: "document-edit"; onTriggered: root.editRequested(row.profile) }
                     QQC2.MenuItem {

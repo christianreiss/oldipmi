@@ -26,7 +26,6 @@ type Command struct {
 	Op       string           `json:"op"`
 	Profile  protocol.Profile `json:"profile"`
 	Password string           `json:"password"`
-	JNLP     string           `json:"jnlp"`
 	Input    protocol.Input   `json:"input"`
 	Path     string           `json:"path"`
 	Action   string           `json:"action"`
@@ -63,14 +62,14 @@ func ReadCommand(r io.Reader) (Command, error) {
 	}
 	return c, nil
 }
-func Open(ctx context.Context, p protocol.Profile, password string, jnlp []byte) (protocol.Session, error) {
+func Open(ctx context.Context, p protocol.Profile, password string) (protocol.Session, error) {
 	switch p.Family {
 	case "avocent", "cisco":
-		return avocent.Connect(ctx, p, password, jnlp)
+		return avocent.Connect(ctx, p, password)
 	case "ami":
-		return ami.Connect(ctx, p, password, jnlp)
+		return ami.Connect(ctx, p, password)
 	case "aten":
-		return aten.Connect(ctx, p, password, jnlp)
+		return aten.Connect(ctx, p, password)
 	case "demo": // synthetic console for BMC-free end-to-end checks; never touches the network
 		return demo.Connect(ctx, p)
 	default:
@@ -80,7 +79,7 @@ func Open(ctx context.Context, p protocol.Profile, password string, jnlp []byte)
 func Serve(parent context.Context, control, video net.Conn) error {
 	return serve(parent, control, video, Open)
 }
-func serve(parent context.Context, control, video net.Conn, open func(context.Context, protocol.Profile, string, []byte) (protocol.Session, error)) error {
+func serve(parent context.Context, control, video net.Conn, open func(context.Context, protocol.Profile, string) (protocol.Session, error)) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	defer control.Close()
@@ -138,18 +137,14 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 		return fmt.Errorf("first IPC command must connect")
 	}
 	stage := "logging_in"
-	if first.JNLP != "" {
-		stage = "discovering"
-	}
 	emit(Event{Type: "state", State: stage})
 	setupCtx := protocol.WithProgress(ctx, func(p protocol.Progress) {
 		stage = p.Stage
 		emit(Event{Type: "state", State: stage, Info: p.Info})
 	})
-	session, e := open(setupCtx, first.Profile, first.Password, []byte(first.JNLP))
+	session, e := open(setupCtx, first.Profile, first.Password)
 	opening.Store(false)
 	first.Password = ""
-	first.JNLP = ""
 	if e != nil {
 		if ctx.Err() == nil {
 			label := map[string]string{"logging_in": "Login", "discovering": "Console discovery", "connecting": "Console connection"}[stage]

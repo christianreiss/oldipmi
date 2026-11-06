@@ -24,16 +24,13 @@ type Client struct {
 	once           sync.Once
 }
 
-func Connect(ctx context.Context, p protocol.Profile, password string, jnlp []byte) (c *Client, err error) {
+func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
 	c = &Client{p: p, password: password, pressed: map[uint32]bool{}}
 	defer func() {
 		if err != nil {
 			c.Close()
 		}
 	}()
-	if len(jnlp) != 0 {
-		return c, fmt.Errorf("Avocent currently requires account login rather than JNLP import")
-	}
 	port := 5900
 	if p.Family == "cisco" {
 		port = 2068

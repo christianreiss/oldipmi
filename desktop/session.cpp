@@ -51,10 +51,10 @@ void Session::stop() {
   m_videoBuffer.clear();
   mounted = false;
 }
-void Session::begin(const QString &password, const QString &jnlp) {
+void Session::begin(const QString &password) {
   consoleInfo.clear();
   errorStage.clear();
-  state = jnlp.isEmpty() ? "logging_in" : "discovering";
+  state = "logging_in";
   setMessage("Opening console on " + profile.value("host").toString() + "…");
   emit changed();
   int ctl[2], vid[2];
@@ -128,8 +128,7 @@ void Session::begin(const QString &password, const QString &jnlp) {
     return;
   command({{"op", "connect"},
            {"profile", QJsonObject::fromVariantMap(profile)},
-           {"password", password},
-           {"jnlp", jnlp}});
+           {"password", password}});
 }
 void Session::command(QJsonObject o, Result done) {
   if (!m_control || m_control->state() != QLocalSocket::ConnectedState) {

@@ -28,7 +28,7 @@ The window has two panes (see [DESIGN.md](DESIGN.md)):
   any number of consoles can be open at once, and selecting an open connection shows
   its console while the others keep running. The play button of an open row
   disconnects it; Ctrl+D disconnects the shown console, Ctrl+Shift+D all of them.
-  The context menu offers Show/Connect, Disconnect, Connect with JNLP file, Edit (F2), Duplicate and Delete (Del).
+  The context menu offers Show/Connect, Disconnect, Edit (F2), Duplicate and Delete (Del).
   **+** (Ctrl+N) opens **New connection**; **Settings** and **Quit** (Ctrl+Q) sit at
   the bottom of the list.
 * **New / Edit connection** is a dialog: BMC address (a pasted URL is reduced to
@@ -74,10 +74,9 @@ Lab-AMI, Lab-Avocent and Lab-Cisco are added once on first launch; deleted defau
 deleted. Lab-Cisco is configured for Cisco APCP. Cisco IMC sends its video as Avocent
 packet 139, an RLE-compressed bit-slice format (also byte-plane and raw tiles),
 which OldIPMI decodes. Its text mode (character cells plus font tables, used by
-some BIOS screens) is not drawn yet and fails with an explicit message. A fresh JNLP can
-supply an AMI/ATEN session token, but is never executed or used to fetch code.
-Every credential-based connection obtains a fresh session; imported JNLP files must
-also be fresh.
+some BIOS screens) is not drawn yet and fails with an explicit message. The Java iKVM
+launch file the BMC hands out only supplies an AMI/ATEN session token and is never
+executed or used to fetch code. Every connection logs in and obtains a fresh session.
 
 ## Transport compatibility
 
@@ -111,7 +110,7 @@ legacy/unverified TLS and plain console/media. Passwords/tokens never appear in
 command-line arguments, profile files or diagnostic output.
 
 For verified Lab-Avocent, select Dell iDRAC (Avocent) and enable legacy/unverified TLS.
-Avocent ISO media, JNLP import and packet-134 video are not implemented; the ISO
+Avocent ISO media and packet-134 video are not implemented; the ISO
 action is not offered for that family. Cisco uses port 2068, Dell uses port 5900.
 
 ATEN systems requiring mutual TLS need their client certificate/key selected in

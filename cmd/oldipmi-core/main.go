@@ -34,7 +34,7 @@ func run() int {
 		}
 		ctx, stop := context.WithTimeout(ctx, 20*time.Second)
 		defer stop()
-		s, e := backend.Open(ctx, in.Profile, in.Password, nil)
+		s, e := backend.Open(ctx, in.Profile, in.Password)
 		in.Password = ""
 		if e != nil {
 			fmt.Fprintln(os.Stderr, e)

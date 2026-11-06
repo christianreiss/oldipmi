@@ -355,7 +355,7 @@ void Controller::cancelCredentials() {
     emit changed();
   }
 }
-void Controller::start(QVariantMap p, QString password, QString jnlp) {
+void Controller::start(QVariantMap p, QString password) {
   auto id = p.value("id").toString();
   if (id.isEmpty())
     id = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -369,7 +369,7 @@ void Controller::start(QVariantMap p, QString password, QString jnlp) {
   });
   m_sessions[id] = s;
   setShown(s);
-  s->begin(password, jnlp);
+  s->begin(password);
 }
 void Controller::disconnectHost() { disconnectProfile(shownId()); }
 void Controller::disconnectProfile(QString id) {
@@ -427,18 +427,6 @@ void Controller::powerFor(QString id, QString action) {
     return;
   s->releaseInput();
   s->command({{"op", "power"}, {"action", action}});
-}
-void Controller::openJNLP(QVariantMap p) {
-  auto name = QFileDialog::getOpenFileName(nullptr, "Open fresh BMC session",
-                                           {}, "JNLP session (*.jnlp)");
-  if (name.isEmpty())
-    return;
-  QFile f(name);
-  if (!f.open(QIODevice::ReadOnly) || f.size() > 1024 * 1024) {
-    fail("Cannot read JNLP file, or file exceeds 1 MiB.");
-    return;
-  }
-  start(p, {}, QString::fromUtf8(f.readAll()));
 }
 QString Controller::chooseCertificate(bool key) {
   return QFileDialog::getOpenFileName(

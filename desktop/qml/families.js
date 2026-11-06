@@ -23,7 +23,7 @@ function name(id) {
     return id || "Unknown";
 }
 function names() { return list.map(function (f) { return f.name; }); }
-// ISO mount and JNLP import exist only for the AMI and ATEN adapters.
+// ISO mount exists only for the AMI and ATEN adapters.
 function hasMedia(id) { return id === "ami" || id === "aten"; }
 function needsAccount(id) { return id !== "demo"; }
 

@@ -77,7 +77,6 @@ public:
   Q_INVOKABLE void power(QString action);
   // Power action for a specific session (by profile id); the shown one when id is empty.
   Q_INVOKABLE void powerFor(QString id, QString action);
-  Q_INVOKABLE void openJNLP(QVariantMap profile);
   Q_INVOKABLE QString chooseCertificate(bool key);
   void preview();
   // Result callback: (ok, message). Invoked when the backend answers command `id`.
@@ -103,7 +102,7 @@ private:
   Session *m_shown = nullptr;
   void setMessage(const QString &m);
   void fail(QString message);
-  void start(QVariantMap profile, QString password, QString jnlp = {});
+  void start(QVariantMap profile, QString password);
   void setShown(Session *s);
   void removeSession(Session *s);
   bool persist(const QVariantList &hosts);

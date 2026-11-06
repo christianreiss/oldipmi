@@ -28,7 +28,7 @@ marketing.
 ```
 
 * **Connection manager** (left): sorted list, filter, per-row state as emblem *and* text,
-  context menu (Connect, Connect with JNLP, Edit, Duplicate, Delete), keyboard
+  context menu (Show/Connect, Disconnect, Edit, Duplicate, Delete), keyboard
   (Enter connects, F2 edits, Del deletes). Any number of consoles can be open at once:
   connecting another profile opens it next to the others, selecting an open row shows
   its console (the others keep running in the background), the row's play button turns

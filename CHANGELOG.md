@@ -2,6 +2,12 @@
 
 ## 0.2.0 (2026-11-06)
 
+### Removed
+* Importing a `.jnlp` file ("Connect with JNLP file…", the IPC `jnlp` field and the
+  backend's imported-JNLP paths) is gone: every connection logs in and gets a fresh
+  session. The Java iKVM launch file the BMC itself serves is still read for AMI and
+  ATEN Java consoles, including the per-profile JNLP endpoint override.
+
 ### Multiple consoles
 * Any number of consoles can be open at once (0..N) instead of one: connecting another
   profile no longer closes the open one. Selecting an open connection shows its console;
@@ -14,7 +20,7 @@
 
 ### Interface
 * New two-pane layout: a connection manager (filter, live state as emblem and text,
-  context menu with Connect, Connect with JNLP file, Edit, Duplicate, Delete) and a
+  context menu with Connect, Edit, Duplicate, Delete) and a
   console pane with distinct states for first run, selected connection, three-stage
   setup progress, stage-specific failure (cause, likely fix, Try again, Edit) and the
   live console with a console-information side panel and a capture status bar.

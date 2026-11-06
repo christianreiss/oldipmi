@@ -95,7 +95,6 @@ Kirigami.ApplicationWindow {
             onConnectRequested: p => window.connectProfile(p)
             onEditRequested: p => window.editConnection(p)
             onDeleteRequested: p => { deleteDialog.profile = p; deleteDialog.open() }
-            onJnlpRequested: p => { window.selectedId = p.id; controller.openJNLP(p) }
             onNewRequested: window.newConnection()
             onSettingsRequested: module => window.openSettings(module)
             onQuitRequested: window.quitApp()

@@ -20,7 +20,7 @@ public:
 
   Session(QString key, QVariantMap profile, QObject *parent = nullptr);
   ~Session() override;
-  void begin(const QString &password, const QString &jnlp);
+  void begin(const QString &password);
   // Ends the backend process (blocking up to a few seconds) and clears the frame.
   void stop();
   void command(QJsonObject obj, Result done = {});

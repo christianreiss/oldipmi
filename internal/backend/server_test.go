@@ -43,7 +43,7 @@ func TestCancelDuringSetup(t *testing.T) {
 	started := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
-		done <- serve(context.Background(), control, video, func(ctx context.Context, p protocol.Profile, password string, jnlp []byte) (protocol.Session, error) {
+		done <- serve(context.Background(), control, video, func(ctx context.Context, p protocol.Profile, password string) (protocol.Session, error) {
 			close(started)
 			<-ctx.Done()
 			return nil, ctx.Err()
@@ -74,7 +74,7 @@ func TestDiscoveryProgressAndStageError(t *testing.T) {
 			peer.SetDeadline(time.Now().Add(2 * time.Second))
 			done := make(chan error, 1)
 			go func() {
-				done <- serve(context.Background(), control, video, func(ctx context.Context, p protocol.Profile, password string, jnlp []byte) (protocol.Session, error) {
+				done <- serve(context.Background(), control, video, func(ctx context.Context, p protocol.Profile, password string) (protocol.Session, error) {
 					protocol.Report(ctx, stage, &protocol.ConsoleInfo{Protocol: "fixture", Capabilities: []string{"Video"}})
 					return nil, errors.New("fixture failure")
 				})
