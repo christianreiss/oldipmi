@@ -163,6 +163,7 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 	rgb := video.NewDecoder(video.Depth15)
 	gray := video.NewDecoder(video.Depth7Gray)
 	pal := video.NewDecoder(video.Depth7Palette)
+	var rle video.RVAS
 
 	var agg []byte
 	var ack byte
@@ -190,9 +191,21 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 		if f.ID == 134 || f.ID == 34310 {
 			return fmt.Errorf("unsupported Avocent packet-134 codec")
 		} else if f.ID == 139 || f.ID == 34315 {
-			// Cisco IMC (seen on APCP 2.34): its own compressed format, not the
-			// 129-131 opcode stream. Fail visibly instead of showing nothing.
-			return fmt.Errorf("unsupported video format: this BMC sends Avocent packet 139 (Cisco IMC video), which OldIPMI cannot decode yet")
+			// Cisco IMC (seen on APCP 2.34): the RLE / bit-slice format, not
+			// the 129-131 opcode stream.
+			skipped := rle.Skipped
+			if _, e = rle.Feed(fb, f.Payload); e != nil {
+				return e
+			}
+			if trace && rle.Skipped != skipped {
+				fmt.Fprintf(os.Stderr, "avpt rle: skipped packet, waiting for a reference frame\n")
+			}
+		} else if f.ID == 136 || f.ID == 34312 {
+			if e = rle.SetPalette(f.Payload); e != nil {
+				return e
+			}
+		} else if f.ID == 137 || f.ID == 34313 {
+			// Font table for RLE text mode; text mode itself reports an error.
 		} else if f.ID == 129 || f.ID == 130 || f.ID == 131 || f.ID == 34305 || f.ID == 34306 || f.ID == 34307 {
 			if len(f.Payload) < 12 {
 				return fmt.Errorf("short Avocent video packet")

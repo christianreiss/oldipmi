@@ -68,9 +68,10 @@ status, setup, recent agent activity) and *About* (version, file locations).
 Preferences are stored in `OldIPMI.conf` in the XDG config directory.
 
 Lab-AMI, Lab-Avocent and Lab-Cisco are added once on first launch; deleted defaults stay
-deleted. Lab-Cisco is configured for Cisco APCP: login and the KVM channel work,
-but its video format (Avocent packet 139) is not implemented yet, so the console
-fails with that message instead of showing a picture. A fresh JNLP can
+deleted. Lab-Cisco is configured for Cisco APCP. Cisco IMC sends its video as Avocent
+packet 139, an RLE-compressed bit-slice format (also byte-plane and raw tiles),
+which OldIPMI decodes. Its text mode (character cells plus font tables, used by
+some BIOS screens) is not drawn yet and fails with an explicit message. A fresh JNLP can
 supply an AMI/ATEN session token, but is never executed or used to fetch code.
 Every credential-based connection obtains a fresh session; imported JNLP files must
 also be fresh.
@@ -125,7 +126,7 @@ does not change the BMC's Java/HTML5 console preference automatically.
 | Supermicro X12/X13 (Redfish iKVM) | Redfish session login, `Oem/Supermicro/IKVM` (X11: `Managers/1/IKVM`) discovery, HTML5 page reuse when it carries the known token | Synthetic only; AST2600 console page/stream unverified, fails with a generation-specific message |
 | ATEN HTML5 console (firmware without Java iKVM) | Automatic fallback: WebSocket + ASPEED AST2100 video (shared AMI codec), keyboard, pointer, power; no virtual media | Live: 1600x1200 video, delta updates, keyboard input verified on a LAN ATEN BMC (XCP-ng host); base64 login form and HTML5 fallback re-verified read-only 2026-11-06; pointer and power not run live |
 | Avocent / Lab-Avocent, Dell PowerEdge R420 | APCP, TLS companion channel, RGB555 stream, HID | Real native 640x480 video decoded and visually inspected |
-| Cisco IMC / Lab-Cisco (bonus target) | APCP 2.34 login, TLS, companion video channel | Live read-only 2026-11-06: login and KVM channel work; video arrives as packet 139 (own compression, 1024x768, ~92 KB first frame, 8-byte no-change packets every 1.5 s), not decoded: explicit error |
+| Cisco IMC / Lab-Cisco (bonus target) | APCP 2.34 login, TLS, companion video channel | Live read-only 2026-11-06: login and KVM channel work; video arrives as packet 139 (RLE bit-slice, 1024x768 at 15 bpp, ~100 KB reference frame, 8-byte no-change packets every 1.5 s); decoded, live picture verified 2026-11-06. RLE text mode not drawn yet |
 
 Evidence levels are exactly as stated in the table: "Live" rows were exercised
 on real BMCs, everything else is covered by synthetic tests only. Keyboard

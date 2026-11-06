@@ -26,8 +26,9 @@
   window shortcuts (Ctrl+N, F11) staying with the server while captured.
   DESIGN.md and docs/slop-review-2026-11-06.md document the review.
 * Cancelling the password prompt clears its hint from the console pane.
-* Cisco IMC (Lab-Cisco): video arrives as Avocent packet 139, which is not decoded yet;
-  the console now fails with that message instead of staying black. A console that
+* Cisco IMC (Lab-Cisco): video arrives as Avocent packet 139 (RLE bit-slice, byte-plane
+  or raw tiles, palette in packet 136), now decoded, so Lab-Cisco shows its console.
+  RLE text mode is not drawn yet and fails with an explicit message. A console that
   connects but never delivers a picture shows "waiting for the first picture" and,
   on error, the connection-failed state. `OLDIPMI_TRACE_AVPT` traces AVPT packets.
 * Settings and Quit buttons at the bottom of the connection list; Quit (also Ctrl+Q
