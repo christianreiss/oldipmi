@@ -121,3 +121,14 @@ func TestJavaTokenAuthUsesDistinctPasswordField(t *testing.T) {
 		t.Fatalf("%q", a)
 	}
 }
+
+func TestHTML5TokenAuthClientTypeByte(t *testing.T) {
+	c := &Client{launch: protocol.Launch{Family: "aten", HTML5: true, Token: "tok"}}
+	if a := c.tokenAuth(); len(a) != 48 || !bytes.Equal(bytes.TrimRight(a, "\x00"), []byte("tok")) {
+		t.Fatalf("X10/X11: %q", a)
+	}
+	c.launch.ClientType = true
+	if a := c.tokenAuth(); len(a) != 49 || a[48] != 0 || !bytes.Equal(bytes.TrimRight(a[:24], "\x00"), []byte("tok")) || !bytes.Equal(a[24:48], make([]byte, 24)) {
+		t.Fatalf("X12/X13: %q", a)
+	}
+}

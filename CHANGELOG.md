@@ -2,6 +2,13 @@
 
 ## 0.2.0 (2026-11-06)
 
+### Fixed
+* ATEN / Supermicro HTML5 console on X12/X13-generation firmware connected but then
+  timed out ("i/o timeout"): their console expects a client-type byte after the session
+  token, which X10/X11 firmware must not get. OldIPMI now reads the BMC's own noVNC
+  client (`/novnc/include/rfb.js`) to decide; if it cannot, it keeps the X10/X11 form.
+  Verified live on two X12/X13 BMCs (cgi and Redfish discovery) and on X10/X11 HTML5.
+
 ### Removed
 * Importing a `.jnlp` file ("Connect with JNLP file…", the IPC `jnlp` field and the
   backend's imported-JNLP paths) is gone: every connection logs in and gets a fresh

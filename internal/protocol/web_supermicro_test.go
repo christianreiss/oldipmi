@@ -206,9 +206,45 @@ func TestSupermicro404FallsBackToHTML5(t *testing.T) {
 		"GET " + atenHTML5Path: sessionOnly(smHTML5Page),
 	})
 	l, err := w.Login(ctx, smPass)
-	if err != nil || !l.HTML5 || l.Token != "H5tok-777" {
+	if err != nil || !l.HTML5 || l.Token != "H5tok-777" || l.ClientType {
 		t.Fatal(l, err)
 	}
+}
+
+// The BMC's own noVNC client decides the token-auth length: X12/X13 firmware
+// (verified live, cgi and Redfish paths) appends a client-type byte, X10/X11
+// does not. The handshake is otherwise identical.
+const (
+	smRFBX11 = `_negotiate_insyde_auth:function(){var definedAuthLen=24;sendUsername.length=definedAuthLen*2;this._sock.send(sendUsername)}`
+	smRFBX12 = `_negotiate_insyde_auth:function(){var definedAuthLen=24;var clientType=0;sendUsername.length=definedAuthLen*2+1;sendUsername[definedAuthLen*2]=clientType}`
+)
+
+func TestSupermicroHTML5ClientTypeFromBMCClient(t *testing.T) {
+	for _, c := range []struct {
+		rfb  string
+		want bool
+	}{{smRFBX11, false}, {smRFBX12, true}, {"", false}} {
+		routes := map[string]http.HandlerFunc{
+			"POST /cgi/login.cgi":  atenLogin(false),
+			"GET " + atenHTML5Path: sessionOnly(smHTML5Page),
+		}
+		if c.rfb != "" {
+			routes["GET "+atenNoVNCRFB] = body(c.rfb)
+		}
+		w, _, _, ctx := newSMWeb(t, "html5", routes)
+		l, err := w.Login(ctx, smPass)
+		if err != nil || !l.HTML5 || l.ClientType != c.want {
+			t.Fatalf("rfb %q: %+v %v", c.rfb, l, err)
+		}
+		w.Close()
+	}
+	routes := redfish(t, redfishIKVMOem, "/redfish/Kk1D4UVATDja0Jw.IKVM", smHTML5Page)
+	routes["GET "+atenNoVNCRFB] = body(smRFBX12)
+	w, _, _, ctx := newSMWeb(t, "", routes)
+	if l, err := w.Login(ctx, smPass); err != nil || !l.Redfish || !l.ClientType {
+		t.Fatalf("redfish: %+v %v", l, err)
+	}
+	w.Close()
 }
 
 func TestSupermicroJavaModeDoesNotFallBack(t *testing.T) {

@@ -63,8 +63,8 @@ func (c *Client) attach(ctx context.Context) (err error) {
 		err = c.negotiate(ctx)
 	}
 	if err != nil && c.launch.Redfish && ctx.Err() == nil {
-		// The AST2600-generation console stream is not verified (see protocol/web.go).
-		err = fmt.Errorf("%w (this console was found through the Supermicro Redfish iKVM resource, as on X12/X13 boards, whose HTML5 console stream OldIPMI has not been verified with; use the BMC web interface's Remote Console and report the BMC model and firmware version)", err)
+		// Verified on two X12/X13-generation BMCs; other firmware may differ.
+		err = fmt.Errorf("%w (this console was found through the Supermicro Redfish iKVM resource, as on X12/X13 boards; if it keeps failing, use the BMC web interface's Remote Console and report the BMC model and firmware version)", err)
 	}
 	return err
 }

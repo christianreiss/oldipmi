@@ -34,6 +34,10 @@ type Launch struct {
 	// Redfish marks an HTML5 console discovered through the Supermicro Redfish
 	// iKVM resource (X11 and later; the only web path documented for X12/X13).
 	Redfish bool
+	// ClientType marks HTML5 firmware whose own noVNC client (X12/X13
+	// generation) ends the 48-byte token authentication with a client-type
+	// byte; the BMC waits for it before answering.
+	ClientType bool
 }
 type Web struct {
 	Client  *http.Client
@@ -266,6 +270,7 @@ const (
 	atenJNLPPath      = "/cgi/url_redirect.cgi?url_name=ikvm&url_type=jwsk"
 	atenAltJNLPPath   = "/cgi/url_redirect.cgi?url_name=man_ikvm&url_type=jwsk"
 	atenHTML5Path     = "/cgi/url_redirect.cgi?url_name=man_ikvm_html5_bootstrap"
+	atenNoVNCRFB      = "/novnc/include/rfb.js"
 	redfishSessions   = "/redfish/v1/SessionService/Sessions"
 	redfishIKVMOem    = "/redfish/v1/Managers/1/Oem/Supermicro/IKVM"
 	redfishIKVMLegacy = "/redfish/v1/Managers/1/IKVM"
@@ -405,7 +410,18 @@ func (w *Web) atenHTML5(ctx context.Context, password string) (Launch, error) {
 	if !ok {
 		return Launch{}, fmt.Errorf("the HTML5 console page has no session token: the account may lack Remote Console rights, another login may have ended the session, or this firmware's console page is unsupported; check the account in the BMC web interface and retry")
 	}
+	l.ClientType = w.html5ClientType(ctx)
 	return l, nil
+}
+
+// html5ClientType reports whether the BMC's own noVNC client sends the
+// client-type byte after the token (seen on X12/X13 firmware; X10/X11 send
+// only the 48-byte token). The handshake is otherwise identical, so the BMC's
+// client is the only reliable witness. If it cannot be read, the X10/X11 form
+// is used, as before.
+func (w *Web) html5ClientType(ctx context.Context) bool {
+	b, e := w.Request(ctx, "GET", atenNoVNCRFB, nil, true)
+	return e == nil && bytes.Contains(b, []byte("clientType"))
 }
 
 func (w *Web) html5FromPage(b []byte) (Launch, bool) {
@@ -494,6 +510,7 @@ func (w *Web) redfishLaunch(ctx context.Context, password string, login bool) (L
 		return Launch{}, fmt.Errorf("found the %s HTML5 console, but its page format is not supported yet; use the BMC web interface's Remote Console and report the BMC model and firmware version", gen)
 	}
 	l.Redfish = true
+	l.ClientType = w.html5ClientType(ctx)
 	return l, nil
 }
 

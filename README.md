@@ -103,6 +103,9 @@ The console info then shows "ATEN HTML5"; virtual media is not available there.
 When the HTML5 page is missing, or `login.cgi` is gone (X12/X13, AST2600), OldIPMI
 uses a Redfish session and the Supermicro IKVM resource (experimental, see below).
 OldIPMI never changes the BMC's Java/HTML5 preference.
+Some X10/X11 firmware requires a Supermicro client certificate on the Java iKVM
+port (5900; TLS alert "handshake failure"), which OldIPMI does not ship: set such
+profiles to **HTML5**.
 
 Older AMI systems may have plain video and an always-TLS HID channel. On the
 verified Lab-AMI generation, select AMI and explicitly enable HTTP login,
@@ -125,7 +128,7 @@ does not change the BMC's Java/HTML5 console preference automatically.
 | Newer AMI / ASPEED | 8-byte IVTP, VQ/JPEG decoder, HID, iUSB | Imported regression tests; no hardware acceptance yet |
 | ATEN / Supermicro | Token login, Hermon and bit-plane video, HID, power, read-only media (Java iKVM) | Synthetic TCP handshake/video/cancellation tests; no Java-iKVM target supplied |
 | ATEN / Supermicro X9–X11 Java iKVM | Plain or base64 (`check=00`) login detected from the login page; 8/10/22-argument JNLP layouts; `ikvm`/`man_ikvm` URLs | Synthetic fixtures only; no Java-iKVM target supplied |
-| Supermicro X12/X13 (Redfish iKVM) | Redfish session login, `Oem/Supermicro/IKVM` (X11: `Managers/1/IKVM`) discovery, HTML5 page reuse when it carries the known token | Synthetic only; AST2600 console page/stream unverified, fails with a generation-specific message |
+| Supermicro X12/X13 (Redfish iKVM) | Redfish session login, `Oem/Supermicro/IKVM` (X11: `Managers/1/IKVM`) discovery, HTML5 page reuse when it carries the known token | Live 2026-11-06, view only: video on two X12/X13 BMCs (Redfish and cgi discovery; their console needs a client-type byte after the token, detected from the BMC's `rfb.js`); keyboard, pointer and power not run live |
 | ATEN HTML5 console (firmware without Java iKVM) | Automatic fallback: WebSocket + ASPEED AST2100 video (shared AMI codec), keyboard, pointer, power; no virtual media | Live: 1600x1200 video, delta updates, keyboard input verified on a LAN ATEN BMC (XCP-ng host); base64 login form and HTML5 fallback re-verified read-only 2026-11-06; pointer and power not run live |
 | Avocent / Lab-Avocent, Dell PowerEdge R420 | APCP, TLS companion channel, RGB555 stream, HID | Real native 640x480 video decoded and visually inspected |
 | Cisco IMC / Lab-Cisco (bonus target) | APCP 2.34 login, TLS, companion video channel | Live read-only 2026-11-06: login and KVM channel work; video arrives as packet 139 (RLE bit-slice, 1024x768 at 15 bpp, ~100 KB reference frame, 8-byte no-change packets every 1.5 s); decoded, live picture verified 2026-11-06. RLE text mode not drawn yet |
@@ -134,7 +137,7 @@ Evidence levels are exactly as stated in the table: "Live" rows were exercised
 on real BMCs, everything else is covered by synthetic tests only. Keyboard
 input has been verified live on the ATEN HTML5 console only; pointer input,
 ISO mounting and power/boot operations have not been run on production
-hardware, nor have the Java iKVM or Redfish (X12/X13) paths. AMI single-port
+hardware, nor has the Java iKVM path; the Redfish (X12/X13) path is verified for video only. AMI single-port
 HTTP CONNECT mode, encrypted HID at the application layer, non-RGB555 legacy
 VSC modes, unsupported ATEN encodings, and relative pointer mode are not yet
 implemented. Unsupported formats fail explicitly rather than launch Java.

@@ -146,6 +146,9 @@ func (c *Client) tokenAuth() []byte {
 	auth := make([]byte, 48)
 	if c.launch.HTML5 {
 		copy(auth, c.launch.Token) // token, then 24 zero bytes
+		if c.launch.ClientType {
+			auth = append(auth, 0) // client type 0, as the X12/X13 noVNC client sends
+		}
 		return auth
 	}
 	copy(auth[:24], c.launch.Token)
