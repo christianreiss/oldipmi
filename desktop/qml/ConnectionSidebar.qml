@@ -43,6 +43,16 @@ ColumnLayout {
                 elide: Text.ElideRight
             }
             QQC2.ToolButton {
+                objectName: "disconnectAllButton"
+                visible: controller.openCount > 0
+                icon.name: "network-disconnect"
+                text: controller.openCount > 1 ? "Disconnect all " + controller.openCount + " consoles" : "Disconnect the open console"
+                display: QQC2.AbstractButton.IconOnly
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.text: text + " (Ctrl+Shift+D)"
+                onClicked: controller.disconnectAll()
+            }
+            QQC2.ToolButton {
                 icon.name: "list-add"
                 text: "New connection…"
                 display: QQC2.AbstractButton.IconOnly
@@ -64,6 +74,13 @@ ColumnLayout {
                     id: appMenu
                     QQC2.MenuItem { text: "Settings…"; icon.name: "configure"; onTriggered: root.settingsRequested("general") }
                     QQC2.MenuItem { text: "AI agents (MCP)…"; icon.name: "dialog-scripts"; onTriggered: root.settingsRequested("agents") }
+                    QQC2.MenuSeparator {}
+                    QQC2.MenuItem {
+                        text: "Disconnect all"
+                        icon.name: "network-disconnect"
+                        enabled: controller.openCount > 0
+                        onTriggered: controller.disconnectAll()
+                    }
                     QQC2.MenuSeparator {}
                     QQC2.MenuItem { text: "About OldIPMI"; icon.name: "help-about"; onTriggered: root.settingsRequested("about") }
                     QQC2.MenuItem { text: "Quit"; icon.name: "application-exit"; onTriggered: root.quitRequested() }

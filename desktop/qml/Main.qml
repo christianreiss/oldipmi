@@ -75,7 +75,7 @@ Kirigami.ApplicationWindow {
     Shortcut { sequence: "F9"; onActivated: settings.showSidebar = !settings.showSidebar }
     Shortcut { sequences: [StandardKey.FullScreen, "F11"]; onActivated: window.toggleFullscreen() }
     Shortcut { sequence: "Ctrl+D"; enabled: controller.state !== "disconnected"; onActivated: controller.disconnectHost() }
-    Shortcut { sequence: "Ctrl+Shift+D"; enabled: controller.openCount > 1; onActivated: controller.disconnectAll() }
+    Shortcut { sequence: "Ctrl+Shift+D"; enabled: controller.openCount > 0; onActivated: controller.disconnectAll() }
     Shortcut { sequences: [StandardKey.Quit]; onActivated: window.quitApp() }
     Shortcut { sequence: "Escape"; enabled: window.fullscreen && !consolePane.consoleView.captured; onActivated: window.toggleFullscreen() }
 
