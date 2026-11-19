@@ -359,17 +359,19 @@ static QString keyboardFails(QQuickWindow *w, Console *console, Controller &cont
 // Quit stays visible in full screen: in its corner while a console is shown, and
 // in the header, with the connection list, when there is none (as after losing
 // the connection). Released, Tab brings the keyboard focus to the floating bar or
-// Quit: the bar shows and stays while it has the focus, and Enter on its Take
-// control button gives keyboard and mouse to the server. Returns what failed, or "".
+// Quit: the bar shows and stays while it has the focus, the release note points to
+// its Take control button, and Enter there gives keyboard and mouse to the server.
+// Returns what failed, or "".
 static QString fullScreenFails(QQuickWindow *w, Console *console, Controller &controller) {
   auto *corner = w->findChild<QQuickItem *>("quitCorner");
   auto *header = w->findChild<QQuickItem *>("headerQuitButton");
   auto *bar = w->findChild<QQuickItem *>("fullscreenBar");
   auto *take = w->findChild<QQuickItem *>("fullscreenTakeControl");
   auto *peek = w->findChild<QObject *>("fullscreenPeek");
+  auto *note = w->findChild<QObject *>("fullscreenNote");
   if (!corner || !header)
     return "no Quit button";
-  if (!bar || !take || !peek)
+  if (!bar || !take || !peek || !note)
     return "no full-screen bar";
   auto press = [w](Qt::Key key) {
     QKeyEvent down(QEvent::KeyPress, key, Qt::NoModifier);
@@ -400,6 +402,10 @@ static QString fullScreenFails(QQuickWindow *w, Console *console, Controller &co
     if (!waitFor(w, [&] { return inBar() && bar->isVisible(); }, 1000))
       return QString("Tab, released, does not reach the full-screen bar or Quit (the focus is on %1)")
           .arg(w->activeFocusItem() ? w->activeFocusItem()->metaObject()->className() : "nothing");
+    // From there a Right Ctrl tap does not take control, so the note does not offer it.
+    if (!note->property("how").toString().startsWith("Take control"))
+      return QString("released, with the focus in the full-screen bar, its note says \"%1\"")
+          .arg(note->property("how").toString());
     // Past the first seconds, when the bar shows anyway, and with the pointer away
     // from the top edge, which shows it too (the offscreen platform may report one
     // there); then past its fade.

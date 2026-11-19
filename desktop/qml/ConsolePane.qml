@@ -633,13 +633,17 @@ ColumnLayout {
                     }
                     Rectangle {
                         id: toast
+                        objectName: "fullscreenNote"
                         // One line when it fits; otherwise the release instruction takes its
                         // own line and the server name elides first. It keeps clear of the
                         // Quit corner, also while the bar is hidden and the note moves up.
                         readonly property int pad: Math.round(Theme.gu * 0.7)
                         readonly property real room: parent.width - 2 * (fsQuit.width + Math.round(Theme.gu * 1.2))
+                        // Released with the keyboard focus in the bar or on Quit, a Right Ctrl
+                        // tap does not take control; the bar's Take control does.
                         readonly property string how: view.captured
                             ? (settings.rightCtrlReleases ? "Tap Right Ctrl to release" : "Release from the bar at the top edge")
+                            : fsBar.focused ? "Take control from the bar, or click the screen"
                             : (settings.rightCtrlReleases ? "Tap Right Ctrl or click the screen to take control" : "Click the screen to take control")
                         readonly property bool stacked: whoRow.implicitWidth + toastGrid.columnSpacing + oneLine.advanceWidth + 2 * pad > room
                         TextMetrics { id: oneLine; font: howLabel.font; text: "· " + toast.how }

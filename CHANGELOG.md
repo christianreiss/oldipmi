@@ -42,7 +42,9 @@
   way back when the Right Ctrl release is switched off) and **Take control** while
   it is released, and Quit stays in the top right corner the whole time. Released,
   Tab reaches Quit and brings the bar, which stays while the keyboard focus is in it
-  or on Quit, so the bar works without a mouse. The bar and the capture note fit
+  or on Quit, so the bar works without a mouse; the note shown on releasing then
+  points to Take control instead of the Right Ctrl tap, which does not take
+  control from there. The bar and the capture note fit
   small screens; a long server name elides instead of pushing the release
   instruction off screen. Without a console (a closed connection selected,
   connecting, failed, or after losing the connection) full screen keeps the header
@@ -84,6 +86,10 @@
   the console instead of pushing it down. `oldipmi --self-test` (CTest
   `desktop_smoke`) now fails when the console view changes size or position on
   capture, release, or window deactivation and reactivation.
+* A click or wheel turn on the margin around the remote picture is no longer sent
+  to the server, where it landed on the edge of the remote screen (on a taskbar or
+  a window's close button, say). A drag that starts on the picture still ends at
+  its edge. `console_tests` checks this.
 
 ## 0.2.0-3 (Fedora packaging)
 

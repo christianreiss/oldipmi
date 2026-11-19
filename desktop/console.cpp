@@ -278,13 +278,24 @@ void Console::mousePressEvent(QMouseEvent *e) {
     e->accept();
     return;
   }
+  // The first button of a gesture decides for all of it: a press on the margin
+  // around the picture would land on the edge of the remote screen, so neither
+  // it nor the rest of its gesture is sent. A drag that started on the picture
+  // goes on to its edge, also with another button.
+  if (e->buttons() == e->button())
+    m_swallow = !imageRect().contains(e->position());
+  if (m_swallow) {
+    e->accept();
+    return;
+  }
   update();
   pointer(e->position(), e->buttons(), 0);
   e->accept();
 }
 void Console::mouseReleaseEvent(QMouseEvent *e) {
   if (m_swallow || !hasActiveFocus()) {
-    m_swallow = false;
+    if (e->buttons() == Qt::NoButton) // the gesture ends with its last button
+      m_swallow = false;
     e->accept();
     return;
   }
@@ -307,6 +318,10 @@ void Console::hoverMoveEvent(QHoverEvent *e) {
 void Console::wheelEvent(QWheelEvent *e) {
   if (!hasActiveFocus()) {
     e->ignore();
+    return;
+  }
+  if (!imageRect().contains(e->position())) { // the margin (see mousePressEvent())
+    e->accept();
     return;
   }
   pointer(e->position(), e->buttons(), e->angleDelta().y() > 0 ? 1 : -1);

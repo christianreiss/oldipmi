@@ -55,6 +55,43 @@ private slots:
     QCOMPARE(press.at(1).toInt(), 75);
     QCOMPARE(press.at(2).toInt(), 1);
   }
+  // The margin around the picture is not the remote screen: a press or a wheel
+  // turn there is not sent, while a drag from the picture goes on to its edge.
+  // Moving over the margin still moves the remote pointer along the edge.
+  void marginIsNotSentToTheServer() {
+    QImage square(150, 150, QImage::Format_RGBA8888);
+    square.fill(Qt::darkBlue);
+    view->setFrame(square); // 300x300 in the middle of 400x300: margins left and right
+    click({200, 150});
+    QVERIFY(view->captured());
+    QSignalSpy pointer(view, &Console::pointerInput);
+    auto actions = [&] { // what the server takes as an action: a button down or a wheel turn
+      int n = 0;
+      for (const auto &args : std::as_const(pointer))
+        n += args.at(2).toInt() != 0 || args.at(3).toInt() != 0;
+      return n;
+    };
+    auto wheelAt = [&](QPointF at) {
+      QWheelEvent wheel(at, window->mapToGlobal(at), {}, {0, 120}, Qt::NoButton, Qt::NoModifier,
+                        Qt::NoScrollPhase, false);
+      QCoreApplication::sendEvent(window, &wheel);
+    };
+    click({20, 150});
+    click({390, 150});
+    wheelAt({20, 150});
+    QCOMPARE(actions(), 0);
+    wheelAt({200, 150}); // on the picture it is sent
+    QCOMPARE(actions(), 1);
+    QTest::mouseMove(window, {100, 150});
+    pointer.clear();
+    QTest::mousePress(window, Qt::LeftButton, {}, {100, 150});
+    QTest::mouseMove(window, {20, 150});
+    QTest::mouseRelease(window, Qt::LeftButton, {}, {20, 150});
+    QVERIFY(pointer.count() >= 2);
+    QCOMPARE(pointer.first().at(2).toInt(), 1); // pressed on the picture
+    QCOMPARE(pointer.last().at(0).toInt(), 0);  // released at the picture's left edge
+    QCOMPARE(pointer.last().at(2).toInt(), 0);
+  }
   void shortcutsGoToTheServerWhileCaptured() {
     view->capture();
     QKeyEvent override(QEvent::ShortcutOverride, Qt::Key_N, Qt::ControlModifier);

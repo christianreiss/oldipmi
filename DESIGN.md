@@ -101,7 +101,8 @@ no window; everything else is derived from them:
   Disconnect. Quit keeps its own button in the top right corner the whole time;
   released, Tab reaches it and brings the bar, so the bar works without a mouse.
   Capturing shows a short note how to release (Right Ctrl, or the bar when that is
-  switched off), releasing one how to take control again (Right Ctrl or a click).
+  switched off), releasing one how to take control again (Right Ctrl or a click,
+  or the bar's Take control while the keyboard focus is in the bar).
   Without a console (a closed connection selected, connecting, failed, or after
   losing the connection) header and sidebar stay, with Leave full screen next to
   Quit.
@@ -163,6 +164,10 @@ page that do not fit side by side wrap instead of widening it.
   Right Ctrl release switched off, releasing needs the mouse; the setting says so,
   and so does the capture chip (tooltip and accessible description) before the
   keyboard takes control with it.
+* Only the picture is the remote screen: a click or wheel turn on the margin
+  around it is not sent, since it would land on the edge of the remote screen. A
+  drag that starts on the picture goes on to its edge, and moving over the margin
+  keeps the remote pointer at the edge.
 * Continuous motion (the setup ring) stands still when the system turns animations
   off; the stage names and the elapsed time carry the progress.
 * The picture never moves or resizes when capture, focus or the status strip
@@ -187,9 +192,10 @@ does not capture, when the focused connection list has no current row, when a li
 rebuild changes the selection, when the menu key does not open the row's context
 menu, when full screen does not show Quit, with or without a console, or when,
 released in full screen, Tab does not reach the bar's Take control, the bar hides
-while it has the keyboard focus, or Enter there does not capture. The
-console unit tests (`console_tests`) cover the capture rules, the Right Ctrl tap
-included. `slop scan desktop`
+while it has the keyboard focus, its note still offers Right Ctrl there, or Enter
+there does not capture. The console unit tests (`console_tests`) cover the
+capture rules, the Right Ctrl tap and the margin around the picture included.
+`slop scan desktop`
 checks the QML/C++ sources; `slop native --config tools/slop/native.json`
 captures the state matrix in light and dark, two window sizes, scale 1 and 2 and
 text scale 1 and 1.5, and `slop measure` checks text contrast on those PNGs. The
