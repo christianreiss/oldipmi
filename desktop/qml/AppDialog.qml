@@ -15,6 +15,9 @@ Kirigami.Dialog {
     property string iconName: ""
     property color tone: Theme.accent
     property string footerHint: ""
+    // An optional hint (a shortcut) shows only while it fits whole; otherwise
+    // the hint is a notice and wraps.
+    property bool footerHintOptional: false
     property bool closeButton: true
     // The footer buttons, left to right.
     property alias buttons: buttonRow.data
@@ -151,7 +154,13 @@ Kirigami.Dialog {
                 visible: text !== ""
                 color: Theme.muted
                 font.pointSize: Theme.small
+                wrapMode: dialog.footerHintOptional ? Text.NoWrap : Text.Wrap
+                maximumLineCount: 3
                 elide: Text.ElideRight
+                // Cut short, an optional hint only hides; it keeps its place, so the
+                // footer's width does not depend on it.
+                opacity: dialog.footerHintOptional && truncated ? 0 : 1
+                Accessible.ignored: opacity === 0
                 Layout.fillWidth: true
             }
             Item { Layout.fillWidth: true; visible: dialog.footerHint === "" }

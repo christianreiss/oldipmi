@@ -71,8 +71,9 @@ function errorHint(message) {
         // option is offered only where it is the likely fix.
         [/certificate is valid for|cannot validate certificate for|not valid for any names/i, "The BMC's certificate does not name this address. Check that the address is the right BMC first; if it is (old BMCs often keep a factory certificate), enable \"Accept legacy or unverified TLS\" in the connection's advanced options."],
         [/unknown authority|expired or is not yet valid|legacy common name|failed to verify certificate/i, "The BMC's certificate cannot be verified (self-signed or expired, as on most old BMCs). If this is the right BMC, enable \"Accept legacy or unverified TLS\" in the connection's advanced options."],
-        [/protocol version|no cipher suite|handshake failure|insufficient security|no supported versions/i, "The BMC offers only old TLS versions or ciphers. Enable \"Accept legacy or unverified TLS\" in the connection's advanced options."],
-        [/certificate|x509|tls:|handshake/i, "The secure connection (TLS) to the BMC failed. The technical details below name the cause."],
+        // Only a version the BMC names; a bare handshake alert can have any cause.
+        [/protocol version/i, "The BMC speaks only an old TLS version. \"Accept legacy or unverified TLS\" in the connection's advanced options allows it, but also skips the certificate check: use it only for the right BMC on a trusted network."],
+        [/certificate|x509|tls:|handshake/i, "The secure connection (TLS) to the BMC failed. See the technical details below."],
         [/rejected login|login was not accepted|status 401|status 403|token rejected|551/i, "Check the username and password. Some BMCs also lock an account after failed attempts."],
         [/text mode/i, "The server's screen is in text mode, which OldIPMI cannot draw for this BMC yet. Use the BMC's own web console until the server switches to graphics."],
         [/unencrypted|plain-console/i, "This BMC offers only an unencrypted console. Enable it in the connection's advanced options if the network is trusted."]

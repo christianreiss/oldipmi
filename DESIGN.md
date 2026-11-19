@@ -85,9 +85,11 @@ no window; everything else is derived from them:
     and Cancel.
   * *Failure*: "Step *n* of 3 · *stage*", a title naming what failed, the likely fix,
     **Try again** and Edit connection…, then the technical details (selectable,
-    Copy). A certificate for another name asks to check the address first; the
-    legacy TLS option is suggested only for a certificate that cannot be verified
-    or an old TLS version, and any other TLS failure gets a neutral hint.
+    Copy). A certificate that does not name the address asks to check the address
+    first. The legacy TLS option is suggested for a certificate that cannot be
+    verified, and for an old TLS version the BMC names, saying that it also skips
+    the certificate check; any other TLS failure, a bare handshake alert included,
+    gets a neutral hint.
   * *Console*: the remote screen on the stage, an accent ring outside the picture
     while it has keyboard and mouse, and the status strip.
 * **Console information** docks next to the stage when the pane has room for both
@@ -103,7 +105,8 @@ no window; everything else is derived from them:
   Quit.
 * **Dialogs** share one frame (`AppDialog.qml`): heading, optional icon tile tinted
   by the tone, content, and a footer band with a hint on the left and the buttons on
-  the right, the verb rightmost. *New / Edit connection* has console type tiles
+  the right, the verb rightmost. An optional hint (a shortcut) shows only while it
+  fits whole; a notice wraps. *New / Edit connection* has console type tiles
   (arrow keys move between them; a drop-down in a short window), address, name,
   username and password, a KWallet switch, and collapsed *Advanced options* (console
   mode, JNLP override, the three security exceptions with a warning, client

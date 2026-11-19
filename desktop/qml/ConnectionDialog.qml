@@ -47,6 +47,7 @@ AppDialog {
     preferredWidth: Math.round(Theme.gu * 37)
     footerHint: openNow ? "Disconnect this console to connect with the changes."
                         : valid ? "Ctrl+Enter saves and connects" : ""
+    footerHintOptional: !openNow
     buttons: [
         ActionButton {
             tone: "ghost"
