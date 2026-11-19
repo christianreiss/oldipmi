@@ -32,11 +32,18 @@ ColumnLayout {
     // ── Toolbar ────────────────────────────────────────────────────────────
     // Height the toolbar content needs (title plus subtitle and padding).
     readonly property real headerNeeds: toolbar.implicitHeight
+    // In full screen the toolbar takes no layout space and is shown over the
+    // console from the top edge, so revealing it never rescales the remote screen.
+    Item {
+        Layout.fillWidth: true
+        Layout.preferredHeight: root.fullscreen ? 0 : root.headerHeight
+        z: 3
     QQC2.ToolBar {
         id: toolbar
-        Layout.fillWidth: true
-        Layout.preferredHeight: root.headerHeight
-        visible: !root.fullscreen || hoverArea.containsMouse
+        width: parent.width
+        height: root.headerHeight
+        visible: !root.fullscreen || hoverArea.containsMouse || toolbarHover.hovered
+        HoverHandler { id: toolbarHover }
         contentItem: RowLayout {
             spacing: Kirigami.Units.smallSpacing
             QQC2.ToolButton {
@@ -102,6 +109,7 @@ ColumnLayout {
                 onClicked: root.quitRequested()
             }
         }
+    }
     }
 
     // Actions while a console is live.
@@ -440,10 +448,14 @@ ColumnLayout {
                 : "Click the screen to control the server."
         }
         QQC2.Button {
-            visible: view.captured
+            // Always laid out, only faded in: it is taller than the labels, and
+            // toggling visible resized the console on every capture change.
             text: "Release"
             icon.name: "input-keyboard"
             flat: true
+            opacity: view.captured ? 1 : 0
+            enabled: view.captured
+            Accessible.ignored: !view.captured
             onClicked: view.release()
         }
         QQC2.Label {

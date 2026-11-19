@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+* The remote screen no longer zooms out and back in when the pointer enters and
+  leaves the window (focus follows mouse) or when the console takes or releases the
+  keyboard. The status bar's Release button, which is taller than the status text,
+  now keeps its space and only fades in. In full screen the toolbar is shown over
+  the console instead of pushing it down. `oldipmi --self-test` (CTest
+  `desktop_smoke`) now fails when the console view changes size or position on
+  capture, release, or window deactivation and reactivation.
+
 ## 0.2.0-3 (Fedora packaging)
 
 * Install Kirigami Add-ons in the buildroot so the offscreen desktop smoke test

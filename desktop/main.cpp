@@ -122,6 +122,42 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   QTimer::singleShot(300, &app, *next);
   return app.exec();
 }
+// The console keeps its size when it takes or gives back the keyboard, and when
+// the window is deactivated and activated again (focus follows mouse does that
+// whenever the pointer leaves and re-enters): any change rescales the remote
+// screen, which then wobbles under the pointer. Returns what changed, or "".
+static QString consoleSizeChanges(QQuickWindow *w, Console *console) {
+  auto settle = [w] {
+    QCoreApplication::processEvents();
+    w->grabWindow(); // polishes layouts and renders one frame
+  };
+  settle();
+  const QRectF initial(console->mapToScene({0, 0}), console->size());
+  QStringList changes;
+  auto check = [&](const QString &step, bool captured) {
+    settle();
+    if (console->captured() != captured)
+      changes << step + ": captured is " + (console->captured() ? "true" : "false");
+    const QRectF now(console->mapToScene({0, 0}), console->size());
+    if (now != initial)
+      changes << QString("%1: %2x%3+%4+%5 became %6x%7+%8+%9").arg(step)
+                     .arg(initial.width()).arg(initial.height()).arg(initial.x()).arg(initial.y())
+                     .arg(now.width()).arg(now.height()).arg(now.x()).arg(now.y());
+  };
+  w->requestActivate();
+  console->capture();
+  check("capture", true);
+  QWindow other; // takes the activation away, as leaving the window does
+  other.resize(16, 16);
+  other.show();
+  other.requestActivate();
+  check("window deactivated", false);
+  w->requestActivate();
+  check("window activated again", true);
+  console->release();
+  check("release", false);
+  return changes.join("; ");
+}
 int main(int argc, char **argv) {
   // Test mode must be on before QApplication: the platform theme reads
   // kdeglobals (colours, icon theme, fonts) during construction.
@@ -268,7 +304,10 @@ int main(int argc, char **argv) {
       auto w = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
       if (!w || w->grabWindow().isNull())
         app.exit(3);
-      else {
+      else if (QString why = consoleSizeChanges(w, console); !why.isEmpty()) {
+        fprintf(stderr, "Console view changed size: %s\n", qPrintable(why));
+        app.exit(5);
+      } else {
         QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");
         if (!path.isEmpty())
           w->grabWindow().save(path);
