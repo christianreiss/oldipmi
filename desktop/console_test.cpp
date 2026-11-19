@@ -28,6 +28,23 @@ class ConsoleTest : public QObject {
     QTest::mousePress(window, Qt::LeftButton, {}, at);
     QTest::mouseRelease(window, Qt::LeftButton, {}, at);
   }
+  void wheel(QPointF at, QPoint angle = {0, 120}, Qt::MouseButtons buttons = Qt::NoButton) {
+    QWheelEvent e(at, window->mapToGlobal(at), {}, angle, buttons, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QCoreApplication::sendEvent(window, &e);
+  }
+  // What the server takes as an action: a button down or a wheel turn.
+  static int actions(const QSignalSpy &pointer) {
+    int n = 0;
+    for (const auto &args : pointer)
+      n += args.at(2).toInt() != 0 || args.at(3).toInt() != 0;
+    return n;
+  }
+  // A 150x150 picture, shown 300x300 in the middle of 400x300: margins left and right.
+  void squareFrame() {
+    QImage square(150, 150, QImage::Format_RGBA8888);
+    square.fill(Qt::darkBlue);
+    view->setFrame(square);
+  }
 private slots:
   void init() {
     window = new QQuickWindow;
@@ -59,29 +76,16 @@ private slots:
   // turn there is not sent, while a drag from the picture goes on to its edge.
   // Moving over the margin still moves the remote pointer along the edge.
   void marginIsNotSentToTheServer() {
-    QImage square(150, 150, QImage::Format_RGBA8888);
-    square.fill(Qt::darkBlue);
-    view->setFrame(square); // 300x300 in the middle of 400x300: margins left and right
+    squareFrame();
     click({200, 150});
     QVERIFY(view->captured());
     QSignalSpy pointer(view, &Console::pointerInput);
-    auto actions = [&] { // what the server takes as an action: a button down or a wheel turn
-      int n = 0;
-      for (const auto &args : std::as_const(pointer))
-        n += args.at(2).toInt() != 0 || args.at(3).toInt() != 0;
-      return n;
-    };
-    auto wheelAt = [&](QPointF at) {
-      QWheelEvent wheel(at, window->mapToGlobal(at), {}, {0, 120}, Qt::NoButton, Qt::NoModifier,
-                        Qt::NoScrollPhase, false);
-      QCoreApplication::sendEvent(window, &wheel);
-    };
     click({20, 150});
     click({390, 150});
-    wheelAt({20, 150});
-    QCOMPARE(actions(), 0);
-    wheelAt({200, 150}); // on the picture it is sent
-    QCOMPARE(actions(), 1);
+    wheel({20, 150});
+    QCOMPARE(actions(pointer), 0);
+    wheel({200, 150}); // on the picture it is sent
+    QCOMPARE(actions(pointer), 1);
     QTest::mouseMove(window, {100, 150});
     pointer.clear();
     QTest::mousePress(window, Qt::LeftButton, {}, {100, 150});
@@ -91,6 +95,26 @@ private slots:
     QCOMPARE(pointer.first().at(2).toInt(), 1); // pressed on the picture
     QCOMPARE(pointer.last().at(0).toInt(), 0);  // released at the picture's left edge
     QCOMPARE(pointer.last().at(2).toInt(), 0);
+  }
+  // A wheel turn while the button of a press that was not sent is still held is
+  // not sent either (the server never saw that press, nor will it see the
+  // release), and a sideways scroll has no wheel step to send.
+  void wheelFollowsItsGesture() {
+    squareFrame();
+    click({200, 150});
+    QVERIFY(view->captured());
+    QSignalSpy pointer(view, &Console::pointerInput);
+    QTest::mousePress(window, Qt::LeftButton, {}, {20, 150}); // on the margin: not sent
+    QTest::mouseMove(window, {200, 150});                     // onto the picture, button held
+    wheel({200, 150}, {0, 120}, Qt::LeftButton);
+    QTest::mouseRelease(window, Qt::LeftButton, {}, {200, 150});
+    QCOMPARE(actions(pointer), 0);
+    wheel({200, 150}, {120, 0});
+    QCOMPARE(actions(pointer), 0);
+    wheel({200, 150}, {0, -120});
+    QCOMPARE(actions(pointer), 1);
+    QCOMPARE(pointer.last().at(2).toInt(), 0);  // no button
+    QCOMPARE(pointer.last().at(3).toInt(), -1); // one step down
   }
   void shortcutsGoToTheServerWhileCaptured() {
     view->capture();

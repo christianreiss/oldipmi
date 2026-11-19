@@ -93,7 +93,10 @@
 * A click or wheel turn on the margin around the remote picture is no longer sent
   to the server, where it landed on the edge of the remote screen (on a taskbar or
   a window's close button, say). A drag that starts on the picture still ends at
-  its edge. `console_tests` checks this.
+  its edge. A wheel turn while the button of a click that was not sent (on the
+  margin, or the click that takes control) is still held no longer leaves the
+  server with that button pressed, and a sideways scroll no longer scrolls the
+  remote screen down. `console_tests` checks this.
 
 ## 0.2.0-3 (Fedora packaging)
 

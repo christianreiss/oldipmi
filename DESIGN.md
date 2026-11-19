@@ -168,9 +168,10 @@ page that do not fit side by side wrap instead of widening it.
   and so does the capture chip (tooltip and accessible description) before the
   keyboard takes control with it.
 * Only the picture is the remote screen: a click or wheel turn on the margin
-  around it is not sent, since it would land on the edge of the remote screen. A
-  drag that starts on the picture goes on to its edge, and moving over the margin
-  keeps the remote pointer at the edge.
+  around it is not sent, since it would land on the edge of the remote screen, and
+  neither is the rest of a gesture that starts there. A drag that starts on the
+  picture goes on to its edge, and moving over the margin keeps the remote pointer
+  at the edge.
 * Continuous motion (the setup ring) stands still when the system turns animations
   off; the stage names and the elapsed time carry the progress.
 * The picture never moves or resizes when capture, focus or the status strip

@@ -320,10 +320,15 @@ void Console::wheelEvent(QWheelEvent *e) {
     e->ignore();
     return;
   }
-  if (!imageRect().contains(e->position())) { // the margin (see mousePressEvent())
+  // Not sent: a turn on the margin (see mousePressEvent()); one while the button
+  // of a press that was not sent is still held, since the server would take that
+  // button as pressed and never see it released; and one without vertical
+  // movement (a sideways scroll), since the wheel step is vertical only.
+  const int dy = e->angleDelta().y();
+  if (!imageRect().contains(e->position()) || (m_swallow && e->buttons() != Qt::NoButton) || dy == 0) {
     e->accept();
     return;
   }
-  pointer(e->position(), e->buttons(), e->angleDelta().y() > 0 ? 1 : -1);
+  pointer(e->position(), e->buttons(), dy > 0 ? 1 : -1);
   e->accept();
 }
