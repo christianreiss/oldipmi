@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0-2 (Fedora packaging)
+
+* Build a single OldIPMI source RPM for multiple Fedora Mock targets, with
+  separate results per target. An explicit Mock build fails if Mock is missing.
+* Publish signed Fedora 43+ binary RPMs to repo.uggs.io using the package
+  headers to choose RepoMan targets.
+
 ## 0.2.0 (2026-11-06)
 
 ### Added

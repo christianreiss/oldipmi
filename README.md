@@ -234,6 +234,35 @@ rpmlint runs when installed. The package's `License` tag carries
 `LicenseRef-Unspecified` for OldIPMI's own code until the repository declares a
 license.
 
+### Publish to repo.uggs.io
+
+Build separately for each supported Fedora release with an authorized Mock
+account. A repeated `--mock-root` builds the same source RPM in each chroot and
+writes the results in `dist/rpm/mock/<root>/`.
+
+```sh
+packaging/fedora/build-rpm.sh --release 2 \
+  --mock-root fedora-43-x86_64 --mock-root fedora-44-x86_64 --mock-root fedora-45-x86_64
+```
+
+Copy the main `oldipmi-[0-9]*` binary RPMs to a release directory outside
+`dist/rpm/`. Check the accepted publisher fingerprints with
+`REPOMAN_URL=https://repo.uggs.io repoman targets` and sign each copy using the key
+accepted by its target (`rpmsign --addsign --key-id "$fingerprint" "$rpm"`,
+with the corresponding `GNUPGHOME`). Publish with `REPOMAN_TOKEN` or
+`REPOMAN_TOKEN_FILE` already supplied by your credential store:
+
+```sh
+packaging/fedora/publish-rpm.sh /path/to/signed-release/oldipmi-*.rpm
+```
+
+Keep the signed copies for retrying the same release. RepoMan verifies each
+signature and publishes the RPM to the target inferred from its Fedora release
+and architecture. Increase the RPM release or app version when changing a
+published package. On a Fedora machine with the signed `uggs` repo configured,
+install or update with `sudo dnf --refresh install oldipmi`, then check its source
+with `dnf list --installed oldipmi`.
+
 ## Checks
 
 ```sh

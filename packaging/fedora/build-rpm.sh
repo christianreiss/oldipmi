@@ -14,27 +14,27 @@ Usage: packaging/fedora/build-rpm.sh [options] [-- rpmbuild-args...]
                      files (the package still contains only the committed HEAD)
   --release N        RPM release number (default 1)
   --mock             build the SRPM, then rebuild it in a clean mock chroot
-                     instead of a local rpmbuild -ba (falls back to rpmbuild -ba
-                     if mock is not installed)
-  --mock-root ROOT   mock config (default fedora-<host release>-<arch>)
+                     (default config: fedora-<host release>-<arch>)
+  --mock-root ROOT   select a mock config and enable mock; repeat for a matrix
   -h, --help         show this help
 
 Output: dist/rpm/SRPMS/*.src.rpm and dist/rpm/RPMS/<arch>/*.rpm
-        (with --mock: dist/rpm/mock/). rpmlint runs when installed.
+        (one mock root: dist/rpm/mock/; multiple: dist/rpm/mock/ROOT/).
+        rpmlint runs when installed.
 EOF
 }
 
 allow_dirty=0
 use_mock=0
 release=1
-mock_root=
+mock_roots=()
 rpmbuild_args=()
 while (($#)); do
 	case $1 in
 	--allow-dirty) allow_dirty=1 ;;
 	--release) release=${2:?--release needs a value}; shift ;;
 	--mock) use_mock=1 ;;
-	--mock-root) mock_root=${2:?--mock-root needs a value}; shift ;;
+	--mock-root) mock_roots+=("${2:?--mock-root needs a value}"); use_mock=1; shift ;;
 	-h | --help) usage; exit 0 ;;
 	--) shift; rpmbuild_args=("$@"); break ;;
 	*) echo "build-rpm: unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -48,6 +48,18 @@ die() { echo "build-rpm: $*" >&2; exit 1; }
 for tool in git go rpmbuild tar gzip; do
 	command -v "$tool" >/dev/null || die "$tool not found (Fedora: sudo dnf install git golang rpm-build tar gzip)"
 done
+if ((use_mock)); then
+	command -v mock >/dev/null || die "mock not found (Fedora: sudo dnf install mock)"
+	if ((${#mock_roots[@]} == 0)); then
+		mock_roots=("fedora-$(rpm -E %fedora)-$(uname -m)")
+	fi
+	declare -A seen_roots=()
+	for mock_root in "${mock_roots[@]}"; do
+		[[ $mock_root =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || die "invalid mock config name: $mock_root"
+		[[ ! ${seen_roots[$mock_root]+set} ]] || die "duplicate mock config: $mock_root"
+		seen_roots[$mock_root]=1
+	done
+fi
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$ROOT"
@@ -76,7 +88,7 @@ topdir=$ROOT/dist/rpm
 rm -rf "$topdir"
 mkdir -p "$topdir"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 
-work=$(mktemp -d)
+work=$(mktemp -d "$topdir/.sources.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 echo "build-rpm: oldipmi $version-$release from $short"
@@ -107,16 +119,17 @@ spec=${spec//@CHANGELOG@/"$changelog"}
 printf '%s\n' "$spec" >"$topdir/SPECS/oldipmi.spec"
 
 rpmbuild_cmd=(rpmbuild --define "_topdir $topdir")
-if ((use_mock)) && ! command -v mock >/dev/null; then
-	echo "build-rpm: mock is not installed (sudo dnf install mock); skipping the mock rebuild and building locally with rpmbuild -ba" >&2
-	use_mock=0
-fi
-
 if ((use_mock)); then
 	"${rpmbuild_cmd[@]}" -bs "${rpmbuild_args[@]}" "$topdir/SPECS/oldipmi.spec"
-	: "${mock_root:=fedora-$(rpm -E %fedora)-$(uname -m)}"
-	mock -r "$mock_root" --resultdir "$topdir/mock" --rebuild "$topdir"/SRPMS/*.src.rpm
-	results=("$topdir"/mock/*.rpm)
+	results=()
+	for mock_root in "${mock_roots[@]}"; do
+		resultdir=$topdir/mock
+		if ((${#mock_roots[@]} > 1)); then
+			resultdir=$resultdir/$mock_root
+		fi
+		mock -r "$mock_root" --resultdir "$resultdir" --rebuild "$topdir"/SRPMS/*.src.rpm
+		results+=("$resultdir"/*.rpm)
+	done
 else
 	# Missing BuildRequires make rpmbuild stop and list them; install them with
 	# sudo dnf builddep dist/rpm/SPECS/oldipmi.spec
