@@ -16,10 +16,10 @@
   the selected connection's details with Connect, setup with the three stages and
   elapsed time, and failures with the step, a likely fix and copyable technical
   details. TLS failures tell a certificate that does not name the address (check
-  the address first), a certificate that cannot be verified and an old TLS
-  version apart; only the last two suggest the legacy TLS option, the last saying
-  that it also skips the certificate check. A bare handshake alert gets a neutral
-  hint.
+  the address first), a certificate that cannot be verified and TLS 1.0 or 1.1
+  chosen by the BMC apart; only the last two suggest the legacy TLS option, the
+  last saying that it also skips checking the certificate and name, as its switch
+  now does too. A bare TLS alert gets a neutral hint.
 * New / Edit connection: console type tiles, a two-column form, a KWallet switch
   and collapsible advanced options; Ctrl+Enter saves and connects. Power, delete,
   password and wallet prompts use the same dialog frame and name the server.
@@ -53,9 +53,11 @@
 
 ### Added
 * Taking control without a mouse: Tab to the capture chip in the status strip
-  (*Click the screen to control the server*), then Enter or Space. The menu key or
-  Shift+F10 opens the context menu of the current connection, and Tab into the list
-  lands on a row. `oldipmi --self-test` fails when either does not work.
+  (*Click the screen to control the server*), then Enter or Space. With the Right
+  Ctrl release switched off, the chip and the setting say that releasing then needs
+  the mouse. The menu key or Shift+F10 opens the context menu of the current
+  connection, and Tab into the list lands on a row. `oldipmi --self-test` fails when
+  either does not work.
 * Released, a tap on **Right Ctrl** gives keyboard and mouse back to the server
   (while nothing else has the keyboard focus), so full screen needs no mouse to
   take control again; a short note there says so. Right Ctrl together with another

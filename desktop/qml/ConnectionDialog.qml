@@ -557,7 +557,7 @@ AppDialog {
             SwitchRow {
                 id: tlsSwitch
                 title: "Accept legacy or unverified TLS"
-                description: "Allows TLS 1.0, obsolete ciphers and self-signed certificates."
+                description: "Allows TLS 1.0 and obsolete ciphers, and skips checking the BMC's certificate and name."
             }
             SwitchRow {
                 id: plainSwitch

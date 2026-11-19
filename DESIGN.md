@@ -87,9 +87,9 @@ no window; everything else is derived from them:
     **Try again** and Edit connection…, then the technical details (selectable,
     Copy). A certificate that does not name the address asks to check the address
     first. The legacy TLS option is suggested for a certificate that cannot be
-    verified, and for an old TLS version the BMC names, saying that it also skips
-    the certificate check; any other TLS failure, a bare handshake alert included,
-    gets a neutral hint.
+    verified, and when the BMC chose TLS 1.0 or 1.1, saying that it also skips
+    checking the certificate and name; any other TLS failure, a bare alert
+    included, gets a neutral hint. The option's switch says the same.
   * *Console*: the remote screen on the stage, an accent ring outside the picture
     while it has keyboard and mouse, and the status strip.
 * **Console information** docks next to the stage when the pane has room for both
@@ -156,7 +156,10 @@ page that do not fit side by side wrap instead of widening it.
   screen); that tap is not sent. Right Ctrl pressed while another key is held, or
   with another key before its release, is a chord and does not take control, so
   typing never moves to the server unnoticed. Without a mouse, the capture chip in
-  the status strip also takes control: Tab to it, then Enter or Space.
+  the status strip also takes control: Tab to it, then Enter or Space. With the
+  Right Ctrl release switched off, releasing needs the mouse; the setting says so,
+  and so does the capture chip (tooltip and accessible description) before the
+  keyboard takes control with it.
 * Continuous motion (the setup ring) stands still when the system turns animations
   off; the stage names and the elapsed time carry the progress.
 * The picture never moves or resizes when capture, focus or the status strip

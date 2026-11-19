@@ -716,6 +716,12 @@ ColumnLayout {
                             Layout.maximumWidth: Math.ceil(implicitWidth)
                             Accessible.role: view.captured ? Accessible.StaticText : Accessible.Button
                             Accessible.name: view.captured ? captureChip.text : "Control " + root.displayName + " with keyboard and mouse"
+                            // Without the Right Ctrl release only the mouse releases: say so
+                            // before the keyboard goes to the server.
+                            readonly property string mouseOnly: "Releasing needs the mouse: tapping Right Ctrl is off in Settings."
+                            Accessible.description: settings.rightCtrlReleases ? "" : mouseOnly
+                            QQC2.ToolTip.visible: visualFocus && !view.captured && !settings.rightCtrlReleases
+                            QQC2.ToolTip.text: mouseOnly
                             Keys.onReturnPressed: captureButton.clicked()
                             Keys.onEnterPressed: captureButton.clicked()
                             onClicked: view.capture()
