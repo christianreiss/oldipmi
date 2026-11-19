@@ -16,6 +16,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
@@ -357,12 +358,31 @@ static QString keyboardFails(QQuickWindow *w, Console *console, Controller &cont
 }
 // Quit stays visible in full screen: in its corner while a console is shown, and
 // in the header, with the connection list, when there is none (as after losing
-// the connection). Returns what failed, or "".
-static QString fullScreenFails(QQuickWindow *w, Controller &controller) {
+// the connection). Released, Tab brings the keyboard focus to the floating bar or
+// Quit: the bar shows and stays while it has the focus, and Enter on its Take
+// control button gives keyboard and mouse to the server. Returns what failed, or "".
+static QString fullScreenFails(QQuickWindow *w, Console *console, Controller &controller) {
   auto *corner = w->findChild<QQuickItem *>("quitCorner");
   auto *header = w->findChild<QQuickItem *>("headerQuitButton");
+  auto *bar = w->findChild<QQuickItem *>("fullscreenBar");
+  auto *take = w->findChild<QQuickItem *>("fullscreenTakeControl");
+  auto *peek = w->findChild<QObject *>("fullscreenPeek");
   if (!corner || !header)
     return "no Quit button";
+  if (!bar || !take || !peek)
+    return "no full-screen bar";
+  auto press = [w](Qt::Key key) {
+    QKeyEvent down(QEvent::KeyPress, key, Qt::NoModifier);
+    QCoreApplication::sendEvent(w, &down);
+    QKeyEvent up(QEvent::KeyRelease, key, Qt::NoModifier);
+    QCoreApplication::sendEvent(w, &up);
+  };
+  auto inBar = [w, bar, corner] {
+    for (auto *item = w->activeFocusItem(); item; item = item->parentItem())
+      if (item == bar || item == corner)
+        return true;
+    return false;
+  };
   // A console shown (the keyboard check ends with a closed connection selected).
   controller.preview();
   if (!waitFor(w, [&] { return controller.hasFrame(); }))
@@ -374,6 +394,35 @@ static QString fullScreenFails(QQuickWindow *w, Controller &controller) {
                      "(window %1, console %2, corner %3)")
           .arg(w->visibility() == QWindow::FullScreen ? "full screen" : "not full screen",
                controller.hasFrame() ? "shown" : "not shown", corner->isVisible() ? "visible" : "hidden");
+    console->release();
+    w->requestActivate();
+    press(Qt::Key_Tab);
+    if (!waitFor(w, [&] { return inBar() && bar->isVisible(); }, 1000))
+      return QString("Tab, released, does not reach the full-screen bar or Quit (the focus is on %1)")
+          .arg(w->activeFocusItem() ? w->activeFocusItem()->metaObject()->className() : "nothing");
+    // Past the first seconds, when the bar shows anyway, and with the pointer away
+    // from the top edge, which shows it too (the offscreen platform may report one
+    // there); then past its fade.
+    waitFor(w, [peek] { return !peek->property("running").toBool(); }, 4000);
+    const QPointF middle(w->width() / 2.0, w->height() / 2.0);
+    QMouseEvent move(QEvent::MouseMove, middle, w->mapToGlobal(middle), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(w, &move);
+    waitFor(w, [] { return false; }, 500);
+    if (!inBar() || !bar->isVisible())
+      return "the full-screen bar hides while it has the keyboard focus";
+    // On through the bar with Tab to Take control, and Enter there.
+    for (int i = 0; i < 12 && !take->hasActiveFocus(); ++i) {
+      press(Qt::Key_Tab);
+      waitFor(w, [] { return false; }, 50);
+    }
+    if (!take->hasActiveFocus())
+      return "Tab does not reach Take control in the full-screen bar";
+    press(Qt::Key_Return);
+    if (!waitFor(w, [&] { return console->captured(); }, 1000))
+      return "Enter on Take control in the full-screen bar does not capture the console";
+    console->release();
+    if (!waitFor(w, [&] { return !bar->isVisible(); }, 1500))
+      return "the full-screen bar stays without the keyboard focus";
     controller.disconnectAll();
     if (!waitFor(w, [&] { return !controller.hasFrame() && header->isVisible(); }))
       return "full screen without a console does not show Quit";
@@ -543,7 +592,7 @@ int main(int argc, char **argv) {
       } else if (QString why = keyboardFails(w, console, controller); !why.isEmpty()) {
         fprintf(stderr, "Keyboard: %s\n", qPrintable(why));
         app.exit(5);
-      } else if (QString why = fullScreenFails(w, controller); !why.isEmpty()) {
+      } else if (QString why = fullScreenFails(w, console, controller); !why.isEmpty()) {
         fprintf(stderr, "Full screen: %s\n", qPrintable(why));
         app.exit(5);
       } else {

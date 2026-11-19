@@ -176,6 +176,8 @@ AppDialog {
         QQC2.Switch {
             id: toggle
             Accessible.name: switchTitle.text
+            // What switching it on means, also for a screen reader that Tabs straight here.
+            Accessible.description: switchText.text
             Layout.alignment: Qt.AlignVCenter
         }
     }

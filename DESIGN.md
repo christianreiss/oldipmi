@@ -95,9 +95,11 @@ no window; everything else is derived from them:
 * **Console information** docks next to the stage when the pane has room for both
   (≥ 40 `gu`); in a narrower pane it floats over the stage with its own close button.
 * **Full screen** hides header and sidebar while a console is shown; a floating bar
-  (shown for a moment on entry, then when the pointer reaches the top edge) holds
-  identity, Release while captured, Send key, ISO, Power, fit, leave full screen and
-  Disconnect. Quit keeps its own button in the top right corner the whole time.
+  (shown for a moment on entry, when the pointer reaches the top edge, and while the
+  keyboard focus is in it or on Quit) holds identity, Release while captured or Take
+  control while released, Send key, ISO, Power, fit, leave full screen and
+  Disconnect. Quit keeps its own button in the top right corner the whole time;
+  released, Tab reaches it and brings the bar, so the bar works without a mouse.
   Capturing shows a short note how to release (Right Ctrl, or the bar when that is
   switched off), releasing one how to take control again (Right Ctrl or a click).
   Without a console (a closed connection selected, connecting, failed, or after
@@ -124,8 +126,9 @@ state, Release, how to release, and the resolution, and leaves out what does not
 whole. A list narrower than 14 `gu` shows the family picture instead of the live
 miniature, so names keep their room, and the filter field shows its Ctrl+F key cap
 only while the whole placeholder fits beside it. Below 34 `gu` the full-screen bar
-leaves out the family picture, shows Disconnect as an icon and starts at the left
-edge instead of the centre; the name gives way first. The capture note keeps clear
+leaves out the family picture and the icons of Release and Take control, shows
+Disconnect as an icon and starts at the left edge instead of the centre; the name
+gives way first. The capture note keeps clear
 of the Quit corner; when it does not fit on one line, the release instruction takes
 its own line and the server name elides first. In a window lower than 24 `gu` the
 connection dialog shows the console type as a drop-down and leaves out its
@@ -182,7 +185,9 @@ confirming Disconnect all leaves a console open; without `--screenshots` (CTest
 resizes on capture, release or window activation, when Enter on the capture chip
 does not capture, when the focused connection list has no current row, when a list
 rebuild changes the selection, when the menu key does not open the row's context
-menu, or when full screen does not show Quit, with or without a console. The
+menu, when full screen does not show Quit, with or without a console, or when,
+released in full screen, Tab does not reach the bar's Take control, the bar hides
+while it has the keyboard focus, or Enter there does not capture. The
 console unit tests (`console_tests`) cover the capture rules, the Right Ctrl tap
 included. `slop scan desktop`
 checks the QML/C++ sources; `slop native --config tools/slop/native.json`

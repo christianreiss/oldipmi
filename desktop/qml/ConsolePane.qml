@@ -41,6 +41,8 @@ ColumnLayout {
     // one (selected, connecting, failed, or after losing the connection) the header
     // and the connection list stay, with Quit and the way back.
     readonly property bool immersive: fullscreen && mode === "console"
+    // Said where the keyboard takes control, when only the mouse can release.
+    readonly property string mouseOnlyRelease: "Releasing needs the mouse: tapping Right Ctrl is off in Settings."
     function has(capability) { return (controller.consoleInfo.capabilities || []).indexOf(capability) >= 0 }
 
     // ── Header: what is shown, and what can be done with it ────────────────
@@ -440,25 +442,36 @@ ColumnLayout {
                     }
 
                     // Full screen: a floating bar, shown from the top edge, for a few
-                    // seconds after entering, and while one of its menus is open.
-                    Timer { id: peek; interval: 2500 }
+                    // seconds after entering, while one of its menus is open, and while
+                    // the keyboard focus is in it or on Quit. Released, Tab reaches Quit,
+                    // which is always shown, and the bar comes with it.
+                    Timer { id: peek; objectName: "fullscreenPeek"; interval: 2500 }
                     Connections {
                         target: root
                         function onFullscreenChanged() { if (root.fullscreen) peek.restart() }
                     }
                     Rectangle {
                         id: fsBar
+                        objectName: "fullscreenBar"
                         // A small screen with large text: the family picture goes,
-                        // Disconnect shows only its icon, and the bar starts at the left
-                        // edge instead of the centre, so the name keeps more room.
+                        // Release and Take control lose their icon, Disconnect shows only
+                        // its icon, and the bar starts at the left edge instead of the
+                        // centre, so the name keeps more room.
                         readonly property bool narrow: parent.width < Theme.gu * 34
                         readonly property int edge: Math.round(Theme.gu * 0.8)
                         // Never wider than the screen, leaving room for Quit in the corner
                         // (and, while centred, its mirror image): the name gives way first.
                         readonly property real room: narrow ? parent.width - fsQuit.width - 3 * edge - 12
                                                             : parent.width - 2 * (fsQuit.width + Math.round(Theme.gu * 1.2))
+                        // A focused button never disappears under the keyboard.
+                        readonly property bool focused: {
+                            for (var item = Window.activeFocusItem; item; item = item.parent)
+                                if (item === fsBar || item === fsQuit)
+                                    return true
+                            return false
+                        }
                         readonly property bool revealed: (screenHover.hovered && screenHover.point.position.y < Theme.gu * 0.8)
-                                                         || barHover.hovered || keysMenu.visible || powerMenu.visible || peek.running
+                                                         || barHover.hovered || keysMenu.visible || powerMenu.visible || peek.running || focused
                         visible: root.fullscreen && opacity > 0
                         opacity: root.fullscreen && revealed ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: Kirigami.Units.shortDuration } }
@@ -505,10 +518,28 @@ ColumnLayout {
                                 onStage: true
                                 tone: "secondary"
                                 text: "Release"
-                                icon.name: "input-mouse"
+                                icon.name: fsBar.narrow ? "" : "input-mouse"
                                 focusPolicy: Qt.NoFocus // slop-ok: shown only while captured, when every key goes to the server; the keyboard releases with Right Ctrl
                                 Layout.minimumWidth: implicitWidth
                                 onClicked: view.release()
+                            }
+                            // Released, the keyboard way back to the server once the focus
+                            // is in the bar (a Right Ctrl tap takes control only while
+                            // nothing has the keyboard focus).
+                            ActionButton {
+                                objectName: "fullscreenTakeControl"
+                                visible: !view.captured
+                                onStage: true
+                                tone: "secondary"
+                                text: "Take control"
+                                icon.name: fsBar.narrow ? "" : "input-mouse"
+                                Layout.minimumWidth: implicitWidth
+                                Accessible.description: settings.rightCtrlReleases ? "" : root.mouseOnlyRelease
+                                QQC2.ToolTip.visible: visualFocus && !settings.rightCtrlReleases
+                                QQC2.ToolTip.text: root.mouseOnlyRelease
+                                Keys.onReturnPressed: clicked()
+                                Keys.onEnterPressed: clicked()
+                                onClicked: view.capture()
                             }
                             BarButton {
                                 id: keysButton
@@ -718,10 +749,9 @@ ColumnLayout {
                             Accessible.name: view.captured ? captureChip.text : "Control " + root.displayName + " with keyboard and mouse"
                             // Without the Right Ctrl release only the mouse releases: say so
                             // before the keyboard goes to the server.
-                            readonly property string mouseOnly: "Releasing needs the mouse: tapping Right Ctrl is off in Settings."
-                            Accessible.description: settings.rightCtrlReleases ? "" : mouseOnly
+                            Accessible.description: settings.rightCtrlReleases ? "" : root.mouseOnlyRelease
                             QQC2.ToolTip.visible: visualFocus && !view.captured && !settings.rightCtrlReleases
-                            QQC2.ToolTip.text: mouseOnly
+                            QQC2.ToolTip.text: root.mouseOnlyRelease
                             Keys.onReturnPressed: captureButton.clicked()
                             Keys.onEnterPressed: captureButton.clicked()
                             onClicked: view.capture()

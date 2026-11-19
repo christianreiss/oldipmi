@@ -20,9 +20,10 @@
   chosen by the BMC apart; only the last two suggest the legacy TLS option, the
   last saying that it also skips checking the certificate and name, as its switch
   now does too. A bare TLS alert gets a neutral hint.
-* New / Edit connection: console type tiles, a two-column form, a KWallet switch
-  and collapsible advanced options; Ctrl+Enter saves and connects. Power, delete,
-  password and wallet prompts use the same dialog frame and name the server.
+* New / Edit connection: console type tiles, a two-column form, a KWallet switch and
+  collapsible advanced options; Ctrl+Enter saves and connects. Each switch there
+  gives its explanation to screen readers too. Power, delete, password and wallet
+  prompts use the same dialog frame and name the server.
 * Narrow windows and large text: the grid unit follows the font's line height, the
   header's fixed buttons (Quit included) never shrink, the console information
   floats over the console when there is no room next to it, and the status strip
@@ -38,12 +39,14 @@
   the connection dialog its Ctrl+Enter hint when the hint would not fit whole;
   the notice there (disconnect to connect with the changes) wraps instead.
 * Full screen: the floating bar has **Release** while the console is captured (the
-  way back when the Right Ctrl release is switched off), and Quit stays in the top
-  right corner the whole time. The bar and the capture note fit small screens; a
-  long server name elides instead of pushing the release instruction off screen.
-  Without a console (a closed connection selected, connecting, failed, or after
-  losing the connection) full screen keeps the header with Quit and the
-  connection list, instead of an empty page without a way out.
+  way back when the Right Ctrl release is switched off) and **Take control** while
+  it is released, and Quit stays in the top right corner the whole time. Released,
+  Tab reaches Quit and brings the bar, which stays while the keyboard focus is in it
+  or on Quit, so the bar works without a mouse. The bar and the capture note fit
+  small screens; a long server name elides instead of pushing the release
+  instruction off screen. Without a console (a closed connection selected,
+  connecting, failed, or after losing the connection) full screen keeps the header
+  with Quit and the connection list, instead of an empty page without a way out.
 * **Disconnect all** (Ctrl+Shift+D) asks first and names the consoles when more
   than one is open; confirming closes exactly those sessions.
 * Settings → AI agents says when the session runs without the agent socket
@@ -63,7 +66,7 @@
   take control again; a short note there says so. Right Ctrl together with another
   key does not count, so typing never moves to the server unnoticed.
   `oldipmi --self-test` also fails when full screen does not show Quit, with or
-  without a console.
+  without a console, or when its bar cannot be used from the keyboard.
 * The screenshot tour (`--self-test --screenshots`) covers the captured console,
   full screen (captured, released and without a console), delete confirmation,
   password prompt, advanced options and the Disconnect all confirmation, waits for
