@@ -40,6 +40,9 @@ public:
   bool mounted = false;
   QImage lastFrame;
   qint64 frameSeq = 0, changeSeq = 0;
+  // When begin() or preview() started this session (ms since the epoch); the UI shows
+  // how long a setup has been running.
+  qint64 startedAt = 0;
   QElapsedTimer sinceChange;
 
   void preview(); // synthetic framebuffer, no backend

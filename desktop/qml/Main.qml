@@ -2,9 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import org.kde.kirigamiaddons.formcard as FormCard
 import org.kde.kirigamiaddons.settings as KirigamiSettings
-import "families.js" as Families
 
 Kirigami.ApplicationWindow {
     id: window
@@ -23,11 +21,26 @@ Kirigami.ApplicationWindow {
     readonly property var selectedProfile: controller.hosts.find(p => p.id === selectedId) || ({})
     readonly property bool fullscreen: visibility === Window.FullScreen
     property string pendingPower: ""
-    // Both panes' toolbars share one height so their bottom edges line up; it grows
-    // with the title and subtitle when the system font is larger.
-    readonly property real headerHeight: Math.max(Kirigami.Units.gridUnit * 2 + Kirigami.Units.largeSpacing * 2,
-                                                  consolePane.headerNeeds)
     property var powerProfile: ({})
+
+    // The design tokens follow the system colour scheme. Kirigami.Theme works only
+    // inside a window, so the window hands its colours to the Theme singleton.
+    Item {
+        id: viewColors
+        Kirigami.Theme.colorSet: Kirigami.Theme.View
+        Kirigami.Theme.inherit: false
+    }
+    Binding { target: Theme; property: "window"; value: Kirigami.Theme.backgroundColor }
+    Binding { target: Theme; property: "text"; value: Kirigami.Theme.textColor }
+    Binding { target: Theme; property: "view"; value: viewColors.Kirigami.Theme.backgroundColor }
+    Binding { target: Theme; property: "accent"; value: Kirigami.Theme.highlightColor }
+    Binding { target: Theme; property: "positive"; value: Kirigami.Theme.positiveTextColor }
+    Binding { target: Theme; property: "warning"; value: Kirigami.Theme.neutralTextColor }
+    Binding { target: Theme; property: "negative"; value: Kirigami.Theme.negativeTextColor }
+    Binding { target: Theme; property: "mono"; value: Kirigami.Theme.fixedWidthFont }
+    Binding { target: Theme; property: "fontBase"; value: Kirigami.Theme.defaultFont.pointSize > 0 ? Kirigami.Theme.defaultFont.pointSize : 10 }
+    FontMetrics { id: fontMetrics; font: Kirigami.Theme.defaultFont }
+    Binding { target: Theme; property: "fontHeight"; value: fontMetrics.height }
 
     // Used by --probe-ui and the agent API: select (and show) a profile.
     function loadHost(p) { selectedId = (p && p.id) || "" }
@@ -40,7 +53,14 @@ Kirigami.ApplicationWindow {
         controller.connectHost(p, "");
     }
     function newConnection() { connectionDialog.openFor({}) }
+    // New connection with the address typed into the filter.
+    function newConnectionTo(host) { connectionDialog.openFor(host ? {host: host} : {}) }
     function editConnection(p) { if (p && p.id) connectionDialog.openFor(controller.host(p.id)) }
+    function deleteConnection(p) { if (p && p.id) { deleteDialog.profile = p; deleteDialog.open() } }
+    function duplicateConnection(p) {
+        const copy = p && p.id ? controller.duplicateHost(p.id) : ({});
+        if (copy.id) selectedId = copy.id;
+    }
     function openSettings(module) {
         // ConfigurationView only raises an open window; reopen it on the requested page.
         if (settingsView.configViewItem) settingsView.configViewItem.close();
@@ -53,7 +73,7 @@ Kirigami.ApplicationWindow {
     function toggleFullscreen() { visibility = fullscreen ? Window.Windowed : Window.FullScreen }
 
     // The console view follows the sidebar selection: an open session is shown,
-    // any other profile shows its idle page while the open consoles keep running.
+    // any other profile shows its page while the open consoles keep running.
     onSelectedIdChanged: {
         if (selectedId) settings.lastProfile = selectedId;
         controller.show(selectedId);
@@ -86,31 +106,38 @@ Kirigami.ApplicationWindow {
         ConnectionSidebar {
             id: sidebar
             visible: settings.showSidebar && !window.fullscreen
-            Layout.fillWidth: false
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 16
+            // A third of the window, within limits, so the console keeps most of it.
+            Layout.preferredWidth: Math.round(Math.min(Theme.gu * 16, window.width * 0.42, Math.max(Theme.gu * 11, window.width * 0.3)))
             Layout.fillHeight: true
-            headerHeight: window.headerHeight
             selectedId: window.selectedId
             onSelected: id => window.selectedId = id
             onConnectRequested: p => window.connectProfile(p)
             onEditRequested: p => window.editConnection(p)
-            onDeleteRequested: p => { deleteDialog.profile = p; deleteDialog.open() }
-            onNewRequested: window.newConnection()
+            onDeleteRequested: p => window.deleteConnection(p)
+            onNewRequested: host => window.newConnectionTo(host)
             onSettingsRequested: module => window.openSettings(module)
             onQuitRequested: window.quitApp()
         }
-        Kirigami.Separator { Layout.fillHeight: true; visible: sidebar.visible }
+        Rectangle {
+            visible: sidebar.visible
+            Layout.preferredWidth: 1
+            Layout.fillHeight: true
+            color: Theme.lineSoft
+        }
 
         ConsolePane {
             id: consolePane
             Layout.fillWidth: true
             Layout.fillHeight: true
-            headerHeight: window.headerHeight
             selected: window.selectedProfile
             fullscreen: window.fullscreen
+            sidebarShown: sidebar.visible
             onConnectRequested: p => window.connectProfile(p)
             onEditRequested: p => window.editConnection(p)
+            onDeleteRequested: p => window.deleteConnection(p)
+            onDuplicateRequested: p => window.duplicateConnection(p)
             onNewRequested: window.newConnection()
+            onDemoRequested: window.connectProfile({name: "Demo console", host: "demo", family: "demo"})
             onPowerRequested: action => {
                 window.pendingPower = action;
                 window.powerProfile = controller.activeProfile;
@@ -152,42 +179,84 @@ Kirigami.ApplicationWindow {
         ]
     }
 
+    // Every power action is confirmed; the dialog names the server, the BMC and
+    // the consequence, and its button carries the verb.
     readonly property var powerText: ({
-        on: { title: "Power on", verb: "Power On", text: "The server is switched on if it is off." },
-        soft: { title: "Graceful shutdown", verb: "Shut Down", text: "The operating system is asked to shut down (ACPI power button)." },
-        reset: { title: "Reset", verb: "Reset", text: "The server restarts immediately. Unsaved data in the operating system is lost." },
-        off: { title: "Power off immediately", verb: "Power Off", text: "Power is cut immediately, like pulling the plug. Unsaved data is lost and file systems may need repair." }
+        on: { title: "Power on %1?", verb: "Power On", icon: "system-run",
+              text: "The server is switched on if it is off." },
+        soft: { title: "Shut down %1?", verb: "Shut Down", icon: "system-shutdown",
+                text: "The operating system is asked to shut down (ACPI power button)." },
+        reset: { title: "Reset %1?", verb: "Reset", icon: "system-reboot",
+                 text: "The server restarts immediately. Unsaved data in the operating system is lost." },
+        off: { title: "Power off %1 immediately?", verb: "Power Off", icon: "process-stop",
+               text: "Power is cut immediately, like pulling the plug. Unsaved data is lost and file systems may need repair." }
     })
-    Kirigami.PromptDialog {
+    AppDialog {
         id: powerDialog
         objectName: "powerDialog"
-        readonly property var info: window.powerText[window.pendingPower] || ({title: "", verb: "OK", text: ""})
+        readonly property var info: window.powerText[window.pendingPower] || ({title: "%1", verb: "OK", icon: "system-shutdown", text: ""})
         readonly property var target: window.powerProfile.host ? window.powerProfile : controller.activeProfile
-        title: info.title + ": " + (target.name || target.host || "")
-        subtitle: info.text + "\n\nBMC: " + (target.host || "")
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
-            Kirigami.Action { text: "Cancel"; icon.name: "dialog-cancel"; onTriggered: powerDialog.close() },
-            Kirigami.Action {
+        readonly property bool destructive: window.pendingPower === "reset" || window.pendingPower === "off"
+        title: info.title.arg(target.name || target.host || "the server")
+        iconName: info.icon
+        tone: destructive ? Theme.negative : window.pendingPower === "soft" ? Theme.warning : Theme.accent
+        closeButton: false
+        preferredWidth: Math.round(Theme.gu * 25)
+        QQC2.Label {
+            text: powerDialog.info.text
+            color: Theme.mix(Theme.text, Theme.card, 0.12)
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+        }
+        QQC2.Label {
+            text: "BMC " + (powerDialog.target.host || "")
+            font.family: Theme.mono.family
+            font.pointSize: Theme.small
+            color: Theme.muted
+            elide: Text.ElideMiddle
+            Layout.fillWidth: true
+        }
+        buttons: [
+            ActionButton { tone: "ghost"; text: "Cancel"; onClicked: powerDialog.close() },
+            ActionButton {
+                tone: powerDialog.destructive ? "danger" : "primary"
                 text: powerDialog.info.verb
-                icon.name: window.pendingPower === "on" ? "system-run" : "system-shutdown"
-                onTriggered: { powerDialog.close(); controller.powerFor(window.powerProfile.id || "", window.pendingPower) }
+                // Breeze draws some of these icons red, which vanishes on the red button.
+                icon.name: powerDialog.destructive ? "" : powerDialog.info.icon
+                onClicked: { powerDialog.close(); controller.powerFor(window.powerProfile.id || "", window.pendingPower) }
             }
         ]
     }
 
-    Kirigami.PromptDialog {
+    AppDialog {
         id: deleteDialog
+        objectName: "deleteDialog"
         property var profile: ({})
         title: "Delete “" + (profile.name || profile.host || "") + "”?"
-        subtitle: "The connection is removed" + (profile.remember ? " together with its password in KWallet." : ".") + " This cannot be undone."
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
-            Kirigami.Action { text: "Cancel"; icon.name: "dialog-cancel"; onTriggered: deleteDialog.close() },
-            Kirigami.Action {
+        iconName: "edit-delete"
+        tone: Theme.negative
+        closeButton: false
+        preferredWidth: Math.round(Theme.gu * 25)
+        QQC2.Label {
+            text: "The connection is removed" + (deleteDialog.profile.remember ? " together with its password in KWallet." : ".") + " This cannot be undone."
+            color: Theme.mix(Theme.text, Theme.card, 0.12)
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+        }
+        QQC2.Label {
+            text: deleteDialog.profile.host || ""
+            font.family: Theme.mono.family
+            font.pointSize: Theme.small
+            color: Theme.muted
+            elide: Text.ElideMiddle
+            Layout.fillWidth: true
+        }
+        buttons: [
+            ActionButton { tone: "ghost"; text: "Cancel"; onClicked: deleteDialog.close() },
+            ActionButton {
+                tone: "danger"
                 text: "Delete"
-                icon.name: "edit-delete"
-                onTriggered: {
+                onClicked: {
                     const id = deleteDialog.profile.id;
                     deleteDialog.close();
                     if (controller.removeHost(id) && window.selectedId === id)
@@ -198,38 +267,46 @@ Kirigami.ApplicationWindow {
     }
 
     // Password prompt for a connection without a saved password.
-    Kirigami.Dialog {
+    AppDialog {
         id: credentialsDialog
+        objectName: "credentialsDialog"
         property var profile: ({})
         title: "Password for " + (profile.name || profile.host || "")
-        preferredWidth: Kirigami.Units.gridUnit * 22
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
-            Kirigami.Action { text: "Cancel"; icon.name: "dialog-cancel"; onTriggered: credentialsDialog.reject() },
-            Kirigami.Action {
+        iconName: "dialog-password"
+        preferredWidth: Math.round(Theme.gu * 23)
+        QQC2.Label {
+            text: (credentialsDialog.profile.username || "") + "@" + (credentialsDialog.profile.host || "")
+            font.family: Theme.mono.family
+            font.pointSize: Theme.small
+            color: Theme.muted
+            elide: Text.ElideMiddle
+            Layout.fillWidth: true
+        }
+        Kirigami.PasswordField {
+            id: credentialsPassword
+            color: Theme.text
+            implicitHeight: Math.max(Theme.controlHeight + 2, contentHeight + topPadding + bottomPadding)
+            leftPadding: Math.round(Theme.gu * 0.65)
+            verticalAlignment: TextInput.AlignVCenter
+            background: InputBackground { control: credentialsPassword }
+            Accessible.name: "Password"
+            Layout.fillWidth: true
+            onAccepted: if (text !== "") credentialsDialog.accept()
+        }
+        QQC2.CheckBox {
+            id: credentialsRemember
+            text: "Remember in KWallet"
+        }
+        buttons: [
+            ActionButton { tone: "ghost"; text: "Cancel"; onClicked: credentialsDialog.reject() },
+            ActionButton {
+                tone: "primary"
                 text: "Connect"
                 icon.name: "media-playback-start"
                 enabled: credentialsPassword.text !== ""
-                onTriggered: credentialsDialog.accept()
+                onClicked: credentialsDialog.accept()
             }
         ]
-        ColumnLayout {
-            spacing: Kirigami.Units.largeSpacing
-            QQC2.Label {
-                text: (credentialsDialog.profile.username || "") + "@" + (credentialsDialog.profile.host || "")
-                Layout.fillWidth: true
-                wrapMode: Text.Wrap
-            }
-            Kirigami.PasswordField {
-                id: credentialsPassword
-                Layout.fillWidth: true
-                onAccepted: if (text !== "") credentialsDialog.accept()
-            }
-            QQC2.CheckBox {
-                id: credentialsRemember
-                text: "Remember in KWallet"
-            }
-        }
         onOpened: credentialsPassword.forceActiveFocus()
         onAccepted: {
             const p = Object.assign({}, credentialsDialog.profile, {remember: credentialsRemember.checked});
@@ -240,32 +317,44 @@ Kirigami.ApplicationWindow {
         onRejected: { credentialsPassword.text = ""; controller.cancelCredentials() }
     }
 
-    Kirigami.PromptDialog {
+    AppDialog {
         id: walletDialog
+        objectName: "walletDialog"
         title: "Password not saved"
-        subtitle: controller.message + "\n\nYou can still connect; the password is then used for this session only."
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
-            Kirigami.Action { text: "Cancel"; icon.name: "dialog-cancel"; onTriggered: { walletDialog.close(); controller.cancelCredentials() } },
-            Kirigami.Action { text: "Connect without saving"; icon.name: "media-playback-start"; onTriggered: { walletDialog.close(); controller.continueWithoutWallet() } }
+        iconName: "dialog-warning"
+        tone: Theme.warning
+        closeButton: false
+        preferredWidth: Math.round(Theme.gu * 25)
+        QQC2.Label {
+            text: controller.message
+            visible: text !== ""
+            color: Theme.mix(Theme.text, Theme.card, 0.12)
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+        }
+        QQC2.Label {
+            text: "You can still connect; the password is then used for this session only."
+            color: Theme.mix(Theme.text, Theme.card, 0.12)
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+        }
+        buttons: [
+            ActionButton { tone: "ghost"; text: "Cancel"; onClicked: { walletDialog.close(); controller.cancelCredentials() } },
+            ActionButton {
+                tone: "primary"
+                text: "Connect without saving"
+                icon.name: "media-playback-start"
+                onClicked: { walletDialog.close(); controller.continueWithoutWallet() }
+            }
         ]
     }
 
-    Kirigami.Dialog {
+    AppDialog {
         id: mcpDialog
         objectName: "mcpDialog"
         title: "Instructions for AI agents"
         preferredWidth: Math.min(window.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 40)
         preferredHeight: Math.min(window.height - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 34)
-        standardButtons: Kirigami.Dialog.NoButton
-        customFooterActions: [
-            Kirigami.Action {
-                text: "Copy instructions"
-                icon.name: "edit-copy"
-                onTriggered: { mcpText.selectAll(); mcpText.copy(); mcpText.deselect() }
-            },
-            Kirigami.Action { text: "Close"; icon.name: "dialog-close"; onTriggered: mcpDialog.close() }
-        ]
         QQC2.TextArea {
             id: mcpText
             objectName: "mcpText"
@@ -274,8 +363,20 @@ Kirigami.ApplicationWindow {
             selectByMouse: true
             textFormat: TextEdit.MarkdownText
             text: agent.mcpInstructions()
+            color: Theme.text
             background: null
+            padding: 0
+            Layout.fillWidth: true
         }
+        buttons: [
+            ActionButton {
+                tone: "secondary"
+                text: "Copy instructions"
+                icon.name: "edit-copy"
+                onClicked: { mcpText.selectAll(); mcpText.copy(); mcpText.deselect(); window.showPassiveNotification("Instructions copied") }
+            },
+            ActionButton { tone: "primary"; text: "Close"; onClicked: mcpDialog.close() }
+        ]
     }
 
     Connections {

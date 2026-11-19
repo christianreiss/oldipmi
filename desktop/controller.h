@@ -24,7 +24,7 @@ class Controller : public QObject {
   Q_PROPERTY(QString errorStage READ errorStage NOTIFY changed)
   Q_PROPERTY(bool hasFrame READ hasFrame NOTIFY changed)
   // Every session the app holds (open, failed or ended), by profile id:
-  // {state, errorStage, message}. Re-evaluates whenever any session changes.
+  // {state, errorStage, message, startedAt}. Re-evaluates whenever any session changes.
   Q_PROPERTY(QVariantMap sessions READ sessions NOTIFY changed)
   Q_PROPERTY(int openCount READ openCount NOTIFY changed)
   // Profile id of the session the console view shows; empty when none.

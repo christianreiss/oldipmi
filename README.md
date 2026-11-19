@@ -23,28 +23,36 @@ cmake --build build
 
 The window has two panes (see [DESIGN.md](DESIGN.md)):
 
-* **Connections** (left) lists every saved BMC with its address, console type and
-  live state. Filter with Ctrl+F. Double-click, Enter or the play button connects;
-  any number of consoles can be open at once, and selecting an open connection shows
-  its console while the others keep running. The play button of an open row
-  disconnects it; Ctrl+D disconnects the shown console, Ctrl+Shift+D (or "Disconnect all" below the connection list) all of them.
-  The context menu offers Show/Connect, Disconnect, Edit (F2), Duplicate and Delete (Del).
-  **+** (Ctrl+N) opens **New connection**; **Settings** and **Quit** (Ctrl+Q) sit at
-  the bottom of the list.
-* **New / Edit connection** is a dialog: BMC address (a pasted URL is reduced to
-  its host), name, console type, username, password and *Remember password in
-  KWallet*. **Advanced options** hold the Supermicro console mode, the per-host
-  security exceptions, a JNLP endpoint override and client certificates.
-  **Save and Connect** saves and opens the console in one step.
-* The **console pane** (right) shows the selected connection, then the setup
-  progress **Logging in → Discovering console → Connecting**, then the remote
-  screen. Cancel interrupts setup. A failure names the stage, the cause and the
-  likely fix, with **Try again** and **Edit connection…**.
+* **Connections** (left) lists every saved BMC with its console type, name and
+  address. Open consoles are grouped at the top with a live miniature of their
+  screen and their state (*Logging in · 0:04*, *Connected*, *Login failed*). Ctrl+F
+  focuses the filter; Enter there opens the first match, or **New connection** to the
+  address you typed. Double-click, Enter or the play button connects; any number of
+  consoles can be open at once, and selecting an open connection shows its console
+  while the others keep running. The button of an open row disconnects it; Ctrl+D
+  disconnects the shown console, Ctrl+Shift+D (or **Disconnect all** below the list)
+  all of them. The context menu offers Show/Connect, Disconnect, Edit (F2),
+  Duplicate and Delete (Del). **+** (Ctrl+N) opens **New connection**; **Settings**
+  sits below the list, **Quit** (Ctrl+Q) at the right end of the header and in the
+  main menu ☰. F9 hides or shows the list.
+* **New / Edit connection** is a dialog: console type (one tile per family; arrow
+  keys move between them), BMC address (a pasted URL is reduced to its host), name,
+  username, password and *Remember password in KWallet*. **Advanced options** hold
+  the Supermicro console mode, a JNLP endpoint override, the per-host security
+  exceptions and client certificates; a profile with exceptions opens them.
+  **Save and Connect** (Ctrl+Enter) saves and opens the console in one step.
+* The **console pane** (right) shows the selected connection (its account, last
+  connection, password and security settings, with **Connect**), then the setup
+  progress **Logging in → Discovering console → Connecting** with the elapsed time,
+  then the remote screen on a dark stage. Cancel interrupts setup. A failure names
+  the step and the cause, suggests the likely fix and shows the technical details
+  (Copy puts them on the clipboard), with **Try again** and **Edit connection…**.
 
 Click the remote screen to give it keyboard and mouse; that first click is not sent
-to the server. While captured, every key goes to the server, including OldIPMI's own
+to the server. An accent ring around the picture and the status strip below it show
+the capture. While captured, every key goes to the server, including OldIPMI's own
 shortcuts. Tap **Right Ctrl** (the tap is still forwarded; can be switched off in
-Settings) or click **Release** in the status bar to get them back. Losing focus
+Settings) or click **Release** in the status strip to get them back. Losing focus
 releases held keys and buttons.
 
 While connected, the toolbar offers **Send key** (Ctrl+Alt+Del, Ctrl+Alt+F1/F2/F7,
@@ -52,9 +60,11 @@ Alt+Tab, Alt+F4, Print Screen, Super, Right Ctrl), **Mount ISO… / Eject ISO**
 (only when the console reports read-only ISO support), **Power** (chassis
 control over IPMI LAN, UDP 623, with the connection's account; every action is
 confirmed with its consequence),
-fit/actual size, full screen (F11, Esc leaves), **Console information** (protocol,
-endpoints, transport, features, resolution; APCP also its protocol version) and
-**Disconnect** (Ctrl+D). Mounted ISO files are opened read-only. Media endpoints
+fit/actual size, full screen (F11, Esc leaves; a bar at the top edge keeps the
+console actions, Disconnect and Quit at hand), **Console information** (protocol,
+endpoints, transport, features, resolution; APCP also its protocol version; next to
+the console, or over it in a narrow window) and **Disconnect** (Ctrl+D). What does
+not fit a narrow window moves to the toolbar's overflow menu ⋮. Mounted ISO files are opened read-only. Media endpoints
 are advertised parameters, not proof that an ISO is mounted; firmware/model
 information is not guessed.
 
@@ -291,7 +301,7 @@ end-to-end check of the UI and of all MCP tools.
 (test-mode profiles only; the error state uses `oldipmi.invalid`) and saves PNGs
 for review; `--size WxH` fixes the window size. `slop native --config
 tools/slop/native.json --root . --out .slop/native` renders the full matrix
-(10 states × light/dark × 1200x800/720x480 × scale 1/2 × text 1/1.5) for the
+(16 states × light/dark × 1200x800/720x480 × scale 1/2 × text 1/1.5) for the
 `slop` UI review; build into `build/` first.
 `--capture PATH` saves the first frame to a new mode-0600 PNG, only when explicitly
 requested. Never commit real console captures or credential-bearing JNLP files.

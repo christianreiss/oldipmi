@@ -5,6 +5,7 @@
 #include <QPainter>
 #include <QQuickWindow>
 #include <QWheelEvent>
+#include <cmath>
 Console::Console(QQuickItem *p) : QQuickPaintedItem(p) {
   setAcceptedMouseButtons(Qt::AllButtons);
   setAcceptHoverEvents(true);
@@ -16,10 +17,17 @@ void Console::setFrame(QImage im) {
   bool resized = im.size() != m_image.size();
   m_image = im;
   update();
-  if (resized)
+  if (resized) {
     emit frameSizeChanged();
+    emit imageRectChanged();
+  }
   if (m_image.isNull() && hasActiveFocus())
     release();
+}
+void Console::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) {
+  QQuickPaintedItem::geometryChange(newGeometry, oldGeometry);
+  if (newGeometry.size() != oldGeometry.size())
+    emit imageRectChanged();
 }
 void Console::release() {
   if (hasActiveFocus())
@@ -47,22 +55,18 @@ QRectF Console::imageRect() const {
   QSizeF s = m_image.size();
   if (m_fit)
     s.scale(QSizeF(width(), height()), Qt::KeepAspectRatio);
-  return QRectF((width() - s.width()) / 2, (height() - s.height()) / 2,
+  // Whole-pixel origin: at actual size every remote pixel lands on one screen pixel.
+  return QRectF(std::floor((width() - s.width()) / 2), std::floor((height() - s.height()) / 2),
                 s.width(), s.height());
 }
 void Console::paint(QPainter *p) {
-  // Letterbox in black: the remote screen is the content, not the chrome.
-  p->fillRect(boundingRect(), Qt::black);
+  // Only the remote screen is painted. The letterbox stays transparent so the
+  // stage behind it shows, and the capture ring is drawn outside the picture
+  // (in QML), so no remote pixel is ever covered.
   if (m_image.isNull())
     return;
   p->setRenderHint(QPainter::SmoothPixmapTransform, m_fit);
   p->drawImage(imageRect(), m_image);
-  if (hasActiveFocus()) {
-    QPen pen(m_accent);
-    pen.setWidth(2);
-    p->setPen(pen);
-    p->drawRect(imageRect().adjusted(1, 1, -1, -1));
-  }
 }
 int Console::usage(QKeyEvent *e) const {
   // XKB keycodes used by Qt on both xcb and Wayland are evdev keycode + 8.

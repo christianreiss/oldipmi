@@ -1,6 +1,7 @@
 #include "agentapi.h"
 #include "console.h"
 #include "controller.h"
+#include "framethumbnail.h"
 #include "i18n.h"
 #include "settings.h"
 #include "singleinstance.h"
@@ -20,6 +21,28 @@
 #include <QWindow>
 #include <functional>
 #include <memory>
+// --self-test and its screenshot tour fail on any warning from OldIPMI's own QML
+// (binding loops, type errors, unresolved names), so every UI state the tour
+// visits is also checked for them.
+static QStringList s_qmlWarnings;
+static QtMessageHandler s_previousHandler = nullptr;
+static void recordQmlWarning(QtMsgType type, const QMessageLogContext &context, const QString &message) {
+  const char *qml = "qrc:/desktop/qml/";
+  if (type != QtDebugMsg && type != QtInfoMsg &&
+      (message.contains(QLatin1String(qml)) || (context.file && !strncmp(context.file, qml, strlen(qml)))))
+    s_qmlWarnings << message;
+  if (s_previousHandler)
+    s_previousHandler(type, context, message);
+  else
+    fprintf(stderr, "%s\n", qPrintable(qFormatLogMessage(type, context, message)));
+}
+static int qmlWarningsResult() {
+  if (s_qmlWarnings.isEmpty())
+    return 0;
+  fprintf(stderr, "%lld QML warning(s):\n%s\n", static_cast<long long>(s_qmlWarnings.size()),
+          qPrintable(s_qmlWarnings.join('\n')));
+  return 6;
+}
 // Developer aid (--screenshots DIR, with --self-test): walks through the UI
 // states and saves one PNG per state and window. Never contacts a real BMC:
 // the error state uses the reserved name "oldipmi.invalid".
@@ -48,7 +71,9 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
     controller.saveHost({{"name", "Lab-Avocent"}, {"host", "lab-avocent.example.net"}, {"family", "avocent"}, {"username", "root"}, {"legacyTLS", true}}, {}, false);
     call0(root, "loadHost", controller.hosts().first());
   }
-  struct Step { QString name; std::function<void()> act; int wait; };
+  // `wait` ms after `act`, the step is grabbed as soon as `ready` (if given) holds,
+  // or 6 s later at the latest: a busy machine must not change what is captured.
+  struct Step { QString name; std::function<void()> act; int wait; std::function<bool()> ready = {}; };
   auto call = [root](const char *method, QVariant arg = {}) {
     if (arg.isValid())
       QMetaObject::invokeMethod(root, method, Q_ARG(QVariant, arg));
@@ -60,6 +85,13 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
       if (o->inherits("QQuickPopup") && o->property("opened").toBool())
         QMetaObject::invokeMethod(o, "close");
   };
+  auto *window = qobject_cast<QQuickWindow *>(root);
+  auto console = [root] { return root->findChild<Console *>("console"); };
+  auto popup = [root](const char *name) { return root->findChild<QObject *>(name); };
+  auto popupOpen = [popup](const char *name) {
+    auto *p = popup(name);
+    return p && p->property("opened").toBool();
+  };
   QVariantMap demo{{"name", "Demo BMC"}, {"host", "oldipmi.invalid"}, {"family", "aten"},
                    {"username", "ADMIN"}, {"remember", false}};
   // A private address with no host behind it: the login stays pending until cancelled.
@@ -67,35 +99,68 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
                       {"username", "ADMIN"}, {"remember", false}};
   auto steps = std::make_shared<QList<Step>>(QList<Step>{
       {"01-selected", [] {}, 600},
-      {"02-new-connection", [=] { call("newConnection"); }, 700},
+      {"02-new-connection", [=] { call("newConnection"); }, 700, [=] { return popupOpen("connectionDialog"); }},
       {"03-edit-connection", [=, &controller] {
          closePopups();
          auto p = controller.hosts().first().toMap();
          call("editConnection", p);
-       }, 700},
+       }, 700, [=] { return popupOpen("connectionDialog"); }},
       {"04-settings-general", [=] { closePopups(); call("openSettings", QString("general")); }, 900},
       {"05-settings-agents", [=] { call("openSettings", QString("agents")); }, 900},
       {"06-connecting", [=, &controller] {
          for (auto *w : QGuiApplication::topLevelWindows())
            if (w != qobject_cast<QWindow *>(root)) w->close();
          controller.connectHost(pending, "not-a-real-password");
-       }, 800},
+       }, 800, [&controller] { return controller.state() == "logging_in"; }},
       {"07-error", [=, &controller] {
          controller.disconnectHost();
          controller.connectHost(demo, "not-a-real-password");
-       }, 4000},
+       }, 600, [&controller] { return !controller.errorStage().isEmpty(); }},
       {"08-console", [=, &controller] {
          controller.disconnectHost();
          controller.connectHost(QVariantMap{{"name", "Demo console"}, {"host", "demo"}, {"family", "demo"}}, {});
          if (auto *d = root->findChild<QObject *>("consoleDetails")) d->setProperty("checked", true);
-       }, 1500},
+       }, 900, [&controller] { return controller.hasFrame(); }},
       {"09-power-confirm", [=] { root->setProperty("pendingPower", "reset");
-         if (auto *d = root->findChild<QObject *>("powerDialog")) QMetaObject::invokeMethod(d, "open"); }, 700},
+         if (auto *d = root->findChild<QObject *>("powerDialog")) QMetaObject::invokeMethod(d, "open"); },
+       700, [=] { return popupOpen("powerDialog"); }},
       {"10-switch", [=] {
          // Connecting another profile opens it next to the first; both stay connected.
          closePopups();
          call("connectProfile", QVariantMap{{"name", "Demo wide"}, {"host", "demo-1920x1080"}, {"family", "demo"}});
-       }, 1500},
+       }, 900, [&controller] { return controller.hasFrame() && controller.openCount() == 2; }},
+      // Keyboard and mouse go to the server: the accent ring and the status strip.
+      {"10a-captured", [=] {
+         window->requestActivate();
+         if (auto *c = console()) c->capture();
+       }, 500, [=] { auto *c = console(); return c && c->captured(); }},
+      // Full screen: the floating bar (shown for a moment after entering) and the
+      // note that keyboard and mouse go to the server.
+      {"10b-fullscreen", [=, &app] {
+         call("toggleFullscreen");
+         QTimer::singleShot(250, &app, [=] {
+           if (auto *c = console()) { c->release(); window->requestActivate(); c->capture(); }
+         });
+       }, 800, [=] { auto *c = console(); return window->visibility() == QWindow::FullScreen && c && c->captured(); }},
+      {"10c-delete-confirm", [=, &controller] {
+         if (auto *c = console()) c->release();
+         if (window->visibility() == QWindow::FullScreen)
+           call("toggleFullscreen");
+         call("deleteConnection", controller.hosts().first());
+       }, 700, [=] { return popupOpen("deleteDialog") && window->visibility() != QWindow::FullScreen; }},
+      {"10d-password", [=, &controller] {
+         closePopups();
+         if (auto *d = popup("credentialsDialog")) {
+           d->setProperty("profile", controller.hosts().first());
+           QMetaObject::invokeMethod(d, "open");
+         }
+       }, 700, [=] { return popupOpen("credentialsDialog"); }},
+      // Editing a profile with security exceptions opens the advanced options.
+      {"10e-advanced", [=, &controller] {
+         closePopups();
+         for (const auto &h : controller.hosts())
+           if (h.toMap().value("legacyTLS").toBool()) { call("editConnection", h); break; }
+       }, 700, [=] { return popupOpen("connectionDialog"); }},
       {"11-empty", [=, &controller] {
          closePopups();
          controller.disconnectAll();
@@ -105,6 +170,17 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   });
   auto index = std::make_shared<int>(0);
   auto next = std::make_shared<std::function<void()>>();
+  auto settle = std::make_shared<std::function<void(int)>>();
+  *settle = [=, &app](int waited) {
+    const auto &step = (*steps)[*index - 1];
+    if (step.ready && !step.ready() && waited < 6000) {
+      QTimer::singleShot(100, &app, [=] { (*settle)(waited + 100); });
+      return;
+    }
+    if (step.ready && !step.ready())
+      fprintf(stderr, "Screenshot tour: %s did not become ready\n", qPrintable(step.name));
+    (*next)();
+  };
   *next = [=, &app] {
     if (*index > 0) {
       const auto &done = (*steps)[*index - 1];
@@ -113,11 +189,11 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
         if (auto *qw = qobject_cast<QQuickWindow *>(w); qw && qw->isVisible())
           qw->grabWindow().save(dir + "/" + done.name + (n++ ? "-" + QString::number(n) : "") + ".png");
     }
-    if (*index >= steps->size()) { app.exit(0); return; }
+    if (*index >= steps->size()) { app.exit(qmlWarningsResult()); return; }
     auto &step = (*steps)[(*index)++];
     step.act();
     QTimer::singleShot(qMin(300, step.wait / 2), &app, fit);
-    QTimer::singleShot(step.wait, &app, *next);
+    QTimer::singleShot(step.wait, &app, [=] { (*settle)(0); });
   };
   QTimer::singleShot(300, &app, *next);
   return app.exec();
@@ -165,6 +241,8 @@ int main(int argc, char **argv) {
   if (test)
     QStandardPaths::setTestModeEnabled(true);
   QApplication app(argc, argv);
+  if (test)
+    s_previousHandler = qInstallMessageHandler(recordQmlWarning);
   app.setApplicationName("OldIPMI");
   app.setOrganizationName("OldIPMI");
   app.setApplicationVersion(OLDIPMI_VERSION);
@@ -180,7 +258,9 @@ int main(int argc, char **argv) {
   }
   bool preview = app.arguments().contains("--preview");
   qmlRegisterType<Console>("OldIPMI", 1, 0, "ConsoleView");
+  qmlRegisterType<FrameThumbnail>("OldIPMI", 1, 0, "FrameThumbnail");
   Controller controller;
+  FrameThumbnail::setController(&controller);
   AppSettings settings;
   AgentApi agent(&controller);
   // Auth-less local control socket for oldipmi-mcp; skipped by self-test and
@@ -311,7 +391,7 @@ int main(int argc, char **argv) {
         QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");
         if (!path.isEmpty())
           w->grabWindow().save(path);
-        app.exit(0);
+        app.exit(qmlWarningsResult());
       }
     });
   return app.exec();

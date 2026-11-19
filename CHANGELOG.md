@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### Changed
+* The desktop interface is rebuilt on one design language (DESIGN.md): shared
+  tokens in `Theme.qml` derived from the system colour scheme and accent, and shared
+  components for buttons, chips, cards and dialogs. The remote screen sits on a
+  rounded dark stage with a fixed-height status strip; an accent ring outside the
+  picture shows keyboard capture.
+* Connection list: open consoles are grouped at the top with a live miniature of
+  their screen and their state in words (with the elapsed time while connecting);
+  the filter field can start a new connection to the typed address; Settings and
+  Disconnect all sit below the list.
+* Every console pane state is its own page: first run (with the demo console),
+  the selected connection's details with Connect, setup with the three stages and
+  elapsed time, and failures with the step, a likely fix and copyable technical
+  details.
+* New / Edit connection: console type tiles, a two-column form, a KWallet switch
+  and collapsible advanced options; Ctrl+Enter saves and connects. Power, delete,
+  password and wallet prompts use the same dialog frame and name the server.
+* Narrow windows and large text: the grid unit follows the font's line height, the
+  header's fixed buttons (Quit included) never shrink, the console information
+  floats over the console when there is no room next to it, and the status strip
+  leaves out what does not fit whole instead of clipping it.
+
+### Added
+* The screenshot tour (`--self-test --screenshots`) covers the captured console,
+  full screen, delete confirmation, password prompt and advanced options, waits for
+  each state instead of fixed delays, and fails on any QML warning from OldIPMI's
+  own files.
+
 ### Fixed
 * The remote screen no longer zooms out and back in when the pointer enters and
   leaves the window (focus follows mouse) or when the console takes or releases the

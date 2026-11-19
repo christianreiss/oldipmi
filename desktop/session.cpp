@@ -1,6 +1,7 @@
 #include "session.h"
 #include <QColor>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QtEndian>
 #include <fcntl.h>
@@ -54,6 +55,7 @@ void Session::stop() {
 void Session::begin(const QString &password) {
   consoleInfo.clear();
   errorStage.clear();
+  startedAt = QDateTime::currentMSecsSinceEpoch();
   state = "logging_in";
   setMessage("Opening console on " + profile.value("host").toString() + "…");
   emit changed();
@@ -271,6 +273,7 @@ void Session::sendKeys(const QVariantList &usages) {
     key(it->toInt(), false);
 }
 void Session::preview() {
+  startedAt = QDateTime::currentMSecsSinceEpoch();
   QImage im(800, 600, QImage::Format_RGBA8888);
   im.fill(QColor("#223548")); // slop-ok: synthetic framebuffer content, not UI chrome
   state = "connected"; // a framebuffer without a backend; input and power go nowhere

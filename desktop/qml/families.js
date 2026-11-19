@@ -1,15 +1,15 @@
 .pragma library
 // Console families understood by oldipmi-core. `id` is stored in the profile.
 var list = [
-    { id: "aten", name: "Supermicro (ATEN)",
+    { id: "aten", name: "Supermicro (ATEN)", short: "Supermicro",
       hint: "Supermicro X9 and newer, and most X8 boards. Uses the Java iKVM protocol or the HTML5 console, whichever the firmware offers." },
-    { id: "ami", name: "AMI MegaRAC",
+    { id: "ami", name: "AMI MegaRAC", short: "AMI MegaRAC",
       hint: "AMI MegaRAC firmware, including Supermicro X8 boards that shipped with it (e.g. X8DTU), and ASUS, Tyan or Gigabyte BMCs." },
-    { id: "avocent", name: "Dell iDRAC (Avocent)",
+    { id: "avocent", name: "Dell iDRAC (Avocent)", short: "Dell iDRAC",
       hint: "Dell PowerEdge 12th generation and older with an Avocent-based iDRAC 6/7 virtual console." },
-    { id: "cisco", name: "Cisco IMC",
+    { id: "cisco", name: "Cisco IMC", short: "Cisco IMC",
       hint: "Cisco UCS C-Series Integrated Management Controller (Avocent-based KVM)." },
-    { id: "demo", name: "Demo console (no hardware)",
+    { id: "demo", name: "Demo console (no hardware)", short: "Demo",
       hint: "A synthetic console that echoes keys, pointer and clicks. For trying OldIPMI and testing AI agents without a BMC. Address \"demo\", or e.g. \"demo-1920x1080\"." }
 ];
 function index(id) {
@@ -23,6 +23,11 @@ function name(id) {
     return id || "Unknown";
 }
 // Bundled illustration per family (desktop/images, compiled into the binary).
+// The family's short name ("AMI MegaRAC" rather than the full description).
+function shortName(id) {
+    var f = list[index(id)];
+    return f ? f.short : "";
+}
 function image(id) {
     for (var i = 0; i < list.length; ++i)
         if (list[i].id === id) return "qrc:/images/family-" + id + ".png";
@@ -49,11 +54,15 @@ function failedTitle(id) {
     var i = stageIndex(id);
     return i >= 0 && i < stages.length ? stages[i].failed : "Connection failed";
 }
-// The backend reports "<Stage> failed: <cause>". Drop the stage (it is the
-// heading) and add the most likely next step for common causes.
-function explainError(message) {
+// The backend reports "<Stage> failed: <cause>". The stage is the heading, so
+// only the cause is shown as the technical detail.
+function errorDetail(message) {
     var m = (message || "").replace(/^[A-Za-z ]+ failed: /, "");
-    m = m.charAt(0).toUpperCase() + m.slice(1);
+    return m.charAt(0).toUpperCase() + m.slice(1);
+}
+// The most likely next step for common causes, or "".
+function errorHint(message) {
+    var m = errorDetail(message);
     var hints = [
         [/no such host|server misbehaving/i, "Check the BMC address; it does not resolve in DNS."],
         [/i\/o timeout|deadline exceeded|no route to host|network is unreachable/i, "The BMC did not answer. Check that it is reachable from this computer (VPN, management network)."],
@@ -64,8 +73,16 @@ function explainError(message) {
         [/unencrypted|plain-console/i, "This BMC offers only an unencrypted console. Enable it in the connection's advanced options if the network is trusted."]
     ];
     for (var i = 0; i < hints.length; ++i)
-        if (hints[i][0].test(m)) return hints[i][1] + "\n\n" + m; // next step first, detail below
-    return m;
+        if (hints[i][0].test(m)) return hints[i][1];
+    return "";
+}
+// Any security exception enabled for a profile, as a short list ("" if none).
+function exceptions(p) {
+    var out = [];
+    if (p.http) out.push("Plain HTTP login");
+    if (p.legacyTLS) out.push("Legacy TLS");
+    if (p.allowPlainConsole) out.push("Unencrypted console");
+    return out.join(", ");
 }
 function relativeTime(iso) {
     if (!iso) return "never";

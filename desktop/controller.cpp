@@ -55,7 +55,7 @@ QVariantMap Controller::sessions() const {
   QVariantMap out;
   for (auto *s : m_sessions)
     out[s->id] = QVariantMap{{"state", s->state}, {"errorStage", s->errorStage},
-                             {"message", s->message}};
+                             {"message", s->message}, {"startedAt", s->startedAt}};
   return out;
 }
 QStringList Controller::openIds() const {

@@ -28,6 +28,11 @@
     "console",
     "power-confirm",
     "switch",
+    "captured",
+    "fullscreen",
+    "delete-confirm",
+    "password",
+    "advanced",
     "empty"
   ],
   "requiredStates": [
@@ -41,6 +46,11 @@
     "console",
     "power-confirm",
     "switch",
+    "captured",
+    "fullscreen",
+    "delete-confirm",
+    "password",
+    "advanced",
     "empty"
   ],
   "themes": [

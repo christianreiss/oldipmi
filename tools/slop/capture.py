@@ -8,7 +8,7 @@ Runs the self-test screenshot tour once per theme/size/dpr/text-scale variant
 Theme and font size go through ~/.qttest/config/kdeglobals, which is what the
 KDE platform theme reads in Qt test mode; the previous file is restored.
 """
-import fcntl, os, shutil, subprocess, sys
+import fcntl, json, os, shutil, subprocess, sys
 from pathlib import Path
 
 state, theme, w, h, dpr, ts, out = sys.argv[1:8]
@@ -20,7 +20,9 @@ files = {
     "edit-connection": "03-edit-connection", "settings-general": "04-settings-general-2",
     "settings-agents": "05-settings-agents-2", "connecting": "06-connecting",
     "error": "07-error", "console": "08-console", "power-confirm": "09-power-confirm",
-    "switch": "10-switch", "empty": "11-empty",
+    "switch": "10-switch", "captured": "10a-captured", "fullscreen": "10b-fullscreen",
+    "delete-confirm": "10c-delete-confirm", "password": "10d-password",
+    "advanced": "10e-advanced", "empty": "11-empty",
 }
 schemes = {"light": "BreezeLight", "dark": "BreezeDark"}
 kdeglobals = Path.home() / ".qttest/config/kdeglobals"
@@ -39,7 +41,13 @@ with open(Path(os.environ["OLDIPMI_CACHE"]) / ".lock", "w") as lock:
                               f"font=Noto Sans,{size:g},-1,5,400,0,0,0,0,0,0,0,0,0,0,1\n"
                               f"smallestReadableFont=Noto Sans,{round(8 * float(ts), 1):g},-1,5,400,0,0,0,0,0,0,0,0,0,0,1\n"
                               "[Icons]\nTheme=breeze" + ("-dark" if theme == "dark" else "") + "\n")
-        env = dict(os.environ, QT_QPA_PLATFORM="offscreen", QT_QPA_PLATFORMTHEME="kde",
+        # The offscreen screen is as large as the window (800x800 by default), so
+        # the full-screen state is captured at the same size as every other state.
+        screen = cache / "offscreen.json"
+        screen.write_text(json.dumps({"screens": [{
+            "name": "OffscreenScreen", "x": 0, "y": 0, "logicalDpi": 96, "logicalBaseDpi": 96,
+            "width": round(int(w) * float(dpr)), "height": round(int(h) * float(dpr))}]}))
+        env = dict(os.environ, QT_QPA_PLATFORM=f"offscreen:configfile={screen}", QT_QPA_PLATFORMTHEME="kde",
                    QT_QUICK_CONTROLS_STYLE="org.kde.desktop", QT_SCALE_FACTOR=dpr)
         try:
             r = subprocess.run([str(binary), "--self-test", "--screenshots", str(cache),
