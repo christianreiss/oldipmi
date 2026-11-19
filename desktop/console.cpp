@@ -18,7 +18,9 @@ Console::Console(QQuickItem *p) : QQuickPaintedItem(p) {
 void Console::watch(QQuickWindow *w) {
   if (m_watched)
     m_watched->removeEventFilter(this);
-  m_watched = w ? w->contentItem() : nullptr;
+  m_watched = w;
+  m_held.clear();
+  m_idleTap = false;
   if (m_watched)
     m_watched->installEventFilter(this);
 }
@@ -58,28 +60,30 @@ bool Console::event(QEvent *e) {
 // keyboard: release() hands the focus to the window's content item, so the tap
 // works right after a release, also in full screen where the status strip and its
 // button are hidden; dialogs, menus and fields keep the key. The tap itself is not
-// forwarded. Key events reach the content item only while it (or nothing below
-// it) has the focus, also the ShortcutOverride of a chord whose press a shortcut
-// then takes. A tap means Right Ctrl alone: pressed while another key is held
+// forwarded. A tap means Right Ctrl alone: pressed while another key is held
 // (whichever went down first) or with another key pressed before its release, it
-// is a chord, so typing never moves to the server unnoticed.
+// is a chord, so typing never moves to the server unnoticed. The filter sits on
+// the window, which every key event passes before an item gets it, so a key held
+// while the focus moves (to a field or a dialog and back) stays known as held, and
+// its release is seen wherever it goes. Only when the window loses the keyboard,
+// and releases go to another window, are the held keys forgotten.
 bool Console::eventFilter(QObject *o, QEvent *e) {
   const auto type = e->type();
-  if (o == m_watched && (type == QEvent::FocusIn || type == QEvent::FocusOut)) {
-    // Keys held across a focus change are released elsewhere; forget them.
+  if (o != m_watched)
+    return QQuickPaintedItem::eventFilter(o, e);
+  if (type == QEvent::FocusIn || type == QEvent::FocusOut) {
     m_held.clear();
     m_idleTap = false;
+    return false;
   }
-  if (o != m_watched || hasActiveFocus() ||
-      (type != QEvent::KeyPress && type != QEvent::KeyRelease && type != QEvent::ShortcutOverride))
-    return QQuickPaintedItem::eventFilter(o, e);
+  if (type != QEvent::KeyPress && type != QEvent::KeyRelease && type != QEvent::ShortcutOverride)
+    return false;
   auto *k = static_cast<QKeyEvent *>(e);
   if (k->isAutoRepeat())
     return false;
   if (usage(k) != 228) { // another key: a chord, not a tap
     // Held keys by scan code; a ShortcutOverride stands for a press that a
-    // shortcut may take. Generated events (Qt's own ShortcutOverride for a
-    // generated press included) carry none and are not tracked.
+    // shortcut may take. Generated events carry none and are not tracked.
     if (const quint32 scan = k->nativeScanCode()) {
       if (type == QEvent::KeyRelease)
         m_held.remove(scan);
@@ -89,16 +93,16 @@ bool Console::eventFilter(QObject *o, QEvent *e) {
     m_idleTap = false;
     return false;
   }
-  if (type != QEvent::KeyRelease) {
-    if (type == QEvent::KeyPress)
-      m_idleTap = m_held.isEmpty() &&
-                  !(k->modifiers() & (Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier));
+  if (type == QEvent::KeyPress)
+    m_idleTap = m_held.isEmpty() && !hasActiveFocus() &&
+                !(k->modifiers() & (Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier));
+  if (type != QEvent::KeyRelease)
     return false;
-  }
   const bool tap = m_idleTap;
   m_idleTap = false;
-  if (!tap || !m_rightCtrlReleases || m_image.isNull() || !isVisible() || !window() ||
-      window()->activeFocusItem() != m_watched)
+  // While captured, the release is the console's own (see keyReleaseEvent()).
+  if (!tap || hasActiveFocus() || !m_rightCtrlReleases || m_image.isNull() || !isVisible() ||
+      m_watched->activeFocusItem() != m_watched->contentItem())
     return false;
   capture();
   return true;

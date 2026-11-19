@@ -154,15 +154,48 @@ private slots:
     QVERIFY(view->captured());
     QCOMPARE(keys.count(), 0); // nothing of it reached the server, the tap neither
   }
-  void focusChangeForgetsHeldKeys() {
+  void keyReleasedElsewhereDoesNotBlock() {
     // A key released while another item had the focus does not block the tap.
     auto *field = new KeyField(window->contentItem());
     view->capture();
     view->release();
     key(QEvent::KeyPress, Qt::Key_A, 30 + 8);
     field->forceActiveFocus();
-    key(QEvent::KeyRelease, Qt::Key_A, 30 + 8); // reaches the field
+    key(QEvent::KeyRelease, Qt::Key_A, 30 + 8); // the field takes it
     field->setFocus(false);
+    QCOMPARE(window->activeFocusItem(), window->contentItem());
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(view->captured());
+  }
+  void keyHeldAcrossFocusChangeStillBlocks() {
+    // The focus going to a field and back does not turn a held chord into a tap.
+    auto *field = new KeyField(window->contentItem());
+    view->capture();
+    view->release();
+    QSignalSpy keys(view, &Console::keyInput);
+    key(QEvent::KeyPress, Qt::Key_A, 30 + 8);
+    field->forceActiveFocus();
+    field->setFocus(false);
+    QCOMPARE(window->activeFocusItem(), window->contentItem());
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(!view->captured());
+    key(QEvent::KeyRelease, Qt::Key_A, 30 + 8);
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(view->captured());
+    QCOMPARE(keys.count(), 0); // nothing reached the server
+  }
+  void windowFocusLossForgetsHeldKeys() {
+    // Released in another window, a key cannot block the tap for good.
+    view->capture();
+    view->release();
+    key(QEvent::KeyPress, Qt::Key_A, 30 + 8);
+    QFocusEvent out(QEvent::FocusOut, Qt::ActiveWindowFocusReason);
+    QCoreApplication::sendEvent(window, &out);
+    QFocusEvent in(QEvent::FocusIn, Qt::ActiveWindowFocusReason);
+    QCoreApplication::sendEvent(window, &in);
     QCOMPARE(window->activeFocusItem(), window->contentItem());
     key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
     key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);

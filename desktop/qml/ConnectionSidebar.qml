@@ -125,7 +125,7 @@ Rectangle {
             placeholderTextColor: Theme.muted
             color: Theme.text
             leftPadding: Math.round(Theme.gu * 1.85)
-            rightPadding: (text !== "" ? clearButton.width : keyCap.width) + Math.round(Theme.gu * 0.6)
+            rightPadding: (text !== "" ? clearButton.width : keyCap.visible ? keyCap.width : 0) + Math.round(Theme.gu * 0.6)
             verticalAlignment: TextInput.AlignVCenter
             Accessible.name: "Filter connections, or type the address of a new one"
             onTextChanged: root.rebuild()
@@ -147,9 +147,13 @@ Rectangle {
                 color: Theme.muted
                 isMask: true
             }
+            // The key cap only while the whole placeholder still fits beside it: what
+            // the field does matters more than its shortcut.
+            TextMetrics { id: placeholderMetrics; font: search.font; text: search.placeholderText }
             KeyHint {
                 id: keyCap
-                visible: search.text === ""
+                visible: search.text === "" && search.width - search.leftPadding - implicitWidth
+                         - Math.round(Theme.gu * 0.6) >= Math.ceil(placeholderMetrics.advanceWidth)
                 anchors { right: parent.right; rightMargin: Math.round(Theme.gu * 0.4); verticalCenter: parent.verticalCenter }
                 keys: "Ctrl+F"
             }

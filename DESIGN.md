@@ -85,7 +85,9 @@ no window; everything else is derived from them:
     and Cancel.
   * *Failure*: "Step *n* of 3 · *stage*", a title naming what failed, the likely fix,
     **Try again** and Edit connection…, then the technical details (selectable,
-    Copy).
+    Copy). A certificate for another name asks to check the address first; the
+    legacy TLS option is suggested only for a certificate that cannot be verified
+    or an old TLS version, and any other TLS failure gets a neutral hint.
   * *Console*: the remote screen on the stage, an accent ring outside the picture
     while it has keyboard and mouse, and the status strip.
 * **Console information** docks next to the stage when the pane has room for both
@@ -113,11 +115,12 @@ no window; everything else is derived from them:
 
 Fixed buttons (sidebar toggle, Disconnect, Quit) never shrink; the title elides
 first. Below 56 `gu` the ISO action shows only its icon, below 40 `gu` the toolbar
-shows icons only and the information panel floats, and what still does not fit
-moves to the toolbar's overflow menu. The status strip keeps, in this order, the
-capture state, Release, how to release, and the resolution, and leaves out what
-does not fit whole. A list narrower than 14 `gu` shows the family picture instead
-of the live miniature, so names keep their room. Below 34 `gu` the full-screen bar
+shows icons only and the information panel floats, and what still does not fit moves
+to the toolbar's overflow menu. The status strip keeps, in this order, the capture
+state, Release, how to release, and the resolution, and leaves out what does not fit
+whole. A list narrower than 14 `gu` shows the family picture instead of the live
+miniature, so names keep their room, and the filter field shows its Ctrl+F key cap
+only while the whole placeholder fits beside it. Below 34 `gu` the full-screen bar
 leaves out the family picture, shows Disconnect as an icon and starts at the left
 edge instead of the centre; the name gives way first. The capture note keeps clear
 of the Quit corner; when it does not fit on one line, the release instruction takes

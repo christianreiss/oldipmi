@@ -15,7 +15,9 @@
 * Every console pane state is its own page: first run (with the demo console),
   the selected connection's details with Connect, setup with the three stages and
   elapsed time, and failures with the step, a likely fix and copyable technical
-  details.
+  details. TLS failures tell a certificate for another name (check the address
+  first), a certificate that cannot be verified and an old TLS version apart;
+  only the last two suggest the legacy TLS option.
 * New / Edit connection: console type tiles, a two-column form, a KWallet switch
   and collapsible advanced options; Ctrl+Enter saves and connects. Power, delete,
   password and wallet prompts use the same dialog frame and name the server.
@@ -29,7 +31,8 @@
   puts Connect right below the name when the whole card does not fit. The error
   page's buttons come right after the likely fix, before the technical details,
   and wrap instead of widening the page. While connecting, a short window shows
-  the current stage as one line with Cancel right below it.
+  the current stage as one line with Cancel right below it. The filter field
+  leaves out its Ctrl+F key cap when the placeholder would not fit beside it.
 * Full screen: the floating bar has **Release** while the console is captured (the
   way back when the Right Ctrl release is switched off), and Quit stays in the top
   right corner the whole time. The bar and the capture note fit small screens; a
