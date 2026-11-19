@@ -4,6 +4,16 @@
 #include <QSignalSpy>
 #include <QtTest>
 
+// Takes every key, like a text field: nothing propagates to its parent.
+class KeyField : public QQuickItem {
+public:
+  using QQuickItem::QQuickItem;
+
+protected:
+  void keyPressEvent(QKeyEvent *e) override { e->accept(); }
+  void keyReleaseEvent(QKeyEvent *e) override { e->accept(); }
+};
+
 // Input capture rules of the console view (see DESIGN.md).
 class ConsoleTest : public QObject {
   Q_OBJECT
@@ -127,6 +137,36 @@ private slots:
     key(QEvent::KeyPress, Qt::Key_Control, 29 + 8); // Left Ctrl is an ordinary key
     key(QEvent::KeyRelease, Qt::Key_Control, 29 + 8);
     QVERIFY(!view->captured());
+  }
+  void heldKeyBlocksTakingControl() {
+    // Right Ctrl pressed while another key is down is a chord too, so typing does
+    // not move to the server unnoticed.
+    QSignalSpy keys(view, &Console::keyInput);
+    view->capture();
+    view->release();
+    key(QEvent::KeyPress, Qt::Key_A, 30 + 8);
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(!view->captured());
+    key(QEvent::KeyRelease, Qt::Key_A, 30 + 8);
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8); // every key up again: a tap
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(view->captured());
+    QCOMPARE(keys.count(), 0); // nothing of it reached the server, the tap neither
+  }
+  void focusChangeForgetsHeldKeys() {
+    // A key released while another item had the focus does not block the tap.
+    auto *field = new KeyField(window->contentItem());
+    view->capture();
+    view->release();
+    key(QEvent::KeyPress, Qt::Key_A, 30 + 8);
+    field->forceActiveFocus();
+    key(QEvent::KeyRelease, Qt::Key_A, 30 + 8); // reaches the field
+    field->setFocus(false);
+    QCOMPARE(window->activeFocusItem(), window->contentItem());
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(view->captured());
   }
   void rightCtrlLeavesOtherFocusAlone() {
     // A field or list with the focus keeps the key: no capture from there.

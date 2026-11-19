@@ -15,6 +15,10 @@ Rectangle {
 
     readonly property int current: Families.stageIndex(connState)
     readonly property bool waiting: connState === "connected"
+    // A short page (large text on a small screen): a small ring, a smaller title
+    // and the current stage as one line instead of the stepper, so the stage and
+    // Cancel are in view right below the server.
+    readonly property bool compact: flick.height < Theme.gu * 20
 
     color: Theme.card
     radius: Theme.radiusLarge
@@ -36,11 +40,12 @@ Rectangle {
             width: Math.min(flick.width - Theme.gu * 2, Theme.gu * 30)
             x: Math.round((flick.width - width) / 2)
             y: Math.max(Theme.gu, Math.round((flick.contentHeight - implicitHeight) / 2))
-            spacing: Math.round(Theme.gu * 1.3)
+            spacing: Math.round(Theme.gu * (page.compact ? 0.6 : 1.3))
 
             // The family illustration inside a turning ring.
             Item {
-                readonly property real side: Math.round(Math.min(Theme.gu * 10.5, flick.height * 0.34))
+                readonly property real side: page.compact ? Math.round(Theme.gu * 3.4)
+                                                          : Math.round(Math.min(Theme.gu * 10.5, flick.height * 0.34))
                 Layout.preferredWidth: side
                 Layout.preferredHeight: side
                 Layout.alignment: Qt.AlignHCenter
@@ -100,7 +105,7 @@ Rectangle {
                 Layout.fillWidth: true
                 QQC2.Label {
                     text: "Opening " + (page.profile.name || page.profile.host || "console") + "…"
-                    font.pointSize: Theme.fontBase * 1.75
+                    font.pointSize: Theme.fontBase * (page.compact ? 1.35 : 1.75)
                     font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
@@ -130,8 +135,18 @@ Rectangle {
                 }
             }
 
+            // The current stage on a short page, instead of the stepper.
+            Chip {
+                visible: page.compact && page.current >= 0 && page.current < Families.stages.length
+                dot: true
+                text: visible ? "Step " + (page.current + 1) + " of " + Families.stages.length + " · " + Families.stages[page.current].name : ""
+                Layout.alignment: Qt.AlignHCenter
+                Layout.maximumWidth: content.width
+            }
+
             // Stepper: done, current and pending stages.
             RowLayout {
+                visible: !page.compact
                 spacing: 0
                 Layout.fillWidth: true
                 Layout.maximumWidth: Theme.gu * 28

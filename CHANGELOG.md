@@ -28,7 +28,8 @@
   puts its buttons right below the heading, and the selected connection's card
   puts Connect right below the name when the whole card does not fit. The error
   page's buttons come right after the likely fix, before the technical details,
-  and wrap instead of widening the page.
+  and wrap instead of widening the page. While connecting, a short window shows
+  the current stage as one line with Cancel right below it.
 * Full screen: the floating bar has **Release** while the console is captured (the
   way back when the Right Ctrl release is switched off), and Quit stays in the top
   right corner the whole time. The bar and the capture note fit small screens; a
@@ -50,8 +51,10 @@
   lands on a row. `oldipmi --self-test` fails when either does not work.
 * Released, a tap on **Right Ctrl** gives keyboard and mouse back to the server
   (while nothing else has the keyboard focus), so full screen needs no mouse to
-  take control again; a short note there says so. `oldipmi --self-test` also fails
-  when full screen does not show Quit, with or without a console.
+  take control again; a short note there says so. Right Ctrl together with another
+  key does not count, so typing never moves to the server unnoticed.
+  `oldipmi --self-test` also fails when full screen does not show Quit, with or
+  without a console.
 * The screenshot tour (`--self-test --screenshots`) covers the captured console,
   full screen (captured, released and without a console), delete confirmation,
   password prompt, advanced options and the Disconnect all confirmation, waits for

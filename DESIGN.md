@@ -126,10 +126,11 @@ connection dialog shows the console type as a drop-down and leaves out its
 explanations, so the address field is in view; opening *Advanced options* scrolls
 them into view. A welcome page lower than 20 `gu` has a small picture and heading
 and its buttons right below the heading; a failure page that low leaves out its
-picture. When the selected connection's whole card does not fit, the card leaves
-out its picture and puts Connect right below the name and address, before the
-details. Buttons on a page that do not fit side by side wrap instead of widening
-it.
+picture, and a setup page shows a small ring and the current stage as one line
+("Step 1 of 3 · Logging in") instead of the stepper, with Cancel right below. When
+the selected connection's whole card does not fit, the card leaves out its picture
+and puts Connect right below the name and address, before the details. Buttons on a
+page that do not fit side by side wrap instead of widening it.
 
 ## Rules
 
@@ -146,8 +147,10 @@ it.
   fire. Release: tap Right Ctrl (configurable) or the Release button (strip or
   full-screen bar). Released, the next lone Right Ctrl tap takes control again
   while nothing else has the keyboard focus (right after a release, also in full
-  screen); that tap is not sent. Without a mouse, the capture chip in the status
-  strip also takes control: Tab to it, then Enter or Space.
+  screen); that tap is not sent. Right Ctrl pressed while another key is held, or
+  with another key before its release, is a chord and does not take control, so
+  typing never moves to the server unnoticed. Without a mouse, the capture chip in
+  the status strip also takes control: Tab to it, then Enter or Space.
 * Continuous motion (the setup ring) stands still when the system turns animations
   off; the stage names and the elapsed time carry the progress.
 * The picture never moves or resizes when capture, focus or the status strip

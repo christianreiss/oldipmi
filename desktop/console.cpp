@@ -60,21 +60,39 @@ bool Console::event(QEvent *e) {
 // button are hidden; dialogs, menus and fields keep the key. The tap itself is not
 // forwarded. Key events reach the content item only while it (or nothing below
 // it) has the focus, also the ShortcutOverride of a chord whose press a shortcut
-// then takes.
+// then takes. A tap means Right Ctrl alone: pressed while another key is held
+// (whichever went down first) or with another key pressed before its release, it
+// is a chord, so typing never moves to the server unnoticed.
 bool Console::eventFilter(QObject *o, QEvent *e) {
   const auto type = e->type();
+  if (o == m_watched && (type == QEvent::FocusIn || type == QEvent::FocusOut)) {
+    // Keys held across a focus change are released elsewhere; forget them.
+    m_held.clear();
+    m_idleTap = false;
+  }
   if (o != m_watched || hasActiveFocus() ||
       (type != QEvent::KeyPress && type != QEvent::KeyRelease && type != QEvent::ShortcutOverride))
     return QQuickPaintedItem::eventFilter(o, e);
   auto *k = static_cast<QKeyEvent *>(e);
   if (k->isAutoRepeat())
     return false;
-  const bool rightCtrl = usage(k) == 228;
-  if (type != QEvent::KeyRelease || !rightCtrl) {
-    if (!rightCtrl)
-      m_idleTap = false; // another key: a chord, not a tap
-    else if (type == QEvent::KeyPress)
-      m_idleTap = !(k->modifiers() & (Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier));
+  if (usage(k) != 228) { // another key: a chord, not a tap
+    // Held keys by scan code; a ShortcutOverride stands for a press that a
+    // shortcut may take. Generated events (Qt's own ShortcutOverride for a
+    // generated press included) carry none and are not tracked.
+    if (const quint32 scan = k->nativeScanCode()) {
+      if (type == QEvent::KeyRelease)
+        m_held.remove(scan);
+      else
+        m_held.insert(scan);
+    }
+    m_idleTap = false;
+    return false;
+  }
+  if (type != QEvent::KeyRelease) {
+    if (type == QEvent::KeyPress)
+      m_idleTap = m_held.isEmpty() &&
+                  !(k->modifiers() & (Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier));
     return false;
   }
   const bool tap = m_idleTap;

@@ -62,6 +62,7 @@ private:
   bool m_fit = true, m_rightCtrlReleases = true, m_lonePress = false, m_swallow = false;
   bool m_idleTap = false; // Right Ctrl went down alone while released
   QSet<int> m_pressed;
+  QSet<quint32> m_held; // other keys down while released (see eventFilter())
   QPointer<QQuickItem> m_watched; // the window's content item, which has the focus after release()
   void watch(QQuickWindow *);
   void pointer(QPointF, int, int);
