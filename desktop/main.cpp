@@ -17,6 +17,7 @@
 #include <QJsonObject>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QPointer>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
@@ -177,11 +178,30 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
            QMetaObject::invokeMethod(popup("connectionDialog"), "revealAdvanced");
          });
        }, 700, [=] { return popupOpen("connectionDialog"); }},
-      // Two consoles are open, so Disconnect all asks first and names them.
-      {"10f-disconnect-all", [=] {
+      // Two consoles are open, so quitting asks first and names them, also when the
+      // window is closed (its close button, Alt+F4).
+      {"10e1-quit-confirm", [=, &app, &controller] {
          closePopups();
+         // Both consoles of 10-switch must still be open (on a busy machine the demo
+         // backend can lose one); with only one, closing the window rightly quits.
+         if (controller.openCount() != 2) {
+           fprintf(stderr, "Screenshot tour: %d console(s) open before 10e1-quit-confirm, expected 2\n",
+                   controller.openCount());
+           app.exit(5);
+         } else if (window->close()) {
+           fprintf(stderr, "Screenshot tour: closing the window with two consoles open did not ask first\n");
+           app.exit(5);
+         }
+       }, 700, [=] { return popupOpen("disconnectAllDialog") && popup("disconnectAllDialog")->property("quitting").toBool(); }},
+      // Two consoles are open, so Disconnect all asks first and names them.
+      {"10f-disconnect-all", [=, &controller] {
+         closePopups(); // Cancel on the quit question keeps both consoles
+         if (controller.openCount() != 2 || !window->isVisible()) {
+           fprintf(stderr, "Screenshot tour: cancelling Quit left %d console(s) open\n", controller.openCount());
+           *failed = true;
+         }
          call("disconnectAll");
-       }, 700, [=] { return popupOpen("disconnectAllDialog"); }},
+       }, 700, [=] { return popupOpen("disconnectAllDialog") && !popup("disconnectAllDialog")->property("quitting").toBool(); }},
       // Confirms the Disconnect all dialog: it closes exactly the consoles it names.
       {"11-empty", [=, &controller] {
          if (auto *confirm = popup("disconnectAllConfirm"))
@@ -494,6 +514,19 @@ int main(int argc, char **argv) {
   if (engine.rootObjects().isEmpty())
     return 1;
   engine.rootContext()->setContextProperty("mainWindow", engine.rootObjects().first());
+  // Any quit request of the application (Qt.quit() after Quit was confirmed, or the
+  // session manager when the session ends) closes the window without asking about
+  // the open consoles; only Quit itself and closing the window ask (Main.qml).
+  struct QuitRequests : QObject {
+    QPointer<QObject> root;
+    bool eventFilter(QObject *watched, QEvent *e) override {
+      if (e->type() == QEvent::Quit && watched == qApp && root)
+        root->setProperty("quitConfirmed", true);
+      return false;
+    }
+  } quitRequests;
+  quitRequests.root = engine.rootObjects().first();
+  app.installEventFilter(&quitRequests);
   QObject::connect(&instance, &SingleInstance::activationRequested, &app, [&](const QByteArray &token) {
     auto *w = qobject_cast<QWindow *>(engine.rootObjects().first());
     if (!w)

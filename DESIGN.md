@@ -73,7 +73,9 @@ no window; everything else is derived from them:
   console in front. The footer holds Settings and Disconnect all.
 * **Header** (right): sidebar toggle, the shown console's family, name and address,
   the console actions, Disconnect and Quit. Quit is always visible, also in full
-  screen (its own button in the top right corner).
+  screen (its own button in the top right corner). With more than one console
+  open, Quit (also Ctrl+Q or closing the window) asks first and names them, like
+  Disconnect all; a quit request from the system (the session ending) does not.
 * **Console pane** has exactly one page at a time:
   * *Welcome*: first run (New connection…, Try the demo console, the supported
     families) or "Select a connection".
@@ -146,9 +148,10 @@ page that do not fit side by side wrap instead of widening it.
 
 * One primary action per state (Connect, Try again, New connection…, Save and
   Connect).
-* Destructive or interrupting actions (power, delete, Disconnect all with more
-  than one console open) always confirm, naming the servers and the consequence;
-  the confirming button carries the verb and acts on exactly what was named.
+* Destructive or interrupting actions (power, delete, and Disconnect all or Quit
+  with more than one console open) always confirm, naming the servers and the
+  consequence; the confirming button carries the verb and acts on exactly what
+  was named.
 * State is never colour alone: emblem + text in the list, chips and status strip.
 * The remote screen is the content: nothing is drawn over the picture except the
   floating full-screen bar, its capture note and the console information the user
@@ -181,11 +184,13 @@ page that do not fit side by side wrap instead of widening it.
 (no BMC contact) for review: selected connection, new and edit dialogs, settings,
 setup, failure, console with information, power confirmation, a second console,
 captured, full screen (captured, released, and without a console), delete
-confirmation, password prompt, advanced options, the Disconnect all confirmation
-and the empty list. Each step waits until its
-state is reached. The self-test, with or without the tour, fails on any QML
-warning from OldIPMI's own files (exit 6). The tour fails with exit 5 when
-confirming Disconnect all leaves a console open; without `--screenshots` (CTest
+confirmation, password prompt, advanced options, the Quit and Disconnect all
+confirmations and the empty list. Each step waits until its state is reached.
+The self-test, with or without the tour, fails on any QML warning from OldIPMI's
+own files (exit 6). The tour fails with exit 5 when closing the window with two
+consoles open does not ask first, when cancelling that question closes a
+console, or when confirming Disconnect all leaves a console open; without
+`--screenshots` (CTest
 `desktop_smoke`) the self-test fails with exit 5 when the console view moves or
 resizes on capture, release or window activation, when Enter on the capture chip
 does not capture, when the focused connection list has no current row, when a list

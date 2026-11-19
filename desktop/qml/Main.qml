@@ -67,24 +67,44 @@ Kirigami.ApplicationWindow {
         settingsView.open(module || "general");
     }
     function showMcpInstructions() { mcpDialog.open() }
+    // Each open console with the start of its session, so confirming acts on these
+    // sessions and not on one opened again later under the same profile.
+    function openConsoles() {
+        return controller.hosts.filter(p => controller.isOpen(p.id)).map(p => ({
+            id: p.id, name: p.name, host: p.host, startedAt: controller.sessions[p.id].startedAt
+        }));
+    }
     // Closing several consoles at once asks first and names them; a single one
     // closes right away, like Disconnect.
     function disconnectAll() {
-        // Each console with the start of its session, so confirming closes these
-        // sessions and not one opened again later under the same profile.
-        const open = controller.hosts.filter(p => controller.isOpen(p.id)).map(p => ({
-            id: p.id, name: p.name, host: p.host, startedAt: controller.sessions[p.id].startedAt
-        }));
+        const open = openConsoles();
         if (open.length > 1) {
+            disconnectAllDialog.quitting = false;
             disconnectAllDialog.consoles = open;
             disconnectAllDialog.open();
         } else {
             controller.disconnectAll();
         }
     }
+    // Quitting closes every console, so with more than one open it asks the same
+    // way (Quit, Ctrl+Q and closing the window); otherwise it quits right away.
+    function requestQuit() {
+        const open = openConsoles();
+        if (open.length > 1) {
+            disconnectAllDialog.quitting = true;
+            disconnectAllDialog.consoles = open;
+            disconnectAllDialog.open();
+        } else {
+            quitApp();
+        }
+    }
+    // Set once quitting is decided (confirmed here, or any quit request of the
+    // application, as when the session ends: see main.cpp), so closing the window
+    // does not ask again.
+    property bool quitConfirmed: false
     // Close first so onClosing stores the window geometry, then end the app
     // (the settings window would otherwise keep it running).
-    function quitApp() { close(); Qt.quit() }
+    function quitApp() { quitConfirmed = true; close(); Qt.quit() }
     function toggleFullscreen() { visibility = fullscreen ? Window.Windowed : Window.FullScreen }
 
     // The console view follows the sidebar selection: an open session is shown,
@@ -102,7 +122,16 @@ Kirigami.ApplicationWindow {
         const last = controller.hosts.find(p => p.id === settings.lastProfile);
         selectedId = last ? last.id : (controller.hosts.length ? controller.hosts[0].id : "");
     }
-    onClosing: if (!fullscreen) settings.windowGeometry = Qt.rect(x, y, width, height)
+    onClosing: event => {
+        // The window's close button and Alt+F4 quit too: with several consoles open
+        // they ask first, like Quit.
+        if (!quitConfirmed && openConsoles().length > 1) {
+            event.accepted = false;
+            requestQuit();
+            return;
+        }
+        if (!fullscreen) settings.windowGeometry = Qt.rect(x, y, width, height);
+    }
 
     Shortcut { sequences: [StandardKey.New]; onActivated: window.newConnection() }
     Shortcut { sequence: "Ctrl+,"; onActivated: window.openSettings("general") }
@@ -111,7 +140,7 @@ Kirigami.ApplicationWindow {
     Shortcut { sequences: [StandardKey.FullScreen, "F11"]; onActivated: window.toggleFullscreen() }
     Shortcut { sequence: "Ctrl+D"; enabled: controller.state !== "disconnected"; onActivated: controller.disconnectHost() }
     Shortcut { sequence: "Ctrl+Shift+D"; enabled: controller.openCount > 0; onActivated: window.disconnectAll() }
-    Shortcut { sequences: [StandardKey.Quit]; onActivated: window.quitApp() }
+    Shortcut { sequences: [StandardKey.Quit]; onActivated: window.requestQuit() }
     Shortcut { sequence: "Escape"; enabled: window.fullscreen && !consolePane.consoleView.captured; onActivated: window.toggleFullscreen() }
 
     RowLayout {
@@ -132,7 +161,7 @@ Kirigami.ApplicationWindow {
             onNewRequested: host => window.newConnectionTo(host)
             onSettingsRequested: module => window.openSettings(module)
             onDisconnectAllRequested: window.disconnectAll()
-            onQuitRequested: window.quitApp()
+            onQuitRequested: window.requestQuit()
         }
         Rectangle {
             visible: sidebar.visible
@@ -161,7 +190,7 @@ Kirigami.ApplicationWindow {
             }
             onToggleFullscreen: window.toggleFullscreen()
             onToggleSidebar: settings.showSidebar = !settings.showSidebar
-            onQuitRequested: window.quitApp()
+            onQuitRequested: window.requestQuit()
         }
     }
 
@@ -288,8 +317,11 @@ Kirigami.ApplicationWindow {
         id: disconnectAllDialog
         objectName: "disconnectAllDialog"
         property var consoles: []
-        title: "Disconnect all " + consoles.length + " consoles?"
-        iconName: "network-disconnect"
+        // Also asks before quitting, which closes them all the same way.
+        property bool quitting: false
+        title: (quitting ? "Quit and disconnect " : "Disconnect all ") + consoles.length
+               + (consoles.length === 1 ? " console?" : " consoles?")
+        iconName: quitting ? "application-exit" : "network-disconnect"
         tone: Theme.warning
         closeButton: false
         preferredWidth: Math.round(Theme.gu * 25)
@@ -328,8 +360,20 @@ Kirigami.ApplicationWindow {
             ActionButton {
                 objectName: "disconnectAllConfirm"
                 tone: "primary"
-                text: "Disconnect all"
+                text: disconnectAllDialog.quitting ? "Quit" : "Disconnect all"
                 onClicked: {
+                    if (disconnectAllDialog.quitting) {
+                        // Quits only with the consoles it named: one opened meanwhile is named first.
+                        const open = window.openConsoles();
+                        const named = c => disconnectAllDialog.consoles.some(o => o.id === c.id && o.startedAt === c.startedAt);
+                        if (!open.every(named)) {
+                            disconnectAllDialog.consoles = open;
+                            return;
+                        }
+                        disconnectAllDialog.close();
+                        window.quitApp();
+                        return;
+                    }
                     disconnectAllDialog.close();
                     for (const c of disconnectAllDialog.consoles) {
                         const s = controller.sessions[c.id];

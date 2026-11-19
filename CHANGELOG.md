@@ -50,7 +50,9 @@
   connecting, failed, or after losing the connection) full screen keeps the header
   with Quit and the connection list, instead of an empty page without a way out.
 * **Disconnect all** (Ctrl+Shift+D) asks first and names the consoles when more
-  than one is open; confirming closes exactly those sessions.
+  than one is open; confirming closes exactly those sessions. Quitting with more
+  than one console open (Quit, Ctrl+Q or closing the window) asks the same way; a
+  quit request from the system, as when the session ends, does not ask.
 * Settings → AI agents says when the session runs without the agent socket
   (`--no-agent-api`, `--self-test`), and that the switch then applies from the
   next start.
@@ -71,9 +73,11 @@
   without a console, or when its bar cannot be used from the keyboard.
 * The screenshot tour (`--self-test --screenshots`) covers the captured console,
   full screen (captured, released and without a console), delete confirmation,
-  password prompt, advanced options and the Disconnect all confirmation, waits for
-  each state instead of fixed delays, and fails on any QML warning from OldIPMI's
-  own files or when confirming Disconnect all leaves a console open.
+  password prompt, advanced options and the Quit and Disconnect all
+  confirmations, waits for each state instead of fixed delays, and fails on any
+  QML warning from OldIPMI's own files, when closing the window with two consoles
+  open does not ask first, or when confirming Disconnect all leaves a console
+  open.
 
 ### Fixed
 * With the keyboard focus in the connection list, saving a profile or a console

@@ -35,6 +35,7 @@
     "delete-confirm",
     "password",
     "advanced",
+    "quit-confirm",
     "disconnect-all",
     "empty"
   ],
@@ -56,6 +57,7 @@
     "delete-confirm",
     "password",
     "advanced",
+    "quit-confirm",
     "disconnect-all",
     "empty"
   ],
