@@ -19,6 +19,12 @@ Item {
 
     readonly property string exceptions: Families.exceptions(page.profile)
     readonly property bool wide: card.width >= Theme.gu * 30
+    // A page too short for the whole card (large text on a small screen): no
+    // picture, and Connect right below the name and address, before the details.
+    // Measured without the picture's own visibility, so the choice is stable.
+    readonly property bool compact: Theme.gu + cardGrid.anchors.margins * 2
+        + (wide ? Math.max(disc.side, info.implicitHeight) : disc.side + cardGrid.rowSpacing + info.implicitHeight)
+        > flick.height
     function capitalized(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : "" }
 
     Flickable {
@@ -59,6 +65,8 @@ Item {
 
                     // Family illustration on a disc.
                     Rectangle {
+                        id: disc
+                        visible: !page.compact
                         readonly property real side: Math.round(page.wide ? Theme.gu * 11 : Theme.gu * 6)
                         Layout.preferredWidth: side
                         Layout.preferredHeight: side
@@ -77,12 +85,16 @@ Item {
                         }
                     }
 
-                    ColumnLayout {
+                    // One column; a short page moves the buttons up (Layout.row).
+                    GridLayout {
+                        id: info
+                        columns: 1
+                        rowSpacing: Math.round(Theme.gu * 0.75)
                         Layout.fillWidth: true
-                        spacing: Math.round(Theme.gu * 0.75)
 
                         Flow {
                             spacing: Kirigami.Units.smallSpacing
+                            Layout.row: 0
                             Layout.fillWidth: true
                             Chip { text: Families.name(page.profile.family); tone: Theme.accent }
                             Chip { text: "Not connected"; neutral: true; dot: true; dotColor: Theme.muted; bold: false }
@@ -98,11 +110,13 @@ Item {
                             font.pointSize: page.wide ? Theme.hero : Theme.display
                             font.weight: Font.Bold
                             elide: Text.ElideRight
+                            Layout.row: 1
                             Layout.fillWidth: true
                             Accessible.role: Accessible.Heading
                         }
                         RowLayout {
                             spacing: Kirigami.Units.smallSpacing
+                            Layout.row: 2
                             Layout.fillWidth: true
                             QQC2.Label {
                                 text: page.profile.host || ""
@@ -124,8 +138,9 @@ Item {
                             }
                         }
 
-                        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.lineSoft }
+                        Rectangle { Layout.row: 3; Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.lineSoft }
                         GridLayout {
+                            Layout.row: page.compact ? 6 : 4
                             columns: card.width >= Theme.gu * 22 ? 2 : 1
                             columnSpacing: Math.round(Theme.gu * 1.4)
                             rowSpacing: Math.round(Theme.gu * 0.7)
@@ -160,10 +175,11 @@ Item {
                                 }
                             }
                         }
-                        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.lineSoft }
+                        Rectangle { Layout.row: 5; Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.lineSoft }
 
                         Flow {
                             spacing: Kirigami.Units.largeSpacing
+                            Layout.row: page.compact ? 4 : 6
                             Layout.fillWidth: true
                             Layout.topMargin: Kirigami.Units.smallSpacing
                             ActionButton {

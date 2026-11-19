@@ -22,12 +22,12 @@ function name(id) {
         if (list[i].id === id) return list[i].name;
     return id || "Unknown";
 }
-// Bundled illustration per family (desktop/images, compiled into the binary).
 // The family's short name ("AMI MegaRAC" rather than the full description).
 function shortName(id) {
     var f = list[index(id)];
     return f ? f.short : "";
 }
+// Bundled illustration per family (desktop/images, compiled into the binary).
 function image(id) {
     for (var i = 0; i < list.length; ++i)
         if (list[i].id === id) return "qrc:/images/family-" + id + ".png";

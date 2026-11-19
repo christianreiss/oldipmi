@@ -20,8 +20,30 @@ AppDialog {
     property string error: ""
     signal saved(var profile)
 
+    // Opens the advanced options and scrolls them into view once they are laid
+    // out: after the toggle, and in the screenshot tour. A profile with
+    // exceptions opens them without scrolling, so its name and address stay first.
+    property bool revealPending: false
+    function revealAdvanced() {
+        showAdvanced = true;
+        revealPending = true;
+        tryReveal();
+    }
+    function tryReveal() {
+        const flick = dialog.contentItem ? dialog.contentItem.contentItem : null;
+        if (!revealPending || !flick || advancedSection.height <= 0)
+            return;
+        revealPending = false;
+        const top = advancedToggle.mapToItem(flick.contentItem, 0, 0).y - Math.round(Theme.gu * 0.5);
+        flick.contentY = Math.max(0, Math.min(top, flick.contentHeight - flick.height));
+    }
+
+    // A short window (large text on a small screen): the console type takes one
+    // line and the explanations give way, so the address field is in view.
+    readonly property bool compact: parent ? parent.height < Theme.gu * 24 : false
+
     title: editing ? "Edit connection" : "New connection"
-    subheading: "OldIPMI logs in to the BMC, finds its console and opens it here."
+    subheading: compact ? "" : "OldIPMI logs in to the BMC, finds its console and opens it here."
     preferredWidth: Math.round(Theme.gu * 37)
     footerHint: openNow ? "Disconnect this console to connect with the changes."
                         : valid ? "Ctrl+Enter saves and connects" : ""
@@ -64,6 +86,7 @@ AppDialog {
         certPath = p.clientCert || "";
         keyPath = p.clientKey || "";
         error = "";
+        revealPending = false;
         showAdvanced = httpSwitch.checked || tlsSwitch.checked || plainSwitch.checked || !!jnlpField.text || !!certPath || modeBox.currentIndex > 0;
         open();
         (editing || hostField.text !== "" ? nameField : hostField).forceActiveFocus();
@@ -176,8 +199,18 @@ AppDialog {
         spacing: Kirigami.Units.largeSpacing
         Layout.fillWidth: true
         Caption { text: "CONSOLE TYPE" }
+        QQC2.ComboBox {
+            id: familyBox
+            visible: dialog.compact
+            model: Families.names()
+            currentIndex: dialog.familyIndex
+            onActivated: index => dialog.familyIndex = index
+            Accessible.name: "Console type"
+            Layout.fillWidth: true
+        }
         GridLayout {
             id: tiles
+            visible: !dialog.compact
             readonly property real tileWidth: Theme.gu * 5.4
             columns: Math.max(2, Math.min(Families.list.length, Math.floor((width + columnSpacing) / (tileWidth + columnSpacing))))
             columnSpacing: Kirigami.Units.largeSpacing
@@ -269,6 +302,7 @@ AppDialog {
             }
         }
         QQC2.Label {
+            visible: !dialog.compact
             text: Families.list[Math.max(0, dialog.familyIndex)].hint
             font.pointSize: Theme.small
             color: Theme.muted
@@ -403,7 +437,12 @@ AppDialog {
         padding: Math.round(Theme.gu * 0.7)
         Accessible.role: Accessible.Button
         Accessible.name: dialog.showAdvanced ? "Hide advanced options" : "Advanced options"
-        onClicked: dialog.showAdvanced = !dialog.showAdvanced
+        onClicked: {
+            if (dialog.showAdvanced)
+                dialog.showAdvanced = false;
+            else
+                dialog.revealAdvanced();
+        }
         background: Rectangle {
             radius: Theme.radius + 3
             color: advancedToggle.down ? Theme.pressed : advancedToggle.hovered ? Theme.hover : "transparent"
@@ -447,9 +486,11 @@ AppDialog {
     }
 
     ColumnLayout {
+        id: advancedSection
         visible: dialog.showAdvanced
         spacing: Math.round(Theme.gu * 0.9)
         Layout.fillWidth: true
+        onHeightChanged: dialog.tryReveal()
 
         ColumnLayout {
             visible: dialog.family === "aten" || Families.hasMedia(dialog.family)

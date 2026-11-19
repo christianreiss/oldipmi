@@ -67,6 +67,21 @@ Kirigami.ApplicationWindow {
         settingsView.open(module || "general");
     }
     function showMcpInstructions() { mcpDialog.open() }
+    // Closing several consoles at once asks first and names them; a single one
+    // closes right away, like Disconnect.
+    function disconnectAll() {
+        // Each console with the start of its session, so confirming closes these
+        // sessions and not one opened again later under the same profile.
+        const open = controller.hosts.filter(p => controller.isOpen(p.id)).map(p => ({
+            id: p.id, name: p.name, host: p.host, startedAt: controller.sessions[p.id].startedAt
+        }));
+        if (open.length > 1) {
+            disconnectAllDialog.consoles = open;
+            disconnectAllDialog.open();
+        } else {
+            controller.disconnectAll();
+        }
+    }
     // Close first so onClosing stores the window geometry, then end the app
     // (the settings window would otherwise keep it running).
     function quitApp() { close(); Qt.quit() }
@@ -95,7 +110,7 @@ Kirigami.ApplicationWindow {
     Shortcut { sequence: "F9"; onActivated: settings.showSidebar = !settings.showSidebar }
     Shortcut { sequences: [StandardKey.FullScreen, "F11"]; onActivated: window.toggleFullscreen() }
     Shortcut { sequence: "Ctrl+D"; enabled: controller.state !== "disconnected"; onActivated: controller.disconnectHost() }
-    Shortcut { sequence: "Ctrl+Shift+D"; enabled: controller.openCount > 0; onActivated: controller.disconnectAll() }
+    Shortcut { sequence: "Ctrl+Shift+D"; enabled: controller.openCount > 0; onActivated: window.disconnectAll() }
     Shortcut { sequences: [StandardKey.Quit]; onActivated: window.quitApp() }
     Shortcut { sequence: "Escape"; enabled: window.fullscreen && !consolePane.consoleView.captured; onActivated: window.toggleFullscreen() }
 
@@ -105,7 +120,7 @@ Kirigami.ApplicationWindow {
 
         ConnectionSidebar {
             id: sidebar
-            visible: settings.showSidebar && !window.fullscreen
+            visible: settings.showSidebar && !consolePane.immersive
             // A third of the window, within limits, so the console keeps most of it.
             Layout.preferredWidth: Math.round(Math.min(Theme.gu * 16, window.width * 0.42, Math.max(Theme.gu * 11, window.width * 0.3)))
             Layout.fillHeight: true
@@ -116,6 +131,7 @@ Kirigami.ApplicationWindow {
             onDeleteRequested: p => window.deleteConnection(p)
             onNewRequested: host => window.newConnectionTo(host)
             onSettingsRequested: module => window.openSettings(module)
+            onDisconnectAllRequested: window.disconnectAll()
             onQuitRequested: window.quitApp()
         }
         Rectangle {
@@ -261,6 +277,65 @@ Kirigami.ApplicationWindow {
                     deleteDialog.close();
                     if (controller.removeHost(id) && window.selectedId === id)
                         window.selectedId = controller.hosts.length ? controller.hosts[0].id : "";
+                }
+            }
+        ]
+    }
+
+    // Disconnect all with several consoles open. Confirming closes exactly the
+    // sessions it names, also when an agent opens another console meanwhile.
+    AppDialog {
+        id: disconnectAllDialog
+        objectName: "disconnectAllDialog"
+        property var consoles: []
+        title: "Disconnect all " + consoles.length + " consoles?"
+        iconName: "network-disconnect"
+        tone: Theme.warning
+        closeButton: false
+        preferredWidth: Math.round(Theme.gu * 25)
+        QQC2.Label {
+            text: "Their remote consoles close. The servers keep running, and the connections stay in the list."
+            color: Theme.mix(Theme.text, Theme.card, 0.12)
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+        }
+        Repeater {
+            model: disconnectAllDialog.consoles
+            delegate: RowLayout {
+                id: openRow
+                required property var modelData
+                spacing: Kirigami.Units.largeSpacing
+                Layout.fillWidth: true
+                QQC2.Label {
+                    text: openRow.modelData.name || openRow.modelData.host || ""
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: Math.ceil(implicitWidth)
+                }
+                QQC2.Label {
+                    text: openRow.modelData.host || ""
+                    font.family: Theme.mono.family
+                    font.pointSize: Theme.small
+                    color: Theme.muted
+                    elide: Text.ElideMiddle
+                    Layout.fillWidth: true
+                }
+            }
+        }
+        buttons: [
+            ActionButton { tone: "ghost"; text: "Cancel"; onClicked: disconnectAllDialog.close() },
+            ActionButton {
+                objectName: "disconnectAllConfirm"
+                tone: "primary"
+                text: "Disconnect all"
+                onClicked: {
+                    disconnectAllDialog.close();
+                    for (const c of disconnectAllDialog.consoles) {
+                        const s = controller.sessions[c.id];
+                        if (s && s.startedAt === c.startedAt && controller.isOpen(c.id))
+                            controller.disconnectProfile(c.id);
+                    }
                 }
             }
         ]

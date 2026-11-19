@@ -27,7 +27,7 @@ FormCard.FormCardPage {
         FormCard.FormDelegateSeparator {}
         FormCard.FormSwitchDelegate {
             text: "Tap Right Ctrl to release keyboard and mouse"
-            description: "The tap is still sent to the server. When off, use the Release button in the status bar."
+            description: "The tap is still sent to the server. Released, the next tap gives keyboard and mouse back to it. When off, use the Release button in the status bar, or in the bar at the top edge in full screen."
             checked: settings.rightCtrlReleases
             onToggled: settings.rightCtrlReleases = checked
         }

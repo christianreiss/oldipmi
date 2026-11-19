@@ -37,12 +37,16 @@ ColumnLayout {
     readonly property var shown: mode === "idle" || mode === "welcome" ? selected : controller.activeProfile
     readonly property var session: controller.sessions[controller.shownId] || ({})
     readonly property string displayName: shown.name || shown.host || ""
+    // Full screen leaves only the remote screen while a console is shown. Without
+    // one (selected, connecting, failed, or after losing the connection) the header
+    // and the connection list stay, with Quit and the way back.
+    readonly property bool immersive: fullscreen && mode === "console"
     function has(capability) { return (controller.consoleInfo.capabilities || []).indexOf(capability) >= 0 }
 
     // ── Header: what is shown, and what can be done with it ────────────────
     Item {
         id: header
-        visible: !root.fullscreen
+        visible: !root.immersive
         Layout.fillWidth: true
         Layout.preferredHeight: visible ? Math.max(Theme.headerHeight, headerRow.implicitHeight + Kirigami.Units.largeSpacing) : 0
         // Labels give way to icons, then the title gives way, before anything overflows.
@@ -146,6 +150,14 @@ ColumnLayout {
                 onClicked: controller.disconnectHost()
             }
             IconButton {
+                visible: root.fullscreen && !root.immersive
+                icon.name: "view-restore"
+                text: "Leave full screen"
+                shortcut: "F11"
+                Layout.minimumWidth: implicitWidth
+                onClicked: root.toggleFullscreen()
+            }
+            IconButton {
                 objectName: "headerQuitButton"
                 icon.name: "application-exit"
                 text: "Quit OldIPMI"
@@ -231,6 +243,12 @@ ColumnLayout {
         visible: false
         checkable: true
         onCheckedChanged: if (infoAction.checked !== details.checked) infoAction.checked = details.checked
+    }
+
+    // An icon button of the full-screen bar; it keeps its size when the bar is short of room.
+    component BarButton: IconButton {
+        onStage: true
+        Layout.minimumWidth: implicitWidth
     }
 
     // Console information: protocol, resolution, features and endpoints.
@@ -430,15 +448,24 @@ ColumnLayout {
                     }
                     Rectangle {
                         id: fsBar
+                        // A small screen with large text: the family picture goes,
+                        // Disconnect shows only its icon, and the bar starts at the left
+                        // edge instead of the centre, so the name keeps more room.
+                        readonly property bool narrow: parent.width < Theme.gu * 34
+                        readonly property int edge: Math.round(Theme.gu * 0.8)
+                        // Never wider than the screen, leaving room for Quit in the corner
+                        // (and, while centred, its mirror image): the name gives way first.
+                        readonly property real room: narrow ? parent.width - fsQuit.width - 3 * edge - 12
+                                                            : parent.width - 2 * (fsQuit.width + Math.round(Theme.gu * 1.2))
                         readonly property bool revealed: (screenHover.hovered && screenHover.point.position.y < Theme.gu * 0.8)
                                                          || barHover.hovered || keysMenu.visible || powerMenu.visible || peek.running
                         visible: root.fullscreen && opacity > 0
                         opacity: root.fullscreen && revealed ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: Kirigami.Units.shortDuration } }
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        y: Math.round(Theme.gu * 0.8)
+                        x: narrow ? edge : Math.round((parent.width - width) / 2)
+                        y: edge
                         z: 5
-                        width: barRow.implicitWidth + 12
+                        width: Math.min(barRow.implicitWidth, room) + 12
                         height: barRow.implicitHeight + 12
                         radius: Theme.radiusLarge
                         color: Theme.alpha(Theme.stagePopup, 0.95)
@@ -447,9 +474,10 @@ ColumnLayout {
                         HoverHandler { id: barHover }
                         RowLayout {
                             id: barRow
-                            anchors.centerIn: parent
+                            anchors { fill: parent; margins: 6 }
                             spacing: 4
                             Image {
+                                visible: !fsBar.narrow
                                 Layout.preferredWidth: Math.round(Theme.gu * 1.35)
                                 Layout.preferredHeight: Layout.preferredWidth
                                 Layout.leftMargin: 4
@@ -463,62 +491,96 @@ ColumnLayout {
                                 color: Theme.stageText
                                 font.weight: Font.DemiBold
                                 elide: Text.ElideRight
-                                Layout.maximumWidth: Theme.gu * 12
+                                Layout.fillWidth: true
+                                Layout.maximumWidth: Math.min(Math.ceil(implicitWidth), Theme.gu * 12)
+                                Layout.leftMargin: fsBar.narrow ? 6 : 0
                                 Layout.rightMargin: 4
                             }
                             Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: Theme.gu * 1.1; color: Theme.stageEdge }
-                            IconButton {
-                                id: keysButton
+                            // While captured, the way back for anyone who turned off the
+                            // Right Ctrl release. It does not take the focus itself, so the
+                            // press does not release before the click.
+                            ActionButton {
+                                visible: view.captured
                                 onStage: true
+                                tone: "secondary"
+                                text: "Release"
+                                icon.name: "input-mouse"
+                                focusPolicy: Qt.NoFocus // slop-ok: shown only while captured, when every key goes to the server; the keyboard releases with Right Ctrl
+                                Layout.minimumWidth: implicitWidth
+                                onClicked: view.release()
+                            }
+                            BarButton {
+                                id: keysButton
                                 icon.name: "input-keyboard"
                                 text: "Send key"
                                 checked: keysMenu.visible
                                 onClicked: keysMenu.popup(keysButton, 0, keysButton.height + 4)
                             }
-                            IconButton {
+                            BarButton {
                                 visible: mediaAction.visible
-                                onStage: true
                                 icon.name: mediaAction.icon.name
                                 text: mediaAction.text
                                 onClicked: mediaAction.trigger()
                             }
-                            IconButton {
+                            BarButton {
                                 id: powerButton
-                                onStage: true
                                 icon.name: "system-shutdown"
                                 text: "Power"
                                 checked: powerMenu.visible
                                 onClicked: powerMenu.popup(powerButton, 0, powerButton.height + 4)
                             }
                             Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: Theme.gu * 1.1; color: Theme.stageEdge }
-                            IconButton {
-                                onStage: true
+                            BarButton {
                                 icon.name: fitAction.icon.name
                                 text: fitAction.text
                                 onClicked: fitAction.trigger()
                             }
-                            IconButton {
-                                onStage: true
+                            BarButton {
                                 icon.name: "view-restore"
                                 text: "Leave full screen"
                                 shortcut: "F11"
                                 onClicked: root.toggleFullscreen()
                             }
                             ActionButton {
+                                visible: !fsBar.narrow
                                 onStage: true
                                 tone: "secondary"
                                 text: "Disconnect"
                                 icon.name: "network-disconnect"
                                 Layout.leftMargin: 4
+                                Layout.minimumWidth: implicitWidth
                                 onClicked: controller.disconnectHost()
                             }
-                            IconButton {
-                                onStage: true
-                                icon.name: "application-exit"
-                                text: "Quit OldIPMI"
-                                shortcut: "Ctrl+Q"
-                                onClicked: root.quitRequested()
+                            BarButton {
+                                visible: fsBar.narrow
+                                icon.name: "network-disconnect"
+                                text: "Disconnect"
+                                onClicked: controller.disconnectHost()
                             }
+                        }
+                    }
+                    // Quit stays in the corner for the whole time in full screen, also
+                    // while the bar is hidden.
+                    Rectangle {
+                        id: fsQuit
+                        visible: root.fullscreen
+                        anchors { top: parent.top; right: parent.right; margins: Math.round(Theme.gu * 0.8) }
+                        z: 5
+                        width: quitCorner.implicitWidth + 8
+                        height: quitCorner.implicitHeight + 8
+                        radius: Theme.radius + 3
+                        color: Theme.alpha(Theme.stagePopup, 0.9)
+                        border.width: 1
+                        border.color: Theme.stageLine
+                        BarButton {
+                            id: quitCorner
+                            objectName: "quitCorner"
+                            anchors.centerIn: parent
+                            icon.name: "application-exit"
+                            text: "Quit OldIPMI"
+                            shortcut: "Ctrl+Q"
+                            onClicked: root.quitRequested()
                         }
                     }
                     QQC2.Menu {
@@ -530,45 +592,71 @@ ColumnLayout {
                         Component.onCompleted: root.fillMenu(powerMenu, powerAction.children)
                     }
 
-                    // Full screen has no status strip: taking the keyboard shows a
-                    // short note instead. It covers nothing for long and moves nothing.
+                    // Full screen has no status strip: taking or giving back the keyboard
+                    // shows a short note instead, how to release or how to take control
+                    // again. It covers nothing for long and moves nothing.
                     Timer { id: toastTimer; interval: 2600 }
                     Connections {
                         target: view
-                        function onCapturedChanged() { if (view.captured && root.fullscreen) toastTimer.restart() }
+                        function onCapturedChanged() { if (root.fullscreen) toastTimer.restart() }
                     }
                     Rectangle {
+                        id: toast
+                        // One line when it fits; otherwise the release instruction takes its
+                        // own line and the server name elides first. It keeps clear of the
+                        // Quit corner, also while the bar is hidden and the note moves up.
+                        readonly property int pad: Math.round(Theme.gu * 0.7)
+                        readonly property real room: parent.width - 2 * (fsQuit.width + Math.round(Theme.gu * 1.2))
+                        readonly property string how: view.captured
+                            ? (settings.rightCtrlReleases ? "Tap Right Ctrl to release" : "Release from the bar at the top edge")
+                            : (settings.rightCtrlReleases ? "Tap Right Ctrl or click the screen to take control" : "Click the screen to take control")
+                        readonly property bool stacked: whoRow.implicitWidth + toastGrid.columnSpacing + oneLine.advanceWidth + 2 * pad > room
+                        TextMetrics { id: oneLine; font: howLabel.font; text: "· " + toast.how }
                         visible: opacity > 0
-                        opacity: root.fullscreen && view.captured && toastTimer.running ? 1 : 0
+                        opacity: root.fullscreen && toastTimer.running ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: Kirigami.Units.shortDuration } }
                         anchors.horizontalCenter: parent.horizontalCenter
                         y: fsBar.visible ? fsBar.y + fsBar.height + Kirigami.Units.largeSpacing : Math.round(Theme.gu * 0.8)
                         z: 4
-                        width: toastRow.implicitWidth + Math.round(Theme.gu * 1.4)
-                        height: toastRow.implicitHeight + Math.round(Theme.gu * 0.8)
+                        width: Math.min(toastGrid.implicitWidth + 2 * pad, room)
+                        height: toastGrid.implicitHeight + Math.round(Theme.gu * 0.8)
                         radius: Theme.radius + 3
                         color: Theme.alpha(Theme.stagePopup, 0.95)
                         border.width: 1
                         border.color: Theme.stageLine
-                        RowLayout {
-                            id: toastRow
-                            anchors.centerIn: parent
-                            spacing: Kirigami.Units.largeSpacing
-                            Kirigami.Icon {
-                                source: "input-keyboard"
-                                implicitWidth: Kirigami.Units.iconSizes.small
-                                implicitHeight: implicitWidth
-                                color: Theme.stageText
-                                isMask: true
+                        GridLayout {
+                            id: toastGrid
+                            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: toast.pad; rightMargin: toast.pad }
+                            columns: toast.stacked ? 1 : 2
+                            columnSpacing: Kirigami.Units.largeSpacing
+                            rowSpacing: Math.round(Theme.gu * 0.15)
+                            RowLayout {
+                                id: whoRow
+                                spacing: Kirigami.Units.largeSpacing
+                                Layout.fillWidth: true
+                                Layout.maximumWidth: implicitWidth
+                                Kirigami.Icon {
+                                    source: view.captured ? "input-keyboard" : "input-mouse"
+                                    implicitWidth: Kirigami.Units.iconSizes.small
+                                    implicitHeight: implicitWidth
+                                    color: Theme.stageText
+                                    isMask: true
+                                }
+                                QQC2.Label {
+                                    text: view.captured ? "Keyboard and mouse go to " + root.displayName : "Keyboard and mouse released"
+                                    color: Theme.stageText
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                    Layout.maximumWidth: Math.ceil(implicitWidth)
+                                }
                             }
                             QQC2.Label {
-                                text: "Keyboard and mouse go to " + root.displayName
-                                color: Theme.stageText
-                            }
-                            QQC2.Label {
-                                visible: settings.rightCtrlReleases
-                                text: "· Tap Right Ctrl to release"
+                                id: howLabel
+                                text: (toast.stacked ? "" : "· ") + toast.how
                                 color: Theme.stageTone(Theme.accent)
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: toast.stacked
+                                Layout.maximumWidth: toast.room - 2 * toast.pad
                             }
                         }
                     }
@@ -613,17 +701,44 @@ ColumnLayout {
                             rightMargin: Math.round(Theme.gu * 0.75)
                         }
                         spacing: strip.gap
-                        Chip {
-                            id: captureChip
-                            onStage: true
-                            neutral: !view.captured
-                            tone: Theme.accent
-                            iconName: view.captured ? "input-keyboard" : "input-mouse"
-                            bold: view.captured
-                            text: view.captured ? (strip.compact ? "Captured" : "Keyboard and mouse captured")
-                                                : (strip.compact ? "Click to control" : "Click the screen to control the server")
+                        // The capture state. While free it is also the keyboard way in:
+                        // Tab to it, then Enter or Space sends keyboard and mouse to the server.
+                        QQC2.AbstractButton {
+                            id: captureButton
+                            objectName: "captureButton"
+                            enabled: !view.captured
+                            focusPolicy: Qt.StrongFocus
+                            hoverEnabled: true
+                            padding: 0
+                            implicitWidth: captureChip.implicitWidth
+                            implicitHeight: captureChip.implicitHeight
                             Layout.fillWidth: true
                             Layout.maximumWidth: Math.ceil(implicitWidth)
+                            Accessible.role: view.captured ? Accessible.StaticText : Accessible.Button
+                            Accessible.name: view.captured ? captureChip.text : "Control " + root.displayName + " with keyboard and mouse"
+                            Keys.onReturnPressed: captureButton.clicked()
+                            Keys.onEnterPressed: captureButton.clicked()
+                            onClicked: view.capture()
+                            HoverHandler { enabled: captureButton.enabled; cursorShape: Qt.PointingHandCursor }
+                            contentItem: Chip {
+                                id: captureChip
+                                onStage: true
+                                neutral: !view.captured
+                                tone: Theme.accent
+                                iconName: view.captured ? "input-keyboard" : "input-mouse"
+                                bold: view.captured
+                                text: view.captured ? (strip.compact ? "Captured" : "Keyboard and mouse captured")
+                                                    : (strip.compact ? "Click to control" : "Click the screen to control the server")
+                            }
+                            background: Rectangle {
+                                visible: captureButton.visualFocus
+                                anchors.fill: parent
+                                anchors.margins: -3
+                                radius: height / 2
+                                color: "transparent"
+                                border.width: 2
+                                border.color: Theme.stageTone(Theme.accent)
+                            }
                         }
                         QQC2.Label {
                             id: hintLabel

@@ -30,9 +30,12 @@
     "switch",
     "captured",
     "fullscreen",
+    "fullscreen-released",
+    "fullscreen-idle",
     "delete-confirm",
     "password",
     "advanced",
+    "disconnect-all",
     "empty"
   ],
   "requiredStates": [
@@ -48,9 +51,12 @@
     "switch",
     "captured",
     "fullscreen",
+    "fullscreen-released",
+    "fullscreen-idle",
     "delete-confirm",
     "password",
     "advanced",
+    "disconnect-all",
     "empty"
   ],
   "themes": [

@@ -22,15 +22,46 @@
 * Narrow windows and large text: the grid unit follows the font's line height, the
   header's fixed buttons (Quit included) never shrink, the console information
   floats over the console when there is no room next to it, and the status strip
-  leaves out what does not fit whole instead of clipping it.
+  leaves out what does not fit whole instead of clipping it. In a short window the
+  connection dialog shows the console type as a drop-down, so the address field is
+  in view, opening **Advanced options** scrolls them into view, the welcome page
+  puts its buttons right below the heading, and the selected connection's card
+  puts Connect right below the name when the whole card does not fit. The error
+  page's buttons come right after the likely fix, before the technical details,
+  and wrap instead of widening the page.
+* Full screen: the floating bar has **Release** while the console is captured (the
+  way back when the Right Ctrl release is switched off), and Quit stays in the top
+  right corner the whole time. The bar and the capture note fit small screens; a
+  long server name elides instead of pushing the release instruction off screen.
+  Without a console (a closed connection selected, connecting, failed, or after
+  losing the connection) full screen keeps the header with Quit and the
+  connection list, instead of an empty page without a way out.
+* **Disconnect all** (Ctrl+Shift+D) asks first and names the consoles when more
+  than one is open; confirming closes exactly those sessions.
+* Settings → AI agents says when the session runs without the agent socket
+  (`--no-agent-api`, `--self-test`), and that the switch then applies from the
+  next start.
+* The setup ring stands still when the system turns animations off.
 
 ### Added
+* Taking control without a mouse: Tab to the capture chip in the status strip
+  (*Click the screen to control the server*), then Enter or Space. The menu key or
+  Shift+F10 opens the context menu of the current connection, and Tab into the list
+  lands on a row. `oldipmi --self-test` fails when either does not work.
+* Released, a tap on **Right Ctrl** gives keyboard and mouse back to the server
+  (while nothing else has the keyboard focus), so full screen needs no mouse to
+  take control again; a short note there says so. `oldipmi --self-test` also fails
+  when full screen does not show Quit, with or without a console.
 * The screenshot tour (`--self-test --screenshots`) covers the captured console,
-  full screen, delete confirmation, password prompt and advanced options, waits for
+  full screen (captured, released and without a console), delete confirmation,
+  password prompt, advanced options and the Disconnect all confirmation, waits for
   each state instead of fixed delays, and fails on any QML warning from OldIPMI's
-  own files.
+  own files or when confirming Disconnect all leaves a console open.
 
 ### Fixed
+* With the keyboard focus in the connection list, saving a profile or a console
+  opening or closing no longer selects the first connection and shows its console.
+  `oldipmi --self-test` checks this.
 * The remote screen no longer zooms out and back in when the pointer enters and
   leaves the window (focus follows mouse) or when the console takes or releases the
   keyboard. The status bar's Release button, which is taller than the status text,

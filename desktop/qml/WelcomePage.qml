@@ -12,6 +12,13 @@ Item {
     signal newRequested()
     signal demoRequested()
 
+    // A short page (large text on a small screen): a small picture and heading, and
+    // the buttons right below the heading, so the first step needs no scrolling.
+    readonly property bool compact: flick.height < Theme.gu * 20
+    readonly property string intro: hasHosts
+        ? "Choose a BMC in the list, or add a new one."
+        : "Add a server by its BMC address and account. OldIPMI logs in, finds the remote console and opens it right here. No Java, no browser plug-in."
+
     Flickable {
         id: flick
         anchors.fill: parent
@@ -29,7 +36,8 @@ Item {
             spacing: Math.round(Theme.gu * 1)
 
             Image {
-                readonly property real side: Math.round(Math.min(page.hasHosts ? Theme.gu * 6 : Theme.gu * 12, flick.height * 0.3))
+                readonly property real side: page.compact ? Math.round(Theme.gu * 3)
+                                                          : Math.round(Math.min(page.hasHosts ? Theme.gu * 6 : Theme.gu * 12, flick.height * 0.3))
                 Layout.preferredWidth: side
                 Layout.preferredHeight: side
                 Layout.alignment: Qt.AlignHCenter
@@ -42,23 +50,21 @@ Item {
             }
             QQC2.Label {
                 text: page.hasHosts ? "Select a connection" : "Connect your first BMC"
-                font.pointSize: page.hasHosts ? Theme.display * 0.85 : Theme.hero
+                font.pointSize: page.hasHosts || page.compact ? Theme.display * 0.85 : Theme.hero
                 font.weight: Font.Bold
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
                 Accessible.role: Accessible.Heading
             }
-            QQC2.Label {
-                text: page.hasHosts
-                      ? "Choose a BMC in the list, or add a new one."
-                      : "Add a server by its BMC address and account. OldIPMI logs in, finds the remote console and opens it right here. No Java, no browser plug-in."
+            component Intro: QQC2.Label {
                 font.pointSize: Theme.fontBase * 1.08
                 color: Theme.mix(Theme.text, Theme.window, 0.15)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
             }
+            Intro { visible: !page.compact; text: page.intro }
             Flow {
                 spacing: Kirigami.Units.largeSpacing
                 Layout.alignment: Qt.AlignHCenter
@@ -80,6 +86,7 @@ Item {
                     onClicked: page.demoRequested()
                 }
             }
+            Intro { visible: page.compact; text: page.intro }
             // The console families OldIPMI speaks.
             Flow {
                 visible: !page.hasHosts

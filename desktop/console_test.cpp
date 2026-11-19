@@ -98,6 +98,47 @@ private slots:
     key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
     key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
     QVERIFY(view->captured());
+    view->release();
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(!view->captured());              // and does not take control either
+  }
+  void loneRightCtrlTakesControlAgain() {
+    QSignalSpy keys(view, &Console::keyInput);
+    view->capture();
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(!view->captured());
+    // The focus is back with the window: the next tap gives keyboard and mouse
+    // to the server again, without a mouse (full screen has no status strip).
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(view->captured());
+    QCOMPARE(keys.count(), 2);                // the capturing tap is not forwarded
+  }
+  void rightCtrlChordDoesNotTakeControl() {
+    view->capture();
+    view->release();
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
+    key(QEvent::KeyPress, Qt::Key_C, 46 + 8);
+    key(QEvent::KeyRelease, Qt::Key_C, 46 + 8);
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(!view->captured());
+    key(QEvent::KeyPress, Qt::Key_Control, 29 + 8); // Left Ctrl is an ordinary key
+    key(QEvent::KeyRelease, Qt::Key_Control, 29 + 8);
+    QVERIFY(!view->captured());
+  }
+  void rightCtrlLeavesOtherFocusAlone() {
+    // A field or list with the focus keeps the key: no capture from there.
+    auto *field = new QQuickItem(window->contentItem());
+    view->capture();
+    view->release();
+    field->forceActiveFocus();
+    QVERIFY(field->hasActiveFocus());
+    key(QEvent::KeyPress, Qt::Key_Control, 97 + 8);
+    key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
+    QVERIFY(!view->captured());
+    QVERIFY(field->hasActiveFocus());
   }
   void losingTheFrameReleasesInput() {
     QSignalSpy released(view, &Console::releaseInput);

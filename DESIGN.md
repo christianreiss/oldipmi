@@ -64,14 +64,16 @@ no window; everything else is derived from them:
   or its family picture until the first frame, with its state as dot *and* text) and
   a *Connections* group (family picture, name, address). The filter field connects:
   Enter opens the first match, or *New connection* to what was typed. Context menu
-  (Show/Connect, Disconnect, Edit, Duplicate, Delete), keyboard (Enter connects, F2
-  edits, Del deletes). Any number of consoles can be open at once; selecting an open
-  row shows its console while the others keep running, and connecting an open
-  profile again just shows it. Keyboard and mouse always go to the console in front.
-  The footer holds Settings and Disconnect all.
+  (Show/Connect, Disconnect, Edit, Duplicate, Delete; the menu key or Shift+F10 opens
+  it for the current row), keyboard (Tab lands on a row, Up/Down select, Enter
+  connects, F2 edits, Del deletes). Rebuilding the list (a console opens or closes, a
+  profile is saved) keeps the selection. Any number of consoles can be open at once;
+  selecting an open row shows its console while the others keep running, and
+  connecting an open profile again just shows it. Keyboard and mouse always go to the
+  console in front. The footer holds Settings and Disconnect all.
 * **Header** (right): sidebar toggle, the shown console's family, name and address,
   the console actions, Disconnect and Quit. Quit is always visible, also in full
-  screen (floating bar).
+  screen (its own button in the top right corner).
 * **Console pane** has exactly one page at a time:
   * *Welcome*: first run (New connection…, Try the demo console, the supported
     families) or "Select a connection".
@@ -82,22 +84,28 @@ no window; everything else is derived from them:
     elapsed time, the three stages (Logging in → Discovering console → Connecting)
     and Cancel.
   * *Failure*: "Step *n* of 3 · *stage*", a title naming what failed, the likely fix,
-    the technical details (selectable, Copy), **Try again** and Edit connection….
+    **Try again** and Edit connection…, then the technical details (selectable,
+    Copy).
   * *Console*: the remote screen on the stage, an accent ring outside the picture
     while it has keyboard and mouse, and the status strip.
 * **Console information** docks next to the stage when the pane has room for both
   (≥ 40 `gu`); in a narrower pane it floats over the stage with its own close button.
-* **Full screen** hides header and sidebar; a floating bar (shown for a moment on
-  entry, then when the pointer reaches the top edge) holds identity, Send key, ISO,
-  Power, fit, leave full screen, Disconnect and Quit. Capturing shows a short note how
-  to release.
+* **Full screen** hides header and sidebar while a console is shown; a floating bar
+  (shown for a moment on entry, then when the pointer reaches the top edge) holds
+  identity, Release while captured, Send key, ISO, Power, fit, leave full screen and
+  Disconnect. Quit keeps its own button in the top right corner the whole time.
+  Capturing shows a short note how to release (Right Ctrl, or the bar when that is
+  switched off), releasing one how to take control again (Right Ctrl or a click).
+  Without a console (a closed connection selected, connecting, failed, or after
+  losing the connection) header and sidebar stay, with Leave full screen next to
+  Quit.
 * **Dialogs** share one frame (`AppDialog.qml`): heading, optional icon tile tinted
   by the tone, content, and a footer band with a hint on the left and the buttons on
   the right, the verb rightmost. *New / Edit connection* has console type tiles
-  (arrow keys move between them), address, name, username and password, a KWallet
-  switch, and collapsed *Advanced options* (console mode, JNLP override, the three
-  security exceptions with a warning, client certificate). Ctrl+Enter saves and
-  connects.
+  (arrow keys move between them; a drop-down in a short window), address, name,
+  username and password, a KWallet switch, and collapsed *Advanced options* (console
+  mode, JNLP override, the three security exceptions with a warning, client
+  certificate). Ctrl+Enter saves and connects.
 * **Settings** use the Kirigami Addons configuration window: General, AI agents
   (MCP), About.
 
@@ -109,20 +117,39 @@ shows icons only and the information panel floats, and what still does not fit
 moves to the toolbar's overflow menu. The status strip keeps, in this order, the
 capture state, Release, how to release, and the resolution, and leaves out what
 does not fit whole. A list narrower than 14 `gu` shows the family picture instead
-of the live miniature, so names keep their room.
+of the live miniature, so names keep their room. Below 34 `gu` the full-screen bar
+leaves out the family picture, shows Disconnect as an icon and starts at the left
+edge instead of the centre; the name gives way first. The capture note keeps clear
+of the Quit corner; when it does not fit on one line, the release instruction takes
+its own line and the server name elides first. In a window lower than 24 `gu` the
+connection dialog shows the console type as a drop-down and leaves out its
+explanations, so the address field is in view; opening *Advanced options* scrolls
+them into view. A welcome page lower than 20 `gu` has a small picture and heading
+and its buttons right below the heading; a failure page that low leaves out its
+picture. When the selected connection's whole card does not fit, the card leaves
+out its picture and puts Connect right below the name and address, before the
+details. Buttons on a page that do not fit side by side wrap instead of widening
+it.
 
 ## Rules
 
 * One primary action per state (Connect, Try again, New connection…, Save and
   Connect).
-* Destructive or interrupting actions (power, delete) always confirm, naming the
-  server and the consequence; the confirming button carries the verb.
+* Destructive or interrupting actions (power, delete, Disconnect all with more
+  than one console open) always confirm, naming the servers and the consequence;
+  the confirming button carries the verb and acts on exactly what was named.
 * State is never colour alone: emblem + text in the list, chips and status strip.
 * The remote screen is the content: nothing is drawn over the picture except the
   floating full-screen bar, its capture note and the console information the user
   opened. The accent marks the primary action, the selection and keyboard capture.
 * While the console is captured, every key goes to the server; app shortcuts do not
-  fire. Release: tap Right Ctrl (configurable) or the Release button.
+  fire. Release: tap Right Ctrl (configurable) or the Release button (strip or
+  full-screen bar). Released, the next lone Right Ctrl tap takes control again
+  while nothing else has the keyboard focus (right after a release, also in full
+  screen); that tap is not sent. Without a mouse, the capture chip in the status
+  strip also takes control: Tab to it, then Enter or Space.
+* Continuous motion (the setup ring) stands still when the system turns animations
+  off; the stage names and the elapsed time carry the progress.
 * The picture never moves or resizes when capture, focus or the status strip
   change: the strip has one fixed height and its Release button is always laid out.
 * Text has at least 4.5:1 contrast on its surface, on light and dark schemes.
@@ -133,9 +160,19 @@ of the live miniature, so names keep their room.
 `oldipmi --self-test --screenshots DIR [--size WxH]` renders every state offscreen
 (no BMC contact) for review: selected connection, new and edit dialogs, settings,
 setup, failure, console with information, power confirmation, a second console,
-captured, full screen, delete confirmation, password prompt, advanced options and
-the empty list. Each step waits until its state is reached, and the self-test
-fails (exit 6) on any QML warning from OldIPMI's own files. `slop scan desktop`
+captured, full screen (captured, released, and without a console), delete
+confirmation, password prompt, advanced options, the Disconnect all confirmation
+and the empty list. Each step waits until its
+state is reached. The self-test, with or without the tour, fails on any QML
+warning from OldIPMI's own files (exit 6). The tour fails with exit 5 when
+confirming Disconnect all leaves a console open; without `--screenshots` (CTest
+`desktop_smoke`) the self-test fails with exit 5 when the console view moves or
+resizes on capture, release or window activation, when Enter on the capture chip
+does not capture, when the focused connection list has no current row, when a list
+rebuild changes the selection, when the menu key does not open the row's context
+menu, or when full screen does not show Quit, with or without a console. The
+console unit tests (`console_tests`) cover the capture rules, the Right Ctrl tap
+included. `slop scan desktop`
 checks the QML/C++ sources; `slop native --config tools/slop/native.json`
 captures the state matrix in light and dark, two window sizes, scale 1 and 2 and
 text scale 1 and 1.5, and `slop measure` checks text contrast on those PNGs. The

@@ -10,9 +10,12 @@
 #include <algorithm>
 #include <cstring>
 #include <QApplication>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QKeyEvent>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
@@ -97,6 +100,7 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   // A private address with no host behind it: the login stays pending until cancelled.
   QVariantMap pending{{"name", "Lab server"}, {"host", "10.255.255.1"}, {"family", "ami"},
                       {"username", "ADMIN"}, {"remember", false}};
+  auto failed = std::make_shared<bool>(false); // a check along the tour failed: exit 5
   auto steps = std::make_shared<QList<Step>>(QList<Step>{
       {"01-selected", [] {}, 600},
       {"02-new-connection", [=] { call("newConnection"); }, 700, [=] { return popupOpen("connectionDialog"); }},
@@ -142,6 +146,13 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
            if (auto *c = console()) { c->release(); window->requestActivate(); c->capture(); }
          });
        }, 800, [=] { auto *c = console(); return window->visibility() == QWindow::FullScreen && c && c->captured(); }},
+      // Released in full screen: the note says how to take control again.
+      {"10b1-fullscreen-released", [=] { if (auto *c = console()) c->release(); },
+       700, [=] { auto *c = console(); return window->visibility() == QWindow::FullScreen && c && !c->captured(); }},
+      // Full screen without a console (a closed connection selected, as after
+      // losing one): the header with Quit and the connection list stay.
+      {"10b2-fullscreen-idle", [=, &controller] { call("loadHost", controller.hosts().first()); },
+       700, [=, &controller] { return window->visibility() == QWindow::FullScreen && !controller.hasFrame(); }},
       {"10c-delete-confirm", [=, &controller] {
          if (auto *c = console()) c->release();
          if (window->visibility() == QWindow::FullScreen)
@@ -155,13 +166,29 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
            QMetaObject::invokeMethod(d, "open");
          }
        }, 700, [=] { return popupOpen("credentialsDialog"); }},
-      // Editing a profile with security exceptions opens the advanced options.
+      // Editing a profile with security exceptions opens the advanced options;
+      // scrolled to them, so a small window shows the controls themselves.
       {"10e-advanced", [=, &controller] {
          closePopups();
          for (const auto &h : controller.hosts())
            if (h.toMap().value("legacyTLS").toBool()) { call("editConnection", h); break; }
+         QTimer::singleShot(300, popup("connectionDialog"), [=] {
+           QMetaObject::invokeMethod(popup("connectionDialog"), "revealAdvanced");
+         });
        }, 700, [=] { return popupOpen("connectionDialog"); }},
+      // Two consoles are open, so Disconnect all asks first and names them.
+      {"10f-disconnect-all", [=] {
+         closePopups();
+         call("disconnectAll");
+       }, 700, [=] { return popupOpen("disconnectAllDialog"); }},
+      // Confirms the Disconnect all dialog: it closes exactly the consoles it names.
       {"11-empty", [=, &controller] {
+         if (auto *confirm = popup("disconnectAllConfirm"))
+           QMetaObject::invokeMethod(confirm, "clicked");
+         if (controller.openCount()) {
+           fprintf(stderr, "Screenshot tour: Disconnect all left %d console(s) open\n", controller.openCount());
+           *failed = true;
+         }
          closePopups();
          controller.disconnectAll();
          for (const auto &h : controller.hosts()) controller.removeHost(h.toMap().value("id").toString());
@@ -189,7 +216,7 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
         if (auto *qw = qobject_cast<QQuickWindow *>(w); qw && qw->isVisible())
           qw->grabWindow().save(dir + "/" + done.name + (n++ ? "-" + QString::number(n) : "") + ".png");
     }
-    if (*index >= steps->size()) { app.exit(qmlWarningsResult()); return; }
+    if (*index >= steps->size()) { app.exit(*failed ? 5 : qmlWarningsResult()); return; }
     auto &step = (*steps)[(*index)++];
     step.act();
     QTimer::singleShot(qMin(300, step.wait / 2), &app, fit);
@@ -233,6 +260,129 @@ static QString consoleSizeChanges(QQuickWindow *w, Console *console) {
   console->release();
   check("release", false);
   return changes.join("; ");
+}
+// Runs the event loop (timers, deferred calls, frames) until `ready` holds or
+// `ms` pass: list models, delegates and menus settle a few frames later.
+static bool waitFor(QQuickWindow *w, const std::function<bool()> &ready, int ms = 3000) {
+  QElapsedTimer clock;
+  clock.start();
+  while (!ready()) {
+    if (clock.hasExpired(ms))
+      return false;
+    QEventLoop loop;
+    QTimer::singleShot(16, &loop, &QEventLoop::quit);
+    loop.exec();
+    w->grabWindow(); // polishes layouts and renders one frame
+  }
+  return true;
+}
+// Without a mouse: Tab reaches the capture chip of the status strip, and Enter
+// there gives keyboard and mouse to the server. In the connection list the focus
+// lands on a row, rebuilding the list keeps the selected row, and the menu key
+// opens the row's context menu. Returns what failed, or "".
+static QString keyboardFails(QQuickWindow *w, Console *console, Controller &controller) {
+  auto press = [w](Qt::Key key) {
+    QKeyEvent event(QEvent::KeyPress, key, Qt::NoModifier);
+    QCoreApplication::sendEvent(w, &event);
+  };
+  auto *chip = w->findChild<QQuickItem *>("captureButton");
+  if (!chip)
+    return "no capture chip in the status strip";
+  console->release();
+  w->requestActivate();
+  chip->forceActiveFocus(Qt::TabFocusReason);
+  if (!waitFor(w, [chip] { return chip->hasActiveFocus(); }))
+    return "the capture chip does not take the keyboard focus";
+  press(Qt::Key_Return);
+  const bool captured = console->captured();
+  console->release();
+  if (!captured)
+    return "Enter on the capture chip does not capture the console";
+
+  auto *list = w->findChild<QQuickItem *>("connectionList");
+  if (!list)
+    return "no connection list";
+  // Examples for the check, removed again; the test-mode profiles may be fewer
+  // than two (the screenshot tour removes them).
+  QStringList added;
+  auto add = [&](int n) {
+    added << controller.saveHost({{"name", QString("Keyboard check %1").arg(n)},
+                                  {"host", QString("keys-%1.example.net").arg(n)}, {"family", "demo"}}, {}, false)
+                 .value("id").toString();
+  };
+  for (int i = controller.hosts().size(); i < 2; ++i)
+    add(i + 1);
+  auto index = [list] { return list->property("currentIndex").toInt(); };
+  auto selected = [w] { return w->property("selectedId").toString(); };
+  const QString why = [&]() -> QString {
+    if (!waitFor(w, [list] { return list->property("count").toInt() >= 2; }))
+      return "the connection list does not show the profiles";
+    list->forceActiveFocus(Qt::TabFocusReason);
+    if (!waitFor(w, [&] { return list->hasActiveFocus() && index() >= 0; }))
+      return list->hasActiveFocus() ? "the focused connection list has no current row"
+                                    : "the connection list does not take the keyboard focus";
+    // A row other than the first: ListView resets to the first row on every model change.
+    const int last = list->property("count").toInt() - 1;
+    list->setProperty("currentIndex", last);
+    QString chosen;
+    if (!waitFor(w, [&] { chosen = selected(); return index() == last && !chosen.isEmpty(); }))
+      return "moving through the connection list does not select the row";
+    // Saving a profile rebuilds the list while it has the focus.
+    add(9);
+    waitFor(w, [&] { return list->property("count").toInt() == last + 2; }, 1000);
+    waitFor(w, [] { return false; }, 200);
+    if (selected() != chosen)
+      return "rebuilding the connection list changes the selected connection";
+    press(Qt::Key_Menu);
+    // Delegates are not QObject children of the list: walk the item tree and
+    // look at the objects each item holds.
+    QObject *menu = nullptr;
+    std::function<void(QQuickItem *)> find = [&](QQuickItem *item) {
+      for (auto *o : item->children())
+        if (o->inherits("QQuickMenu") && o->property("visible").toBool())
+          menu = o;
+      for (auto *child : item->childItems())
+        find(child);
+    };
+    waitFor(w, [&] { find(list); return menu != nullptr; }, 1000);
+    if (!menu)
+      return "the menu key does not open the connection's context menu";
+    QMetaObject::invokeMethod(menu, "close");
+    return {};
+  }();
+  for (const QString &id : added)
+    controller.removeHost(id);
+  waitFor(w, [] { return false; }, 100);
+  return why;
+}
+// Quit stays visible in full screen: in its corner while a console is shown, and
+// in the header, with the connection list, when there is none (as after losing
+// the connection). Returns what failed, or "".
+static QString fullScreenFails(QQuickWindow *w, Controller &controller) {
+  auto *corner = w->findChild<QQuickItem *>("quitCorner");
+  auto *header = w->findChild<QQuickItem *>("headerQuitButton");
+  if (!corner || !header)
+    return "no Quit button";
+  // A console shown (the keyboard check ends with a closed connection selected).
+  controller.preview();
+  if (!waitFor(w, [&] { return controller.hasFrame(); }))
+    return "the preview console does not show";
+  QMetaObject::invokeMethod(w, "toggleFullscreen");
+  const QString why = [&]() -> QString {
+    if (!waitFor(w, [&] { return w->visibility() == QWindow::FullScreen && corner->isVisible(); }))
+      return QString("full screen with a console does not show Quit in the corner "
+                     "(window %1, console %2, corner %3)")
+          .arg(w->visibility() == QWindow::FullScreen ? "full screen" : "not full screen",
+               controller.hasFrame() ? "shown" : "not shown", corner->isVisible() ? "visible" : "hidden");
+    controller.disconnectAll();
+    if (!waitFor(w, [&] { return !controller.hasFrame() && header->isVisible(); }))
+      return "full screen without a console does not show Quit";
+    return {};
+  }();
+  if (w->visibility() == QWindow::FullScreen)
+    QMetaObject::invokeMethod(w, "toggleFullscreen");
+  waitFor(w, [w] { return w->visibility() != QWindow::FullScreen; }, 1000);
+  return why;
 }
 int main(int argc, char **argv) {
   // Test mode must be on before QApplication: the platform theme reads
@@ -280,6 +430,9 @@ int main(int argc, char **argv) {
   LocalizedContext i18n;
   engine.rootContext()->setContextObject(&i18n);
   engine.rootContext()->setContextProperty("controller", &controller);
+  // False for the whole session with --no-agent-api or --self-test: Settings then
+  // says that the agent switch applies from the next start.
+  engine.rootContext()->setContextProperty("agentAllowed", agentAllowed);
   engine.rootContext()->setContextProperty("agent", &agent);
   engine.rootContext()->setContextProperty("settings", &settings);
   engine.load(QUrl("qrc:/desktop/qml/Main.qml"));
@@ -386,6 +539,12 @@ int main(int argc, char **argv) {
         app.exit(3);
       else if (QString why = consoleSizeChanges(w, console); !why.isEmpty()) {
         fprintf(stderr, "Console view changed size: %s\n", qPrintable(why));
+        app.exit(5);
+      } else if (QString why = keyboardFails(w, console, controller); !why.isEmpty()) {
+        fprintf(stderr, "Keyboard: %s\n", qPrintable(why));
+        app.exit(5);
+      } else if (QString why = fullScreenFails(w, controller); !why.isEmpty()) {
+        fprintf(stderr, "Full screen: %s\n", qPrintable(why));
         app.exit(5);
       } else {
         QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");

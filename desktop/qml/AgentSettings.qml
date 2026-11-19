@@ -17,18 +17,20 @@ FormCard.FormCardPage {
         Layout.bottomMargin: 0
         visible: true
         type: agent.listening ? Kirigami.MessageType.Information : Kirigami.MessageType.Warning
-        text: agent.listening
-            ? "Agents can control the open console: screen, keyboard, mouse, power and ISO images. There is no authentication; any program running as your user can use the socket."
-            : settings.agentApiEnabled
-              ? (agent.errorString || "The agent socket is off for this session (started with --no-agent-api or --self-test).")
-              : "Agent control is off."
+        text: !agentAllowed
+            ? "The agent socket is off for this session (started with --no-agent-api or --self-test)."
+            : agent.listening
+              ? "Agents can control the open console: screen, keyboard, mouse, power and ISO images. There is no authentication; any program running as your user can use the socket."
+              : settings.agentApiEnabled
+                ? (agent.errorString || "The agent socket is not open.")
+                : "Agent control is off."
     }
 
     FormCard.FormHeader { title: "Control socket" }
     FormCard.FormCard {
         FormCard.FormSwitchDelegate {
             text: "Allow AI agents to control OldIPMI"
-            description: "Takes effect immediately."
+            description: agentAllowed ? "Takes effect immediately." : "Applies from the next start; this session runs without the agent socket."
             checked: settings.agentApiEnabled
             onToggled: settings.agentApiEnabled = checked
         }

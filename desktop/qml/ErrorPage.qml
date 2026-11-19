@@ -18,6 +18,9 @@ Rectangle {
     readonly property int stage: Families.stageIndex(errorStage)
     readonly property string hint: Families.errorHint(message)
     readonly property string detail: Families.errorDetail(message)
+    // A short page (large text on a small screen): no picture, a smaller title and
+    // tighter spacing, so both buttons are in view.
+    readonly property bool compact: flick.height < Theme.gu * 20
 
     color: Theme.card
     radius: Theme.radiusLarge
@@ -39,9 +42,10 @@ Rectangle {
             width: Math.min(flick.width - Theme.gu * 2, Theme.gu * 34)
             x: Math.round((flick.width - width) / 2)
             y: Math.max(Theme.gu, Math.round((flick.contentHeight - implicitHeight) / 2))
-            spacing: Math.round(Theme.gu * 0.9)
+            spacing: Math.round(Theme.gu * (page.compact ? 0.6 : 0.9))
 
             Image {
+                visible: !page.compact
                 readonly property real side: Math.round(Math.min(Theme.gu * 8.3, flick.height * 0.26))
                 Layout.preferredWidth: side
                 Layout.preferredHeight: side
@@ -61,7 +65,7 @@ Rectangle {
             }
             QQC2.Label {
                 text: Families.failedTitle(page.errorStage)
-                font.pointSize: Theme.display
+                font.pointSize: page.compact ? Theme.display * 0.85 : Theme.display
                 font.weight: Font.Bold
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
@@ -75,6 +79,29 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
+            }
+
+            // Right after the likely fix, so they are in view on a short page; they
+            // wrap instead of widening the page when they do not fit side by side.
+            Flow {
+                spacing: Kirigami.Units.largeSpacing
+                Layout.alignment: Qt.AlignHCenter
+                Layout.maximumWidth: content.width
+                Layout.topMargin: Math.round(Theme.gu * 0.3)
+                ActionButton {
+                    tone: "primary"
+                    large: true
+                    text: "Try again"
+                    icon.name: "view-refresh"
+                    onClicked: page.retryRequested()
+                }
+                ActionButton {
+                    tone: "secondary"
+                    large: true
+                    text: "Edit connection…"
+                    icon.name: "document-edit"
+                    onClicked: page.editRequested()
+                }
             }
 
             // Technical details, selectable and copyable.
@@ -132,28 +159,6 @@ Rectangle {
                         Layout.margins: Math.round(Theme.gu * 0.8)
                         Accessible.name: "Technical details"
                     }
-                }
-            }
-
-            // Wraps instead of widening the page when both buttons do not fit side by side.
-            Flow {
-                spacing: Kirigami.Units.largeSpacing
-                Layout.alignment: Qt.AlignHCenter
-                Layout.maximumWidth: content.width
-                Layout.topMargin: Math.round(Theme.gu * 0.3)
-                ActionButton {
-                    tone: "primary"
-                    large: true
-                    text: "Try again"
-                    icon.name: "view-refresh"
-                    onClicked: page.retryRequested()
-                }
-                ActionButton {
-                    tone: "secondary"
-                    large: true
-                    text: "Edit connection…"
-                    icon.name: "document-edit"
-                    onClicked: page.editRequested()
                 }
             }
         }

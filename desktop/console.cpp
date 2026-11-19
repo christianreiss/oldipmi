@@ -12,6 +12,15 @@ Console::Console(QQuickItem *p) : QQuickPaintedItem(p) {
   setFlag(ItemAcceptsInputMethod, false);
   setClip(true);
   setAntialiasing(false);
+  connect(this, &QQuickItem::windowChanged, this, &Console::watch);
+  watch(window());
+}
+void Console::watch(QQuickWindow *w) {
+  if (m_watched)
+    m_watched->removeEventFilter(this);
+  m_watched = w ? w->contentItem() : nullptr;
+  if (m_watched)
+    m_watched->installEventFilter(this);
 }
 void Console::setFrame(QImage im) {
   bool resized = im.size() != m_image.size();
@@ -44,7 +53,40 @@ bool Console::event(QEvent *e) {
   }
   return QQuickPaintedItem::event(e);
 }
+// Released, a lone tap of Right Ctrl gives keyboard and mouse to the server
+// again, like the host key of a virtual machine. Only while nothing else has the
+// keyboard: release() hands the focus to the window's content item, so the tap
+// works right after a release, also in full screen where the status strip and its
+// button are hidden; dialogs, menus and fields keep the key. The tap itself is not
+// forwarded. Key events reach the content item only while it (or nothing below
+// it) has the focus, also the ShortcutOverride of a chord whose press a shortcut
+// then takes.
+bool Console::eventFilter(QObject *o, QEvent *e) {
+  const auto type = e->type();
+  if (o != m_watched || hasActiveFocus() ||
+      (type != QEvent::KeyPress && type != QEvent::KeyRelease && type != QEvent::ShortcutOverride))
+    return QQuickPaintedItem::eventFilter(o, e);
+  auto *k = static_cast<QKeyEvent *>(e);
+  if (k->isAutoRepeat())
+    return false;
+  const bool rightCtrl = usage(k) == 228;
+  if (type != QEvent::KeyRelease || !rightCtrl) {
+    if (!rightCtrl)
+      m_idleTap = false; // another key: a chord, not a tap
+    else if (type == QEvent::KeyPress)
+      m_idleTap = !(k->modifiers() & (Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier));
+    return false;
+  }
+  const bool tap = m_idleTap;
+  m_idleTap = false;
+  if (!tap || !m_rightCtrlReleases || m_image.isNull() || !isVisible() || !window() ||
+      window()->activeFocusItem() != m_watched)
+    return false;
+  capture();
+  return true;
+}
 void Console::focusInEvent(QFocusEvent *e) {
+  m_idleTap = false;
   update();
   emit capturedChanged();
   QQuickPaintedItem::focusInEvent(e);
@@ -184,6 +226,7 @@ void Console::keyReleaseEvent(QKeyEvent *e) {
 void Console::focusOutEvent(QFocusEvent *e) {
   m_pressed.clear();
   m_lonePress = false;
+  m_idleTap = false;
   emit releaseInput();
   emit capturedChanged();
   update();

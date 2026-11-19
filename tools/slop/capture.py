@@ -21,8 +21,9 @@ files = {
     "settings-agents": "05-settings-agents-2", "connecting": "06-connecting",
     "error": "07-error", "console": "08-console", "power-confirm": "09-power-confirm",
     "switch": "10-switch", "captured": "10a-captured", "fullscreen": "10b-fullscreen",
+    "fullscreen-released": "10b1-fullscreen-released", "fullscreen-idle": "10b2-fullscreen-idle",
     "delete-confirm": "10c-delete-confirm", "password": "10d-password",
-    "advanced": "10e-advanced", "empty": "11-empty",
+    "advanced": "10e-advanced", "disconnect-all": "10f-disconnect-all", "empty": "11-empty",
 }
 schemes = {"light": "BreezeLight", "dark": "BreezeDark"}
 kdeglobals = Path.home() / ".qttest/config/kdeglobals"

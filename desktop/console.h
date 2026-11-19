@@ -1,5 +1,6 @@
 #pragma once
 #include <QImage>
+#include <QPointer>
 #include <QQuickPaintedItem>
 #include <QSet>
 class Console : public QQuickPaintedItem {
@@ -7,7 +8,8 @@ class Console : public QQuickPaintedItem {
   Q_PROPERTY(bool fit READ fit WRITE setFit NOTIFY fitChanged)
   // True while keyboard and pointer go to the remote host.
   Q_PROPERTY(bool captured READ captured NOTIFY capturedChanged)
-  // A lone tap of Right Ctrl releases the capture (the tap is still forwarded).
+  // A lone tap of Right Ctrl releases the capture (the tap is still forwarded);
+  // released, the next tap takes control again (see eventFilter()).
   Q_PROPERTY(bool rightCtrlReleases MEMBER m_rightCtrlReleases NOTIFY capturedChanged)
   Q_PROPERTY(QSize frameSize READ frameSize NOTIFY frameSizeChanged)
   // Where the remote screen is drawn, in item coordinates. The letterbox around it
@@ -43,6 +45,7 @@ signals:
 
 protected:
   bool event(QEvent *) override;
+  bool eventFilter(QObject *, QEvent *) override;
   void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
   void focusInEvent(QFocusEvent *) override;
   void keyPressEvent(QKeyEvent *) override;
@@ -57,7 +60,10 @@ protected:
 private:
   QImage m_image;
   bool m_fit = true, m_rightCtrlReleases = true, m_lonePress = false, m_swallow = false;
+  bool m_idleTap = false; // Right Ctrl went down alone while released
   QSet<int> m_pressed;
+  QPointer<QQuickItem> m_watched; // the window's content item, which has the focus after release()
+  void watch(QQuickWindow *);
   void pointer(QPointF, int, int);
   int usage(QKeyEvent *) const;
 };

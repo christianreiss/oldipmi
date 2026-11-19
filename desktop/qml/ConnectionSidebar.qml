@@ -18,6 +18,7 @@ Rectangle {
     signal deleteRequested(var profile)
     signal newRequested(string host)
     signal settingsRequested(string module)
+    signal disconnectAllRequested()
     signal quitRequested()
 
     property alias searchText: search.text
@@ -30,6 +31,9 @@ Rectangle {
     // open consoles changes; controller.changed fires for every pointer ack.
     readonly property string openKey: Object.keys(sess).filter(id => isOpen(id)).sort().join("\n")
     property var rows: []
+    // True while the rows are replaced: ListView then jumps to the first row, which
+    // must not select it.
+    property bool replacingRows: false
     function rebuild() {
         const q = search.text.trim().toLowerCase();
         const byName = (a, b) => (a.name || a.host).localeCompare(b.name || b.host, undefined, {sensitivity: "base"});
@@ -38,7 +42,9 @@ Rectangle {
             .sort(byName);
         const open = hits.filter(p => isOpen(p.id)).map(p => ({profile: p, open: true}));
         const saved = hits.filter(p => !isOpen(p.id)).map(p => ({profile: p, open: false}));
+        replacingRows = true;
         rows = open.concat(saved);
+        replacingRows = false;
     }
     readonly property int openRows: rows.filter(r => r.open).length
     // Never synchronously from a row's own handler: rebuilding destroys the row.
@@ -97,7 +103,7 @@ Rectangle {
                         text: "Disconnect all"
                         icon.name: "network-disconnect"
                         enabled: controller.openCount > 0
-                        onTriggered: controller.disconnectAll()
+                        onTriggered: root.disconnectAllRequested()
                     }
                     QQC2.MenuSeparator {}
                     QQC2.MenuItem { text: "About OldIPMI"; icon.name: "help-about"; onTriggered: root.settingsRequested("about") }
@@ -165,6 +171,7 @@ Rectangle {
 
             ListView {
                 id: list
+                objectName: "connectionList"
                 model: root.rows
                 clip: true
                 keyNavigationEnabled: true
@@ -185,9 +192,17 @@ Rectangle {
                 Keys.onDeletePressed: if (currentItem && !currentItem.active) root.deleteRequested(currentItem.profile)
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_F2 && currentItem) { root.editRequested(currentItem.profile); event.accepted = true }
+                    // The menu key or Shift+F10: the context menu of the current row.
+                    else if ((event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier)) && currentItem) {
+                        currentItem.openMenu();
+                        event.accepted = true;
+                    }
                 }
                 // Only keyboard navigation selects; model resets must not change the selection.
-                onCurrentIndexChanged: if (activeFocus && currentItem && currentItem.profile.id !== root.selectedId) root.selected(currentItem.profile.id)
+                onCurrentIndexChanged: if (!root.replacingRows && activeFocus && currentItem && currentItem.profile.id !== root.selectedId) root.selected(currentItem.profile.id)
+                // Tab into a list without a current row lands on the first one, so the
+                // focus ring shows where the keyboard is (clicks set the row first).
+                onActiveFocusChanged: if (activeFocus && currentIndex < 0 && count > 0) currentIndex = 0
 
                 delegate: ColumnLayout {
                     id: entry
@@ -198,6 +213,8 @@ Rectangle {
                     readonly property var sess: root.sess[profile.id] || ({state: "disconnected", errorStage: ""})
                     readonly property bool active: sess.state !== "disconnected"
                     readonly property bool failed: !active && (sess.errorStage || "") !== ""
+                    // The context menu from the keyboard, below the row instead of at the pointer.
+                    function openMenu() { contextMenu.popup(row, Kirigami.Units.largeSpacing * 2, row.height) }
                     // A live miniature only where the list has room for it next to the name.
                     readonly property bool thumbnail: open && root.width >= Theme.gu * 14
                     readonly property bool current: ListView.isCurrentItem
@@ -492,7 +509,7 @@ Rectangle {
                           : controller.openCount === 1 ? "Close the open console" : "No console is open") + " (Ctrl+Shift+D)"
                 // Only its icon in a narrow list, rather than a clipped label.
                 display: root.width >= Theme.gu * 15 ? QQC2.AbstractButton.TextBesideIcon : QQC2.AbstractButton.IconOnly
-                onClicked: controller.disconnectAll()
+                onClicked: root.disconnectAllRequested()
             }
         }
     }
