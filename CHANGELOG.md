@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-11-19)
 
 ### Changed
 * The desktop interface is rebuilt on one design language (DESIGN.md): shared
