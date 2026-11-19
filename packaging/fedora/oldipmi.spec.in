@@ -38,6 +38,8 @@ BuildRequires:  cmake(Qt6Quick)
 BuildRequires:  cmake(Qt6Qml)
 BuildRequires:  cmake(KF6Wallet)
 BuildRequires:  cmake(KF6Kirigami)
+# The offscreen desktop smoke test loads these QML imports in the buildroot.
+BuildRequires:  kf6-kirigami-addons
 # qt6-qtbase-devel, qt6-qtdeclarative-devel, kf6-kwallet-devel and
 # kf6-kirigami-devel provide the cmake() names above.
 

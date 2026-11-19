@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0-3 (Fedora packaging)
+
+* Install Kirigami Add-ons in the buildroot so the offscreen desktop smoke test
+  can resolve its QML imports in a clean Mock build.
+
 ## 0.2.0-2 (Fedora packaging)
 
 * Build a single OldIPMI source RPM for multiple Fedora Mock targets, with

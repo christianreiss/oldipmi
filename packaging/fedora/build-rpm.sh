@@ -127,6 +127,7 @@ if ((use_mock)); then
 		if ((${#mock_roots[@]} > 1)); then
 			resultdir=$resultdir/$mock_root
 		fi
+		mkdir -p "$resultdir"
 		mock -r "$mock_root" --resultdir "$resultdir" --rebuild "$topdir"/SRPMS/*.src.rpm
 		results+=("$resultdir"/*.rpm)
 	done

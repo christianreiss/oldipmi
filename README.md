@@ -241,7 +241,7 @@ account. A repeated `--mock-root` builds the same source RPM in each chroot and
 writes the results in `dist/rpm/mock/<root>/`.
 
 ```sh
-packaging/fedora/build-rpm.sh --release 2 \
+packaging/fedora/build-rpm.sh --release 3 \
   --mock-root fedora-43-x86_64 --mock-root fedora-44-x86_64 --mock-root fedora-45-x86_64
 ```
 
