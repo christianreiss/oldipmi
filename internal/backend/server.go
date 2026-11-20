@@ -44,6 +44,10 @@ type Event struct {
 	Message string                `json:"message,omitempty"`
 	Mounted *bool                 `json:"mounted,omitempty"`
 	Info    *protocol.ConsoleInfo `json:"info,omitempty"`
+	// Not sent yet; they are defined here once for what follows:
+	Features []string `json:"features,omitempty"` // what the console supports, by name
+	Stage    string   `json:"stage,omitempty"`    // the setup stage an error ended
+	Code     string   `json:"code,omitempty"`     // the class of an error, for hints
 }
 
 func ReadCommand(r io.Reader) (Command, error) {
@@ -118,7 +122,7 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 				return
 			}
 
-			if c.Op == "disconnect" && opening.Load() {
+			if c.Op == OpDisconnect && opening.Load() {
 				cancel()
 				return
 			}
@@ -139,22 +143,21 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 		}
 		first = c
 	}
-	if first.Op != "connect" {
+	if first.Op != OpConnect {
 		return fmt.Errorf("first IPC command must connect")
 	}
-	stage := "logging_in"
-	emit(Event{Type: "state", State: stage})
+	stage := protocol.StageLoggingIn
+	emit(Event{Type: EventState, State: stage})
 	setupCtx := protocol.WithProgress(ctx, func(p protocol.Progress) {
 		stage = p.Stage
-		emit(Event{Type: "state", State: stage, Info: p.Info})
+		emit(Event{Type: EventState, State: stage, Info: p.Info})
 	})
 	session, e := open(setupCtx, first.Profile, first.Password)
 	opening.Store(false)
 	first.Password = ""
 	if e != nil {
 		if ctx.Err() == nil {
-			label := map[string]string{"logging_in": "Login", "discovering": "Console discovery", "connecting": "Console connection"}[stage]
-			emit(Event{Type: "error", State: "disconnected", Message: label + " failed: " + e.Error()})
+			emit(Event{Type: EventError, State: StateDisconnected, Message: stageLabel[stage] + " failed: " + e.Error()})
 		}
 		return e
 	}
@@ -198,7 +201,7 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 			}
 		})
 	}()
-	emit(Event{Type: "state", State: "connected"})
+	emit(Event{Type: EventState, State: StateConnected})
 	defer func() { cancel() }()
 	mediaTick := time.NewTicker(500 * time.Millisecond)
 	defer mediaTick.Stop()
@@ -211,11 +214,11 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 			mounted := session.Mounted()
 			if mounted != wasMounted {
 				wasMounted = mounted
-				emit(Event{Type: "media", Mounted: &mounted})
+				emit(Event{Type: EventMedia, Mounted: &mounted})
 			}
 		case e := <-done:
 			if e != nil && ctx.Err() == nil {
-				emit(Event{Type: "error", State: "disconnected", Message: e.Error()})
+				emit(Event{Type: EventError, State: StateDisconnected, Message: e.Error()})
 			}
 			return e
 		case c, ok := <-cmds:
@@ -224,20 +227,20 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 			}
 			var err error
 			switch c.Op {
-			case "disconnect":
+			case OpDisconnect:
 				session.Release()
 				return nil
-			case "key":
+			case OpKey:
 				err = session.Key(c.Input)
-			case "pointer":
+			case OpPointer:
 				err = session.Pointer(c.Input)
-			case "release":
+			case OpRelease:
 				err = session.Release()
-			case "mount":
+			case OpMount:
 				err = session.Mount(ctx, c.Path)
-			case "eject":
+			case OpEject:
 				err = session.Eject()
-			case "power":
+			case OpPower:
 				opctx, stop := context.WithTimeout(ctx, 15*time.Second)
 				err = session.Power(opctx, c.Action)
 				stop()
@@ -245,10 +248,10 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 				err = fmt.Errorf("unknown command")
 			}
 			if err != nil {
-				emit(Event{ID: c.ID, Type: "error", Message: err.Error()})
+				emit(Event{ID: c.ID, Type: EventError, Message: err.Error()})
 			} else {
-				ev := Event{ID: c.ID, Type: "ok"}
-				if c.Op == "mount" || c.Op == "eject" {
+				ev := Event{ID: c.ID, Type: EventOK}
+				if c.Op == OpMount || c.Op == OpEject {
 					mounted := session.Mounted()
 					wasMounted = mounted
 					ev.Mounted = &mounted

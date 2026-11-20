@@ -13,7 +13,7 @@ import (
 func TestPowerWordsIPMI(t *testing.T) {
 	got := map[string]byte{}
 	for word, c := range chassisControl {
-		got[word] = byte(c)
+		got[string(word)] = byte(c)
 	}
 	if want := map[string]byte{"off": 0, "on": 1, "reset": 3, "soft": 5}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("chassis control %v, want %v", got, want)

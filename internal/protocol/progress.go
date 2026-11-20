@@ -25,6 +25,15 @@ type Progress struct {
 	Stage string
 	Info  *ConsoleInfo
 }
+
+// The stages of connection setup, in order. Report announces each one, and the
+// desktop shows it as the console's state (testdata/ipc/names.json).
+const (
+	StageLoggingIn   = "logging_in"
+	StageDiscovering = "discovering"
+	StageConnecting  = "connecting"
+)
+
 type progressKey struct{}
 
 // The observer is synchronous and used only during connection setup.

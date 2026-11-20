@@ -180,7 +180,7 @@ func (w *Web) Login(ctx context.Context, password string) (Launch, error) {
 	if mode == ConsoleHTML5 && fam != "aten" {
 		return Launch{}, fmt.Errorf("the HTML5 console mode is only implemented for the ATEN / Supermicro family; set this profile's console mode to Auto")
 	}
-	Report(ctx, "logging_in", nil)
+	Report(ctx, StageLoggingIn, nil)
 	if fam == "aten" {
 		return w.atenLogin(ctx, password, mode)
 	}
@@ -198,7 +198,7 @@ func (w *Web) Login(ctx context.Context, password string) (Launch, error) {
 	w.Cookie = string(m[1])
 	u, _ := url.Parse(w.Base)
 	w.Client.Jar.SetCookies(u, []*http.Cookie{{Name: "SessionCookie", Value: w.Cookie, Path: "/"}, {Name: "Username", Value: w.Profile.Username, Path: "/"}})
-	Report(ctx, "discovering", nil)
+	Report(ctx, StageDiscovering, nil)
 	path := w.Profile.JNLPPath
 	if path == "" {
 		path = "/Java/jviewer.jnlp"
@@ -335,7 +335,7 @@ func (w *Web) atenLogin(ctx context.Context, password string, mode string) (l La
 		}
 		return Launch{}, fmt.Errorf("the BMC did not open a web session: the account or password was rejected, the account lacks web access, or it is locked after failed attempts; check the credentials in the BMC web interface%s", hint)
 	}
-	Report(ctx, "discovering", nil)
+	Report(ctx, StageDiscovering, nil)
 	if mode == ConsoleHTML5 {
 		return w.atenHTML5(ctx, password)
 	}
@@ -470,7 +470,7 @@ func (w *Web) redfishLaunch(ctx context.Context, password string, login bool) (L
 		w.redfishPath = loc
 	}
 	if login {
-		Report(ctx, "discovering", nil)
+		Report(ctx, StageDiscovering, nil)
 	}
 	var uri, gen string
 	for _, path := range []string{redfishIKVMOem, redfishIKVMLegacy} {

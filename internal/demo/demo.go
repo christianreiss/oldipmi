@@ -74,11 +74,11 @@ func Connect(ctx context.Context, p protocol.Profile) (protocol.Session, error) 
 	info := &protocol.ConsoleInfo{Protocol: "OldIPMI demo (synthetic, no network)",
 		Endpoints:    []protocol.Endpoint{{Role: "Video / input", Address: "in-process", Transport: "none"}},
 		Capabilities: []string{"Video", "Keyboard", "Pointer", "Power", "Read-only ISO"}}
-	protocol.Report(ctx, "discovering", info)
+	protocol.Report(ctx, protocol.StageDiscovering, info)
 	if err := wait(); err != nil {
 		return nil, err
 	}
-	protocol.Report(ctx, "connecting", info)
+	protocol.Report(ctx, protocol.StageConnecting, info)
 	if err := wait(); err != nil {
 		return nil, err
 	}

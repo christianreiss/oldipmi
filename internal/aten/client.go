@@ -55,7 +55,7 @@ func (c *Client) attach(ctx context.Context) (err error) {
 		return fmt.Errorf("this BMC needs the AMI family; select it for this profile")
 	}
 	info := c.launch.ConsoleInfo(p)
-	protocol.Report(ctx, "connecting", &info)
+	protocol.Report(ctx, protocol.StageConnecting, &info)
 	if c.launch.HTML5 {
 		c.wire, err = dialHTML5(ctx, p, c.launch)
 	} else {

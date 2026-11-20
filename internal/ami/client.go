@@ -55,7 +55,7 @@ func (c *Client) attach(ctx context.Context) (err error) {
 		return fmt.Errorf("AMI single-port tunneling is not supported by this firmware adapter")
 	}
 	info := c.launch.ConsoleInfo(p)
-	protocol.Report(ctx, "connecting", &info)
+	protocol.Report(ctx, protocol.StageConnecting, &info)
 	c.wire, err = protocol.Dial(ctx, p, c.launch.Port, c.launch.Secure)
 	if err != nil {
 		return err

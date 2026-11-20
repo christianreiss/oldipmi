@@ -1,0 +1,41 @@
+{
+  "about": "The names of the desktop-core IPC, by the rest of their constant name: Go has backend.Op*, Event*, State* and protocol.Stage*, Power*; desktop/ipc.h has ipc::Op* and so on. A console's state is one of states or stages. fields lists the JSON keys of each message part; the profile's keys are those of connect.json.",
+  "ops": {
+    "Connect": "connect",
+    "Disconnect": "disconnect",
+    "Key": "key",
+    "Pointer": "pointer",
+    "Release": "release",
+    "Mount": "mount",
+    "Eject": "eject",
+    "Power": "power"
+  },
+  "events": {
+    "State": "state",
+    "OK": "ok",
+    "Error": "error",
+    "Media": "media"
+  },
+  "states": {
+    "Disconnected": "disconnected",
+    "Connected": "connected"
+  },
+  "stages": {
+    "LoggingIn": "logging_in",
+    "Discovering": "discovering",
+    "Connecting": "connecting"
+  },
+  "powerActions": {
+    "On": "on",
+    "Off": "off",
+    "Reset": "reset",
+    "Soft": "soft"
+  },
+  "fields": {
+    "command": ["version", "id", "op", "profile", "password", "input", "path", "action"],
+    "event": ["version", "id", "type", "state", "message", "mounted", "info", "features", "stage", "code"],
+    "consoleInfo": ["protocol", "endpoints", "capabilities", "protocolVersion", "companion", "legacyTLS"],
+    "endpoint": ["role", "address", "transport"],
+    "input": ["usage", "down", "x", "y", "buttons", "wheel"]
+  }
+}
