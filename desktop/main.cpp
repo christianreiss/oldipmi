@@ -7,6 +7,7 @@
 #include "singleinstance.h"
 #include <QCursor>
 #include <QIcon>
+#include <QImage>
 #include <algorithm>
 #include <cstring>
 #include <QApplication>
@@ -157,8 +158,9 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, C
     return 5;
   }
   call("loadHost", controller.hosts().first());
-  // `wait` ms after `act`, the step is grabbed as soon as `ready` (if given) holds
-  // and every window has its size, with no limit a busy machine would reach.
+  // `wait` ms after `act`, the step is grabbed as soon as `ready` (if given) holds,
+  // every window has its size and the pictures have stopped changing, with no
+  // limit a busy machine would reach.
   struct Step { QString name; std::function<void()> act; int wait; std::function<bool()> ready = {}; };
   // Every object of a window, also those that are only visual children (list
   // delegates and what they declare, such as each row's menu).
@@ -177,6 +179,20 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, C
           todo << child;
     }
     return out;
+  };
+  // A list view estimates the height of the rows it has not created yet, from the
+  // ones it has, and which those are depends on how it was scrolled before; its
+  // scroll bar is then a pixel or two longer or shorter. A clipped list creates
+  // every row here (those outside stay hidden): the exact length, in every run.
+  auto createAllRows = [objectsOf, visibleWindows] {
+    constexpr int margin = 100000;
+    for (auto *w : visibleWindows())
+      for (auto *o : objectsOf(w))
+        if (auto *view = qobject_cast<QQuickItem *>(o); view && view->inherits("QQuickItemView") && view->clip()
+            && view->property("displayMarginEnd").toInt() < margin) {
+          view->setProperty("displayMarginBeginning", margin);
+          view->setProperty("displayMarginEnd", margin);
+        }
   };
   auto popups = [objectsOf, window] {
     QList<QObject *> out;
@@ -463,14 +479,29 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, C
   auto next = std::make_shared<std::function<void()>>();
   auto settle = std::make_shared<std::function<void(int)>>();
   constexpr int readyLimit = 60000; // CTest's timeout bounds the whole tour
+  // Once a step is ready its windows are grabbed every 100 ms until three
+  // pictures in a row are the same: what is still being laid out or loaded (a
+  // list's rows, a scroll bar, an image) never ends up half done in a picture.
+  auto shots = std::make_shared<QList<QImage>>();
+  auto unchanged = std::make_shared<int>(0);
   *settle = [=, &app, &controller](int waited) {
     const auto &step = (*steps)[*index - 1];
-    const bool ready = fit() && inTransition().isEmpty() && (!step.ready || step.ready());
+    createAllRows();
+    const bool held = fit() && inTransition().isEmpty() && (!step.ready || step.ready());
+    QList<QImage> now;
+    if (held)
+      for (auto *w : visibleWindows())
+        now << w->grabWindow();
+    *unchanged = held && now == *shots ? *unchanged + 1 : 0;
+    *shots = now;
+    const bool ready = *unchanged >= 2;
     if (!ready && waited < readyLimit) {
       QTimer::singleShot(100, &app, [=] { (*settle)(waited + 100); });
       return;
     }
-    if (!ready) {
+    if (!ready && held) {
+      problem(QString("%1: its picture kept changing for %2 s").arg(step.name).arg(readyLimit / 1000));
+    } else if (!ready) {
       auto *focus = window->activeFocusItem();
       const QString busy = inTransition().join(", ");
       problem(QString("%1 did not become ready in %2 s (state %3, error stage \"%4\", %5 console(s) "
@@ -480,6 +511,8 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, C
                   .arg(controller.hasFrame() ? "shown" : "none", controller.message(),
                        window->isActive() ? "active" : "not active", focus ? label(focus) : "nothing",
                        busy.isEmpty() ? "nothing" : busy));
+      for (auto *w : visibleWindows()) // what it looked like, for the report
+        shots->append(w->grabWindow());
     }
     (*next)();
   };
@@ -487,12 +520,14 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, C
     if (*index > 0) {
       const auto &done = (*steps)[*index - 1];
       int n = 0;
-      for (auto *w : visibleWindows()) {
+      for (const QImage &shot : std::as_const(*shots)) {
         const QString file = dir + "/" + done.name + (n++ ? "-" + QString::number(n) : "") + ".png";
-        if (!w->grabWindow().save(file))
+        if (!shot.save(file))
           problem("cannot save " + file);
         (*states)[done.name.section('-', 1)] = QFileInfo(file).fileName(); // the newest window wins
       }
+      shots->clear();
+      *unchanged = 0;
     }
     if (*index >= steps->size()) {
       // For review tools (tools/slop/capture.py): the picture of each state.

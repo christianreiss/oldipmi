@@ -315,8 +315,9 @@ end-to-end check of the UI and of all MCP tools.
 (it writes its own test-mode connections first and never touches the network:
 the connecting and error states use `demo-hang` and `demo-unreachable`) and saves PNGs
 for review; `--size WxH` fixes the window size. Every run saves the same pictures: the
-clock stands at a fixed time, and each picture waits until dialogs have finished opening
-or closing. A step that cannot run or never becomes ready ends the tour with exit code 5. `slop native --config
+clock stands at a fixed time, each picture waits until dialogs have finished opening
+or closing and the window has stopped changing, and lists lay out all their rows. A step
+that cannot run or never becomes ready ends the tour with exit code 5. `slop native --config
 tools/slop/native.json --root . --out .slop/native` renders the full matrix
 (27 states × light/dark × 1200x800/720x480 × scale 1/2 × text 1/1.5) for the
 `slop` UI review; build into `build/` first. Each variant runs in a private home with
