@@ -1,5 +1,5 @@
 # Template: packaging/fedora/build-rpm.sh fills in the @NAME@ placeholders
-# (version from project() in CMakeLists.txt, release, commit, changelog).
+# (version from VERSION, release, commit, changelog).
 
 # OldIPMI's own code is GPL-3.0-or-later (LICENSE). The other terms cover the
 # vendored Go modules and the MIT code listed in THIRD_PARTY.md.

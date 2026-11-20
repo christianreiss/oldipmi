@@ -16,6 +16,10 @@
   its hint. Like the other demo variants, neither needs a network.
 
 ### Changed
+* **One version number, in `VERSION`.** CMake, both Go programs and the RPM build
+  read it from there; `oldipmi-mcp` kept its own copy before. `oldipmi-core
+  --version` prints it, and the User-Agent of the BMC web login names it
+  (it said `OldIPMI/0.2`).
 * **New app icon:** a server front with a glowing console prompt, in the style
   of the illustrations. It is plain SVG, so it stays sharp from the title bar to
   the welcome page. The About page now shows the bundled icon, like the sidebar,

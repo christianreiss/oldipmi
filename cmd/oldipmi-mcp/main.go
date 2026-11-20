@@ -6,17 +6,16 @@ import (
 	"os"
 	"strings"
 
+	"oldipmi"
 	"oldipmi/internal/mcp"
 )
-
-const version = "0.3.0" // keep in step with CMakeLists.txt project(VERSION)
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "--print-instructions" {
 		fmt.Print(mcp.Instructions(self()))
 		return
 	}
-	s := mcp.NewServer(&mcp.Client{Path: mcp.SocketPath()}, version, mcp.Instructions(self()))
+	s := mcp.NewServer(&mcp.Client{Path: mcp.SocketPath()}, oldipmi.Version, mcp.Instructions(self()))
 	if err := s.Serve(os.Stdin, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, strings.TrimSpace(err.Error()))
 		os.Exit(1)

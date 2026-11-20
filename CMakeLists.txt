@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
-project(OldIPMI VERSION 0.3.0 LANGUAGES CXX)
+# The one version (VERSION): also embedded by the Go programs and read by the RPM build.
+file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/VERSION OLDIPMI_VERSION LIMIT_COUNT 1)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS VERSION)
+project(OldIPMI VERSION ${OLDIPMI_VERSION} LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_AUTOMOC ON)
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml Network Test)
@@ -18,6 +21,7 @@ qt_add_resources(oldipmi mcp PREFIX "/" BASE ${CMAKE_BINARY_DIR} FILES ${CMAKE_B
 target_link_libraries(oldipmi PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::Network KF6::Wallet)
 find_program(GO_EXECUTABLE go REQUIRED)
 file(GLOB_RECURSE GO_SOURCES CONFIGURE_DEPENDS internal/*.go cmd/*.go)
+list(APPEND GO_SOURCES ${CMAKE_SOURCE_DIR}/version.go ${CMAKE_SOURCE_DIR}/VERSION)
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/oldipmi-core
  COMMAND ${CMAKE_COMMAND} -E env CGO_ENABLED=0 ${GO_EXECUTABLE} build -trimpath -o ${CMAKE_BINARY_DIR}/oldipmi-core ./cmd/oldipmi-core
  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} DEPENDS ${GO_SOURCES} go.mod go.sum VERBATIM)

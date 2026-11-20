@@ -234,7 +234,7 @@ sudo dnf install dist/rpm/RPMS/x86_64/oldipmi-[0-9]*.rpm
 The script packages the committed `HEAD` (it refuses a dirty worktree unless
 `--allow-dirty`, and even then packages only `HEAD`), vendors the Go modules
 into a second source tarball so the build needs no network, renders
-`packaging/fedora/oldipmi.spec.in` with the version from `CMakeLists.txt`, and
+`packaging/fedora/oldipmi.spec.in` with the version from `VERSION`, and
 runs `rpmbuild -ba` with `dist/rpm` as its top directory: the SRPM lands in
 `dist/rpm/SRPMS/`, the binary RPMs in `dist/rpm/RPMS/x86_64/`. The
 `oldipmi-[0-9]*` pattern skips the `-debuginfo`/`-debugsource` packages. Each
@@ -275,9 +275,11 @@ packaging/fedora/publish-rpm.sh /path/to/signed-release/oldipmi-*.rpm
 Keep the signed copies for retrying the same release. RepoMan verifies each
 signature and publishes the RPM to the target inferred from its Fedora release
 and architecture. Increase the RPM release or app version when changing a
-published package. On a Fedora machine with the signed `uggs` repo configured,
-install or update with `sudo dnf --refresh install oldipmi`, then check its source
-with `dnf list --installed oldipmi`.
+published package. The app version lives only in `VERSION`: CMake, both Go
+programs (`oldipmi-core --version`) and the RPM read it from there. On a Fedora
+machine with the signed `uggs` repo configured, install or update with
+`sudo dnf --refresh install oldipmi`, then check its source with
+`dnf list --installed oldipmi`.
 
 ## Checks
 

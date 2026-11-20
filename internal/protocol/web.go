@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"oldipmi"
 	"regexp"
 	"strconv"
 	"strings"
@@ -124,7 +125,7 @@ func (w *Web) do(ctx context.Context, method, path string, body []byte, contentT
 	}
 	// Some ATEN web servers answer 500 without a Referer.
 	r.Header.Set("Referer", w.Base+"/")
-	r.Header.Set("User-Agent", "OldIPMI/0.2")
+	r.Header.Set("User-Agent", "OldIPMI/"+oldipmi.Version)
 	if contentType != "" {
 		r.Header.Set("Content-Type", contentType)
 	}

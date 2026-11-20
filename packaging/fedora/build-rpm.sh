@@ -64,8 +64,8 @@ fi
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$ROOT"
 
-version=$(sed -nE 's/^project\(OldIPMI VERSION ([0-9][0-9.]*)[ )].*/\1/p' CMakeLists.txt)
-[[ -n $version ]] || die "cannot read the version from project() in CMakeLists.txt"
+version=$(tr -d '[:space:]' < VERSION)
+[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "VERSION does not hold MAJOR.MINOR.PATCH"
 
 if [[ -n $(git status --porcelain --untracked-files=normal) ]]; then
 	if ((allow_dirty)); then

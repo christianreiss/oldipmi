@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/png"
 	"net"
+	"oldipmi"
 	"oldipmi/internal/backend"
 	"oldipmi/internal/protocol"
 	"os"
@@ -20,7 +21,12 @@ func main() { os.Exit(run()) }
 func run() int {
 	probe := flag.Bool("probe", false, "read-only connection/video probe; JSON credentials on stdin")
 	capture := flag.String("capture", "", "save first probe frame as PNG to this explicit path")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(oldipmi.Version)
+		return 0
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if *probe {
