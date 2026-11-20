@@ -24,6 +24,13 @@
   connections on first launch. Connections that already exist, presets included,
   stay as they are.
 
+### Fixed
+* **Consoles no longer drop when the computer is busy.** The backend gave the
+  window only 3 seconds to take each screen update. On a heavily loaded machine,
+  or while the window was busy closing another console, open consoles ended with
+  "Connection ended". It now waits up to 30 seconds, and still ends a session
+  whose window stopped responding altogether.
+
 ## 0.3.0 (2026-11-19)
 
 ### Changed

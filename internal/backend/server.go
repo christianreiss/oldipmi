@@ -20,6 +20,12 @@ import (
 const Version = 1
 const MaxControl = 1 << 20
 
+// How long the desktop may leave an event or a video frame unread before the
+// session ends. A frame is several MB and is only taken while the GUI's event
+// loop runs, so a busy machine, or the GUI blocked for a moment, must not end the
+// console; the deadline still ends a session whose GUI stopped reading altogether.
+const writeTimeout = 30 * time.Second
+
 type Command struct {
 	Version  int              `json:"version"`
 	ID       int              `json:"id"`
@@ -94,7 +100,7 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 		b, _ := json.Marshal(e)
 		h := make([]byte, 4)
 		binary.BigEndian.PutUint32(h, uint32(len(b)))
-		control.SetWriteDeadline(time.Now().Add(3 * time.Second))
+		control.SetWriteDeadline(time.Now().Add(writeTimeout))
 		buffers := net.Buffers{h, b}
 		if _, err := buffers.WriteTo(control); err != nil {
 			cancel()
@@ -165,7 +171,7 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 				binary.BigEndian.PutUint32(h, uint32(n))
 				binary.BigEndian.PutUint32(h[4:], uint32(f.Width))
 				binary.BigEndian.PutUint32(h[8:], uint32(f.Height))
-				video.SetWriteDeadline(time.Now().Add(3 * time.Second))
+				video.SetWriteDeadline(time.Now().Add(writeTimeout))
 				buffers := net.Buffers{h, f.Pixels}
 				if _, e := buffers.WriteTo(video); e != nil {
 					cancel()

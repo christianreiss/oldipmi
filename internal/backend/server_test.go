@@ -163,3 +163,37 @@ func TestDemoFamilyOverIPC(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A desktop that is busy for longer than a moment (here 4 s, more than the
+// former 3 s write deadline) keeps its console: the frame waits until it is read.
+func TestBusyDesktopKeepsTheConsole(t *testing.T) {
+	t.Parallel()
+	control, peer := net.Pipe()
+	video, screen := net.Pipe()
+	defer peer.Close()
+	defer screen.Close()
+	peer.SetDeadline(time.Now().Add(15 * time.Second))
+	screen.SetDeadline(time.Now().Add(15 * time.Second))
+	done := make(chan error, 1)
+	go func() { done <- Serve(context.Background(), control, video) }()
+	writeCommand(t, peer, Command{Op: "connect", Profile: protocol.Profile{Family: "demo", Host: "demo"}})
+	for e := readEvent(t, peer); e.State != "connected"; e = readEvent(t, peer) {
+		if e.State == "disconnected" {
+			t.Fatal(e.Message)
+		}
+	}
+	time.Sleep(4 * time.Second) // the first frame is being written meanwhile
+	h := make([]byte, 12)
+	if _, err := io.ReadFull(screen, h); err != nil {
+		t.Fatal(err)
+	}
+	go io.Copy(io.Discard, screen)
+	writeCommand(t, peer, Command{ID: 1, Op: "key", Input: protocol.Input{Usage: 4, Down: true}})
+	if e := readEvent(t, peer); e.ID != 1 || e.Type != "ok" {
+		t.Fatalf("after a busy desktop: %+v", e)
+	}
+	writeCommand(t, peer, Command{Op: "disconnect"})
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
