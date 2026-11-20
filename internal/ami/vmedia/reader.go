@@ -7,8 +7,7 @@ import (
 
 // Reader is the backing store for a redirected image: random-access byte ranges
 // of a fixed-size medium. The data plane answers the BMC's SCSI reads by calling
-// ReadAt. Implementations: FileReader (the localhost turbo path, an *os.File) and,
-// for physical-device passthrough, a raw-volume backing (volume_windows.go).
+// ReadAt. FileReader is the one implementation outside the tests.
 //
 // Reads past End-of-medium must return io.EOF (or a short count); the SCSI layer
 // turns that into a proper sense response rather than a transport error.
@@ -28,27 +27,15 @@ type ReadWriter interface {
 	WriteAt(p []byte, off int64) (int, error)
 }
 
-// FileReader serves a local image file directly (no browser round-trip). It is
-// the "localhost turbo path" from docs/kvm-vmedia.md and the vehicle for testing
-// the data plane against a known fixture (bin/test.iso, test-fd.img, …). Opened
-// writable, it also satisfies ReadWriter so the host can write back to the image.
+// FileReader serves a local image file, read-only.
 type FileReader struct {
 	f    *os.File
 	size int64
 }
 
 // OpenFile opens path read-only as a Reader.
-func OpenFile(path string) (*FileReader, error) { return openFile(path, false) }
-
-// OpenFileRW opens path read-write as a ReadWriter (for floppy/HD/USB write tests).
-func OpenFileRW(path string) (*FileReader, error) { return openFile(path, true) }
-
-func openFile(path string, writable bool) (*FileReader, error) {
-	flag := os.O_RDONLY
-	if writable {
-		flag = os.O_RDWR
-	}
-	f, err := os.OpenFile(path, flag, 0)
+func OpenFile(path string) (*FileReader, error) {
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +51,6 @@ func openFile(path string, writable bool) (*FileReader, error) {
 	return &FileReader{f: f, size: st.Size()}, nil
 }
 
-func (r *FileReader) ReadAt(p []byte, off int64) (int, error)  { return r.f.ReadAt(p, off) }
-func (r *FileReader) WriteAt(p []byte, off int64) (int, error) { return r.f.WriteAt(p, off) }
-func (r *FileReader) Size() int64                              { return r.size }
-func (r *FileReader) Close() error                             { return r.f.Close() }
+func (r *FileReader) ReadAt(p []byte, off int64) (int, error) { return r.f.ReadAt(p, off) }
+func (r *FileReader) Size() int64                             { return r.size }
+func (r *FileReader) Close() error                            { return r.f.Close() }

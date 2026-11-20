@@ -6,12 +6,11 @@
 // device to the host and, on demand, pulls the sectors the host reads from us
 // over a dedicated TLS socket (CD 5120 / FD 5122 / HD 5123). This is the opposite
 // of the device-local-image model every open IP-KVM stack uses, which is why the
-// data plane is necessarily ours (see docs/kvm-vmedia.md).
+// data plane is necessarily ours.
 //
 // The wire protocol was reverse-engineered from the decompiled JViewer
 // `com.ami.iusb.*` sources (the SCSI *emulation* there is native, but the
-// transport/handshake/framing are Java and reproduced here). See
-// docs/kvm-vmedia.md for the annotated handshake and header layout.
+// transport/handshake/framing are Java and reproduced here).
 package vmedia
 
 import (

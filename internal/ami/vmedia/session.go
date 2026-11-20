@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-const dialTimeout = 15 * time.Second
-
 // Session is one device redirection: a TLS connection to a vmedia port that has
 // completed the IUSB auth handshake and is ready to serve SCSI requests.
 type Session struct {
@@ -23,28 +21,18 @@ type Session struct {
 	Debug      bool // hex-dump every request/response (protocol bring-up)
 }
 
-// Options configures a redirection session.
-type Options struct {
-	Host       string
-	Port       int   // PortCD / PortFD / PortHD
-	DeviceType uint8 // DeviceCDROM, …
-	Instance   uint8 // device slot (0 for the first CD/FD/HD)
-	TLS        bool  // wrap in TLS (jnlp vmsecure=1); RD450X uses plaintext (0)
-	Debug      bool
-}
-
-// Connect dials the vmedia port, sends the web-token auth packet, and waits for
-// the BMC's redirection ACK. token is the web session STOKEN (kvm.WebSession.Token).
-// On success the returned Session is ready for Serve.
+// ConnectWire redirects the first CD-ROM over conn, a connection to the vmedia
+// port: it sends the web-token auth packet and waits for the BMC's redirection
+// ACK. token is the web session STOKEN (protocol.Launch.Token). On success the
+// returned Session is ready for Serve.
 func ConnectWire(ctx context.Context, conn net.Conn, token string) (*Session, error) {
-	opts := Options{DeviceType: DeviceCDROM}
 	conn.SetDeadline(time.Now().Add(15 * time.Second))
 	stop := context.AfterFunc(ctx, func() { conn.Close() })
 	defer stop()
 
-	s := &Session{conn: conn, deviceType: opts.DeviceType, instance: opts.Instance, Debug: opts.Debug}
+	s := &Session{conn: conn, deviceType: DeviceCDROM}
 
-	auth := buildAuth(opts.DeviceType, opts.Instance, token)
+	auth := buildAuth(s.deviceType, s.instance, token)
 
 	if _, err := conn.Write(auth); err != nil {
 		conn.Close()
@@ -64,7 +52,7 @@ func ConnectWire(ctx context.Context, conn net.Conn, token string) (*Session, er
 		conn.Close()
 		return nil, err
 	}
-	log.Printf("vmedia: redirection accepted (instance %d, port %d)", opts.Instance, opts.Port)
+	log.Printf("vmedia: redirection accepted (instance %d)", s.instance)
 	conn.SetDeadline(time.Time{})
 	return s, nil
 }

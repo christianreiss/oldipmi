@@ -5,11 +5,10 @@
 // YUV 4:2:0, with optional RC4 encryption of the entropy-coded data and delta
 // (skip) tiles relative to the previous frame.
 //
-// This is a clean-room port of JViewer-SOC's soc/video/Decoder.java; see
-// docs/kvm-protocol.md. The Java entry point Decoder.decode(VideoEngineInfo,
-// int[]) maps to (*Decoder).decode here, and the public Decode() wraps it with
-// the frame-header parse that SOCFrameHdr/VideoHeader/SOCJVVideo.MakeIntArray
-// performed in Java.
+// This is a clean-room port of JViewer-SOC's soc/video/Decoder.java. The Java
+// entry point Decoder.decode(VideoEngineInfo, int[]) maps to (*Decoder).decode
+// here, and the public Decode() wraps it with the frame-header parse that
+// SOCFrameHdr/VideoHeader/SOCJVVideo.MakeIntArray performed in Java.
 package codec
 
 import (
@@ -20,9 +19,8 @@ import (
 // virtAdd ports SOCIVTPPktHdr.VIRTADD (0 on this build).
 const virtAdd = 0
 
-// Frame is a decoded video frame, 32-bpp RGBX (little-endian), len(Pix)=W*H*4.
-// RGBX matches the pixel format noVNC requests via SetPixelFormat (red-shift 0,
-// green-shift 8, blue-shift 16), so the RFB raw blit lands directly in the canvas.
+// Frame is a decoded video frame, 32-bpp RGBX (little-endian), len(Pix)=W*H*4:
+// red byte first, as protocol.Frame carries it.
 type Frame struct {
 	W, H int
 	Pix  []byte
@@ -172,8 +170,8 @@ func (d *Decoder) Decode(frame []byte) (result *Frame, err error) {
 
 	out := &Frame{W: d.realWidth, H: d.realH}
 	out.Pix = make([]byte, d.realWidth*d.realH*4)
-	// decodeBuf is 24-bit BGR (3 bytes/pixel, [B,G,R]); expand to RGBX so the
-	// channel order matches the format noVNC negotiates (red byte first).
+	// decodeBuf is 24-bit BGR (3 bytes/pixel, [B,G,R]); expand to RGBX (red
+	// byte first).
 	src := d.decodeBuf
 	di := 0
 	for y := 0; y < d.realH; y++ {
