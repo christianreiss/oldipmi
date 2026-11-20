@@ -12,7 +12,6 @@ import (
 	"oldipmi/internal/power"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
-	"oldipmi/internal/video/raster"
 	"os"
 	"sync"
 	"time"
@@ -154,12 +153,9 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 		}()
 	}
 	fb := video.NewFramebuffer(1024, 768)
-	rgb := video.NewDecoder(video.Depth15)
-	gray := video.NewDecoder(video.Depth7Gray)
-	pal := video.NewDecoder(video.Depth7Palette)
+	stream := video.NewStream(protocol.MaxPayload)
 	var rle video.RVAS
 
-	var agg []byte
 	var ack byte
 	for {
 		f, e := apcp.ReadAVPTFrame(c.video)
@@ -179,12 +175,13 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 		}
 
 		ack++
-		if e = c.video.WritePacket((apcp.AVPTFrame{ID: 0, Payload: []byte{ack, 0, 0, 0, 0, 0, 0, 0}}).Encode()); e != nil {
+		if e = c.video.WritePacket((apcp.AVPTFrame{ID: apcp.IDVideoAck, Payload: []byte{ack, 0, 0, 0, 0, 0, 0, 0}}).Encode()); e != nil {
 			return e
 		}
-		if f.ID == 134 || f.ID == 34310 {
+		switch id := apcp.VideoID(f.ID); id {
+		case apcp.IDUnsupportedCodec:
 			return fmt.Errorf("unsupported Avocent packet-134 codec")
-		} else if f.ID == 139 || f.ID == 34315 {
+		case apcp.IDRLEVideo:
 			// Cisco IMC (seen on APCP 2.34): the RLE / bit-slice format, not
 			// the 129-131 opcode stream.
 			skipped := rle.Skipped
@@ -194,45 +191,21 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 			if trace && rle.Skipped != skipped {
 				fmt.Fprintf(os.Stderr, "avpt rle: skipped packet, waiting for a reference frame\n")
 			}
-		} else if f.ID == 136 || f.ID == 34312 {
+		case apcp.IDRLEPalette:
 			if e = rle.SetPalette(f.Payload); e != nil {
 				return e
 			}
-		} else if f.ID == 137 || f.ID == 34313 {
+		case apcp.IDRLEFont:
 			// Font table for RLE text mode; text mode itself reports an error.
-		} else if f.ID == 129 || f.ID == 130 || f.ID == 131 || f.ID == 34305 || f.ID == 34306 || f.ID == 34307 {
-			if len(f.Payload) < 12 {
-				return fmt.Errorf("short Avocent video packet")
-			}
-			height := int(binary.BigEndian.Uint16(f.Payload[4:]))
-			width := int(binary.BigEndian.Uint16(f.Payload[6:]))
-			if !raster.ValidSize(width, height) {
-				return fmt.Errorf("invalid Avocent framebuffer dimensions")
-			}
-			fb.Resize(width, height)
-			if f.Payload[8]&1 != 0 {
-				fb.Cur = 0
-				agg = nil
-			}
-
-			d := rgb
-			if f.ID == 130 || f.ID == 34306 {
-				d = pal
-			}
-			if f.ID == 131 || f.ID == 34307 {
-				d = gray
-			}
-			if len(agg)+len(f.Payload)-12 > protocol.MaxPayload {
-				return fmt.Errorf("oversized Avocent frame")
-			}
-			agg = append(agg, f.Payload[12:]...)
-			if f.Payload[8]&2 == 0 {
-				continue
-			}
-			if _, e = d.Decode(fb, agg); e != nil {
+		case apcp.IDVideo15, apcp.IDVideoPalette, apcp.IDVideoGray:
+			done, e := stream.Feed(fb, videoDepths[id], f.Payload)
+			if e != nil {
 				return e
 			}
-		} else if f.ID == 138 || f.ID == 34314 {
+			if !done {
+				continue
+			}
+		case apcp.IDVGAPalette:
 			return fmt.Errorf("Avocent VGA palette updates are unsupported")
 		}
 		if fb.Dirty {
@@ -248,13 +221,17 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 		}
 	}
 }
+
+// videoDepths are the colour depths of the video packets 129-131.
+var videoDepths = map[uint16]video.Depth{apcp.IDVideo15: video.Depth15, apcp.IDVideoPalette: video.Depth7Palette, apcp.IDVideoGray: video.Depth7Gray}
+
 func (c *Client) key(u uint32, down bool) error {
 	b := make([]byte, 8)
 	if !down {
 		b[1] = 1
 	}
 	binary.BigEndian.PutUint16(b[2:], uint16(u))
-	return c.control.WritePacket((apcp.AVPTFrame{ID: 512, Payload: b}).Encode())
+	return c.control.WritePacket((apcp.AVPTFrame{ID: apcp.IDKey, Payload: b}).Encode())
 }
 func (c *Client) Key(i protocol.Input) error {
 	c.mu.Lock()
@@ -271,7 +248,7 @@ func (c *Client) Pointer(i protocol.Input) error {
 	binary.BigEndian.PutUint16(b[2:], uint16(max(0, min(65535, i.X))))
 	binary.BigEndian.PutUint16(b[4:], uint16(max(0, min(65535, i.Y))))
 	binary.BigEndian.PutUint16(b[6:], uint16(int16(max(-1, min(1, i.Wheel)))))
-	return c.control.WritePacket((apcp.AVPTFrame{ID: 513, Payload: b}).Encode())
+	return c.control.WritePacket((apcp.AVPTFrame{ID: apcp.IDPointer, Payload: b}).Encode())
 }
 func (c *Client) Release() error {
 	c.mu.Lock()

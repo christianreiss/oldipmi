@@ -42,6 +42,31 @@ func KVMHeartbeat() []byte {
 	return AVPTFrame{ID: KVMHeartbeatID, Payload: make([]byte, 8)}.Encode()
 }
 
+// AVPT packet IDs of the console session. Every video packet also has a
+// second ID, 0x8580 higher (0x8601 for 0x81); VideoID maps it to the first.
+const (
+	IDVideoAck         uint16 = 0   // client: acknowledges each video packet, with a counter byte
+	IDVideo15          uint16 = 129 // 0x81: part of a frame in 15-bit colour
+	IDVideoPalette     uint16 = 130 // 0x82: part of a frame in 7-bit palette colour
+	IDVideoGray        uint16 = 131 // 0x83: part of a frame in 7-bit grey
+	IDUnsupportedCodec uint16 = 134 // 0x86: a video codec this client does not decode
+	IDRLEPalette       uint16 = 136 // 0x88: the colour palette of the RLE video
+	IDRLEFont          uint16 = 137 // 0x89: the font table of the RLE text mode
+	IDVGAPalette       uint16 = 138 // 0x8a: VGA palette updates, which this client does not support
+	IDRLEVideo         uint16 = 139 // 0x8b: the RLE / bit-slice video (Cisco IMC)
+	IDKey              uint16 = 512 // client: a key press or release
+	IDPointer          uint16 = 513 // client: pointer position, buttons and wheel
+)
+
+// VideoID returns the first form of a video packet's ID (0x81 to 0x8b); other
+// IDs come back unchanged.
+func VideoID(id uint16) uint16 {
+	if id >= 0x8601 && id <= 0x860b {
+		return id - 0x8580
+	}
+	return id
+}
+
 // AVPTFrame is a BEEF-envelope frame.
 type AVPTFrame struct {
 	ID      uint16
