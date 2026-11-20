@@ -348,6 +348,28 @@ private slots:
     delete s;
   }
 
+  // A reply settles the command with its id, in whatever order the replies
+  // come: the core may answer a key before a slower mount (A1-05).
+  void repliesSettleTheirCommandsInAnyOrder() {
+    auto *s = start({expect("connect"), send(event(3)), expect("mount"), expect("key"),
+                     reply({{"version", 1}, {"type", "error"}, {"message", "key refused"}}),
+                     send({{"version", 1}, {"id", 2}, {"type", "ok"}, {"mounted", true}})});
+    QTRY_VERIFY(s->connected());
+    QStringList results;
+    auto record = [&results](const QString &op) {
+      return [&results, op](bool ok, QString m) { results << (op + " " + QString::number(ok) + " " + m).trimmed(); };
+    };
+    s->command({{"op", "mount"}, {"path", "/srv/iso/install.iso"}}, this, record("mount"));
+    s->command({{"op", "key"}, {"input", QJsonObject{{"usage", 4}, {"down", true}}}}, this, record("key"));
+    QTRY_COMPARE(results, (QStringList{"key 0 key refused", "mount 1"}));
+    QVERIFY(s->mounted);
+    const auto sent = commands();
+    QCOMPARE(sent.size(), 3);
+    QCOMPARE(sent[1]["op"].toString(), QString("mount"));
+    QCOMPARE(sent[1]["id"].toInt(), 2);
+    delete s;
+  }
+
   // A session that is deleted, as at quit or when its console closes, runs no
   // callback from its destructor, where what the callback uses may be going
   // away too. Each gets its answer from the event loop, while its context exists.
