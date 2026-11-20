@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+* **Copy screen image** in the console toolbar and the full-screen bar, and
+  Ctrl+Shift+C while the console is released: puts the remote screen on the
+  clipboard as an image at its own resolution, without the stage around it, and
+  confirms it with a short note.
+
 ## 0.3.0 (2026-11-19)
 
 ### Changed

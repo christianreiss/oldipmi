@@ -66,6 +66,8 @@ Alt+Tab, Alt+F4, Print Screen, Super, Right Ctrl), **Mount ISO… / Eject ISO**
 (only when the console reports read-only ISO support), **Power** (chassis
 control over IPMI LAN, UDP 623, with the connection's account; every action is
 confirmed with its consequence),
+**Copy screen image** (Ctrl+Shift+C; puts the remote screen on the clipboard as an
+image at its own resolution, without the window around it, e.g. for a ticket),
 fit/actual size, full screen (F11, Esc leaves; a bar at the top edge keeps the
 console actions and Disconnect at hand, and Quit stays in the top right corner),
 **Console information** (protocol,

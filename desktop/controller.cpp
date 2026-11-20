@@ -1,5 +1,6 @@
 #include "controller.h"
 #include <QApplication>
+#include <QClipboard>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
@@ -293,6 +294,13 @@ void Controller::clearMessage() {
 void Controller::sendKeys(QVariantList usages) {
   if (m_shown)
     m_shown->sendKeys(usages);
+}
+QSize Controller::copyFrame() {
+  if (!hasFrame())
+    return {};
+  const QImage image = m_shown->lastFrame.convertToFormat(QImage::Format_RGB888);
+  QGuiApplication::clipboard()->setImage(image);
+  return image.size();
 }
 void Controller::agentNote(QString message) {
   setMessage(message);

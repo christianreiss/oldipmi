@@ -1,4 +1,5 @@
 #include "controller.h"
+#include <QClipboard>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -173,6 +174,21 @@ private slots:
     QVERIFY(c.hosts().isEmpty());
     QVERIFY(c.saveHost({{"host","example.invalid"}}, {}, false).isEmpty());
     QCOMPARE(read(path), QByteArray("broken"));
+  }
+  void copyFramePutsTheShownScreenOnTheClipboard() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    auto *clipboard = QGuiApplication::clipboard();
+    clipboard->setText("kept");
+    QVERIFY(!c.copyFrame().isValid()); // nothing shown: the clipboard keeps what it had
+    QCOMPARE(clipboard->text(), QString("kept"));
+    c.preview(); // an 800x600 synthetic framebuffer
+    QVERIFY(c.hasFrame());
+    QCOMPARE(c.copyFrame(), QSize(800, 600));
+    const QImage copied = clipboard->image();
+    QCOMPARE(copied.size(), QSize(800, 600));
+    QVERIFY(!copied.hasAlphaChannel());
+    QCOMPARE(copied.pixelColor(400, 300), QColor("#223548"));
   }
 };
 QTEST_MAIN(ControllerTest)

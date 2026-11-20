@@ -48,7 +48,7 @@ no window; everything else is derived from them:
 
 ```
 ┌──────────────────────┬───────────────────────────────────────────────────────────────────┐
-│ ▣ OldIPMI     [+][≡] │ [◧] ▣ Server name [Send key][Power][ISO][⤢][⛶][ⓘ] [Disconnect][⏻] │
+│ ▣ OldIPMI     [+][≡] │ [◧] ▣ Server [Send key][Power][ISO][⧉][⤢][⛶][ⓘ] [Disconnect][⏻]   │
 │ [⌕ Filter, connect…] │       host · type                                                 │
 │ OPEN               2 │ ╭─────────────────────────────────────────────╮ ╭───────────────╮ │
 │ ▤ Lab-ATEN             ⏏  │ │                                             │ │ Console       │ │
@@ -93,15 +93,19 @@ no window; everything else is derived from them:
     checking the certificate and name; any other TLS failure, a bare alert
     included, gets a neutral hint. The option's switch says the same.
   * *Console*: the remote screen on the stage, an accent ring outside the picture
-    while it has keyboard and mouse, and the status strip.
+    while it has keyboard and mouse, and the status strip. *Copy screen image*
+    (header, full-screen bar, Ctrl+Shift+C while released) puts the remote screen
+    on the clipboard at its own resolution, without the stage, and confirms it
+    with a short note.
 * **Console information** docks next to the stage when the pane has room for both
   (≥ 40 `gu`); in a narrower pane it floats over the stage with its own close button.
 * **Full screen** hides header and sidebar while a console is shown; a floating bar
   (shown for a moment on entry, when the pointer reaches the top edge, and while the
   keyboard focus is in it or on Quit) holds identity, Release while captured or Take
-  control while released, Send key, ISO, Power, fit, leave full screen and
-  Disconnect. Quit keeps its own button in the top right corner the whole time;
-  released, Tab reaches it and brings the bar, so the bar works without a mouse.
+  control while released, Send key, ISO, Power, copy screen image, fit, leave full
+  screen and Disconnect. Quit keeps its own button in the top right corner the
+  whole time; released, Tab reaches it and brings the bar, so the bar works without
+  a mouse.
   Capturing shows a short note how to release (Right Ctrl, or the bar when that is
   switched off), releasing one how to take control again (Right Ctrl or a click,
   or the bar's Take control while the keyboard focus is in the bar).
@@ -129,9 +133,9 @@ state, Release, how to release, and the resolution, and leaves out what does not
 whole. A list narrower than 14 `gu` shows the family picture instead of the live
 miniature, so names keep their room, and the filter field shows its Ctrl+F key cap
 only while the whole placeholder fits beside it. Below 34 `gu` the full-screen bar
-leaves out the family picture and the icons of Release and Take control, shows
-Disconnect as an icon and starts at the left edge instead of the centre; the name
-gives way first. The capture note keeps clear
+leaves out the family picture, the copy button (Ctrl+Shift+C still copies) and the
+icons of Release and Take control, shows Disconnect as an icon and starts at the
+left edge instead of the centre; the name gives way first. The capture note keeps clear
 of the Quit corner; when it does not fit on one line, the release instruction takes
 its own line and the server name elides first. In a window lower than 24 `gu` the
 connection dialog shows the console type as a drop-down and leaves out its
@@ -154,8 +158,9 @@ page that do not fit side by side wrap instead of widening it.
   was named.
 * State is never colour alone: emblem + text in the list, chips and status strip.
 * The remote screen is the content: nothing is drawn over the picture except the
-  floating full-screen bar, its capture note and the console information the user
-  opened. The accent marks the primary action, the selection and keyboard capture.
+  floating full-screen bar, its capture note, the console information the user
+  opened and, for a few seconds, the note confirming a copied screen image. The
+  accent marks the primary action, the selection and keyboard capture.
 * While the console is captured, every key goes to the server; app shortcuts do not
   fire. Release: tap Right Ctrl (configurable) or the Release button (strip or
   full-screen bar). Released, the next lone Right Ctrl tap takes control again
@@ -193,8 +198,10 @@ consoles open does not ask first, when cancelling that question closes a
 console, or when confirming Disconnect all leaves a console open; without
 `--screenshots` (CTest
 `desktop_smoke`) the self-test fails with exit 5 when the console view moves or
-resizes on capture, release or window activation, when Enter on the capture chip
-does not capture, when the focused connection list has no current row, when a list
+resizes on capture, release or window activation, when Ctrl+Shift+C, released,
+does not put the remote screen on the clipboard at its own size or is still on
+while captured, when Enter on the capture chip does not capture, when the focused
+connection list has no current row, when a list
 rebuild changes the selection, when the menu key does not open the row's context
 menu, when full screen does not show Quit, with or without a console, or when,
 released in full screen, Tab does not reach the bar's Take control, the bar hides

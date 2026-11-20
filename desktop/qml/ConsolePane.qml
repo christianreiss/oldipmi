@@ -44,6 +44,12 @@ ColumnLayout {
     // Said where the keyboard takes control, when only the mouse can release.
     readonly property string mouseOnlyRelease: "Releasing needs the mouse: tapping Right Ctrl is off in Settings."
     function has(capability) { return (controller.consoleInfo.capabilities || []).indexOf(capability) >= 0 }
+    // The remote screen on the clipboard, at its own resolution and without the stage.
+    function copyScreen() {
+        const size = controller.copyFrame();
+        if (size.width > 0)
+            mainWindow.showPassiveNotification("Screen image copied (" + size.width + " × " + size.height + ")", "short");
+    }
 
     // ── Header: what is shown, and what can be done with it ────────────────
     Item {
@@ -211,6 +217,14 @@ ColumnLayout {
         Kirigami.Action { text: "Power off immediately"; icon.name: "process-stop"; onTriggered: root.powerRequested("off") }
     }
     Kirigami.Action {
+        id: copyAction
+        text: "Copy screen image"
+        icon.name: "edit-copy"
+        displayHint: Kirigami.DisplayHint.IconOnly
+        tooltip: "Copy the remote screen as an image (Ctrl+Shift+C)"
+        onTriggered: root.copyScreen()
+    }
+    Kirigami.Action {
         id: fitAction
         text: view.fit ? "Actual size" : "Fit to window"
         icon.name: view.fit ? "zoom-original" : "zoom-fit-best"
@@ -236,7 +250,7 @@ ColumnLayout {
         onCheckedChanged: if (details.checked !== infoAction.checked) details.checked = infoAction.checked
     }
     // In order of importance: what does not fit moves to the overflow menu from the end.
-    readonly property list<Kirigami.Action> connectedActions: [sendKeyAction, powerAction, mediaAction, fitAction, fullscreenAction, infoAction]
+    readonly property list<Kirigami.Action> connectedActions: [sendKeyAction, powerAction, mediaAction, copyAction, fitAction, fullscreenAction, infoAction]
 
     // Kept for --probe-ui and the screenshot tour: shows the console information.
     QQC2.ToolButton {
@@ -562,6 +576,14 @@ ColumnLayout {
                                 onClicked: powerMenu.popup(powerButton, 0, powerButton.height + 4)
                             }
                             Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: Theme.gu * 1.1; color: Theme.stageEdge }
+                            // Gives way in a narrow bar, so the name stays; Ctrl+Shift+C still copies.
+                            BarButton {
+                                visible: !fsBar.narrow
+                                icon.name: copyAction.icon.name
+                                text: copyAction.text
+                                shortcut: "Ctrl+Shift+C"
+                                onClicked: copyAction.trigger()
+                            }
                             BarButton {
                                 icon.name: fitAction.icon.name
                                 text: fitAction.text

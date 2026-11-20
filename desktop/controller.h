@@ -58,6 +58,9 @@ public:
   Q_INVOKABLE QVariantMap duplicateHost(QString id);
   Q_INVOKABLE QVariantMap host(QString id) const;
   Q_INVOKABLE void sendKeys(QVariantList usages);
+  // Puts the shown console's picture on the clipboard at its own resolution, without
+  // alpha (as the MCP screenshot). Returns its size; an invalid size when nothing is shown.
+  Q_INVOKABLE QSize copyFrame();
   Q_INVOKABLE void clearMessage();
   Q_INVOKABLE QString profilesPath() const { return m_configFile; }
   // Profile waiting for a password (after passwordRequired/walletUnavailable).

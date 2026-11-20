@@ -10,12 +10,14 @@
 #include <algorithm>
 #include <cstring>
 #include <QApplication>
+#include <QClipboard>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QMouseEvent>
 #include <QPointer>
 #include <QQmlApplicationEngine>
@@ -296,6 +298,37 @@ static bool waitFor(QQuickWindow *w, const std::function<bool()> &ready, int ms 
     w->grabWindow(); // polishes layouts and renders one frame
   }
   return true;
+}
+// Released, Ctrl+Shift+C puts the remote screen on the clipboard at its own size;
+// captured, the shortcut is off, since every key goes to the server. Only on the
+// offscreen platform (CTest): on a desktop it would replace the user's clipboard.
+// Returns what failed, or "".
+static QString copyFails(QQuickWindow *w, Console *console) {
+  if (QGuiApplication::platformName() != "offscreen")
+    return {};
+  auto *shortcut = w->findChild<QObject *>("copyScreenShortcut");
+  if (!shortcut)
+    return "no copy shortcut";
+  if (QKeySequence(shortcut->property("sequence").toString()) != QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C))
+    return "the copy shortcut is not Ctrl+Shift+C";
+  w->requestActivate();
+  console->capture();
+  if (!waitFor(w, [console] { return console->captured(); }, 1000))
+    return "the console does not capture";
+  const bool onWhileCaptured = shortcut->property("enabled").toBool();
+  console->release();
+  if (onWhileCaptured)
+    return "Ctrl+Shift+C stays on while the console is captured";
+  if (!waitFor(w, [shortcut] { return shortcut->property("enabled").toBool(); }, 1000))
+    return "Ctrl+Shift+C is off while a console is shown and released";
+  QGuiApplication::clipboard()->clear();
+  QMetaObject::invokeMethod(shortcut, "activated");
+  const QImage copied = QGuiApplication::clipboard()->image();
+  const QSize frame = console->frameSize();
+  if (copied.size() != frame)
+    return QString("Ctrl+Shift+C copied a %1x%2 image of the %3x%4 screen")
+        .arg(copied.width()).arg(copied.height()).arg(frame.width()).arg(frame.height());
+  return {};
 }
 // Without a mouse: Tab reaches the capture chip of the status strip, and Enter
 // there gives keyboard and mouse to the server. In the connection list the focus
@@ -627,6 +660,9 @@ int main(int argc, char **argv) {
         app.exit(3);
       else if (QString why = consoleSizeChanges(w, console); !why.isEmpty()) {
         fprintf(stderr, "Console view changed size: %s\n", qPrintable(why));
+        app.exit(5);
+      } else if (QString why = copyFails(w, console); !why.isEmpty()) {
+        fprintf(stderr, "Copy: %s\n", qPrintable(why));
         app.exit(5);
       } else if (QString why = keyboardFails(w, console, controller); !why.isEmpty()) {
         fprintf(stderr, "Keyboard: %s\n", qPrintable(why));

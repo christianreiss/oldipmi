@@ -39,6 +39,7 @@ FormCard.FormCardPage {
             model: [
                 ["New connection", "Ctrl+N"], ["Filter connections", "Ctrl+F"],
                 ["Show or hide the connection list", "F9"], ["Full screen", "F11"],
+                ["Copy screen image", "Ctrl+Shift+C"],
                 ["Disconnect", "Ctrl+D"], ["Settings", "Ctrl+,"], ["Quit", "Ctrl+Q"]
             ]
             delegate: FormCard.FormTextDelegate {

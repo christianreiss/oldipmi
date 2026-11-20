@@ -140,6 +140,12 @@ Kirigami.ApplicationWindow {
     Shortcut { sequences: [StandardKey.FullScreen, "F11"]; onActivated: window.toggleFullscreen() }
     Shortcut { sequence: "Ctrl+D"; enabled: controller.state !== "disconnected"; onActivated: controller.disconnectHost() }
     Shortcut { sequence: "Ctrl+Shift+D"; enabled: controller.openCount > 0; onActivated: window.disconnectAll() }
+    Shortcut {
+        objectName: "copyScreenShortcut"
+        sequence: "Ctrl+Shift+C"
+        enabled: controller.hasFrame && !consolePane.consoleView.captured
+        onActivated: consolePane.copyScreen()
+    }
     Shortcut { sequences: [StandardKey.Quit]; onActivated: window.requestQuit() }
     Shortcut { sequence: "Escape"; enabled: window.fullscreen && !consolePane.consoleView.captured; onActivated: window.toggleFullscreen() }
 
