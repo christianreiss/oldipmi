@@ -5,6 +5,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocalSocket>
+#include <QProcess>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -123,6 +125,78 @@ private slots:
       f.write(QJsonDocument(fixture).toJson());
       qInfo("recorded %s", qPrintable(f.fileName()));
     }
+  }
+  // The whole chain an agent uses: MCP requests on the stdin of a real
+  // oldipmi-mcp, which finds this AgentApi's socket through XDG_RUNTIME_DIR
+  // (a directory of its own), and the demo console behind it.
+  void mcpServerEndToEnd() {
+    QTemporaryDir dir, runtime; NoCredentials w;
+    Controller c(nullptr, &w, writeProfiles(dir));
+    AgentApi api(&c, runtime.filePath("oldipmi/agent.sock"));
+    QVERIFY(api.start());
+    QProcess mcp;
+    auto env = QProcessEnvironment::systemEnvironment();
+    env.remove("OLDIPMI_AGENT_SOCKET");
+    env.insert("XDG_RUNTIME_DIR", runtime.path());
+    mcp.setProcessEnvironment(env);
+    mcp.setProcessChannelMode(QProcess::ForwardedErrorChannel);
+    mcp.start(QStringLiteral(MCP_BINARY), {});
+    QVERIFY(mcp.waitForStarted());
+    auto stop = qScopeGuard([&mcp] {
+      if (mcp.state() != QProcess::NotRunning) {
+        mcp.kill();
+        mcp.waitForFinished(1000);
+      }
+    });
+    QByteArray out;
+    int next = 0;
+    auto rpc = [&](const QString &method, const QJsonObject &params) {
+      const int id = ++next;
+      QJsonObject req{{"jsonrpc", "2.0"}, {"id", id}, {"method", method}, {"params", params}};
+      mcp.write(QJsonDocument(req).toJson(QJsonDocument::Compact) + "\n");
+      QJsonObject reply;
+      (void)QTest::qWaitFor([&] {
+        out += mcp.readAllStandardOutput();
+        for (int nl; reply.isEmpty() && (nl = out.indexOf('\n')) >= 0; out.remove(0, nl + 1))
+          if (auto o = QJsonDocument::fromJson(out.left(nl)).object(); o["id"].toInt() == id)
+            reply = o;
+        return !reply.isEmpty();
+      }, 30000);
+      return reply["result"].toObject();
+    };
+    auto tool = [&](const QString &name, const QJsonObject &args) {
+      auto r = rpc("tools/call", {{"name", name}, {"arguments", args}});
+      QString text;
+      for (const auto &v : r["content"].toArray())
+        text += v.toObject()["text"].toString();
+      return std::make_pair(r, text);
+    };
+    auto init = rpc("initialize", {{"protocolVersion", "2025-06-18"}, {"capabilities", QJsonObject{}},
+                                   {"clientInfo", QJsonObject{{"name", "e2e-agent"}, {"version", "1.0"}}}});
+    QCOMPARE(init["serverInfo"].toObject()["name"].toString(), QString("oldipmi"));
+    QVERIFY(init["instructions"].toString().contains(QStringLiteral(MCP_BINARY)));
+    // The hello reaches the app, which then knows the agent by name.
+    QTRY_COMPARE(api.clients().value(0).toMap().value("name").toString(), QString("e2e-agent"));
+    QVERIFY(tool("list_profiles", {}).second.contains("\"name\": \"Demo Fail\""));
+    auto [connected, said] = tool("connect", {{"profile", "Demo"}});
+    QCOMPARE(said, QString("Connected to Demo (OldIPMI demo (synthetic, no network)). Framebuffer 1024x768. Take a screenshot next."));
+    QCOMPARE(c.state(), QString("connected"));
+    auto [shot, mapping] = tool("screenshot", {{"max_size", 64}});
+    QImage png;
+    QVERIFY(png.loadFromData(QByteArray::fromBase64(shot["content"].toArray()[0].toObject()["data"].toString().toLatin1()), "PNG"));
+    QCOMPARE(png.size(), QSize(64, 48));
+    QVERIFY(mapping.startsWith("Framebuffer 1024x768; image 64x48."));
+    auto before = c.shown()->changeSeq;
+    QCOMPARE(tool("key", {{"name", "Enter"}}).second, QString("Pressed Enter."));
+    QTRY_VERIFY(c.shown()->changeSeq > before); // the demo screen redraws for the key
+    QCOMPARE(tool("disconnect", {}).second, QString("Disconnected from Demo."));
+    QTRY_COMPARE(c.state(), QString("disconnected"));
+    // At the end of its input the server ends, and the app forgets the agent.
+    mcp.closeWriteChannel();
+    QVERIFY(mcp.waitForFinished(5000));
+    QCOMPARE(mcp.exitStatus(), QProcess::NormalExit);
+    QCOMPARE(mcp.exitCode(), 0);
+    QTRY_COMPARE(api.clientCount(), 0);
   }
   void profilesNeverExposeSecrets() {
     QTemporaryDir dir; NoCredentials w;
