@@ -790,6 +790,33 @@ static QString fullScreenFails(QQuickWindow *w, Console *console, Controller &co
   waitFor(w, [w] { return w->visibility() != QWindow::FullScreen; }, 1000);
   return why;
 }
+// A connection of a family this version does not know (from a newer OldIPMI, say)
+// keeps it: the dialog selects no tile and saves the stored family and console
+// options. Returns what failed, or "".
+static QString unknownFamilyFails(QQuickWindow *w) {
+  auto *dialog = w->findChild<QObject *>("connectionDialog");
+  if (!dialog)
+    return "no connection dialog";
+  const QVariantMap stored{{"name", "Future"}, {"host", "bmc.example.net"}, {"family", "fixture"},
+                           {"username", "admin"}, {"consoleMode", "java"}, {"jnlpPath", "/kvm.jnlp"}};
+  QVariant saved;
+  const bool called = QMetaObject::invokeMethod(dialog, "openFor", Q_ARG(QVariant, stored)) &&
+                      QMetaObject::invokeMethod(dialog, "profile", Q_RETURN_ARG(QVariant, saved));
+  const int tile = dialog->property("familyIndex").toInt();
+  QMetaObject::invokeMethod(dialog, "close");
+  if (!waitFor(w, [dialog] { return !dialog->property("visible").toBool(); }, 2000))
+    return "the dialog does not close";
+  const auto p = saved.toMap();
+  if (!called)
+    return "cannot open the dialog for a connection";
+  if (tile != -1)
+    return QString("tile %1 is selected").arg(tile);
+  if (p.value("family") != "fixture")
+    return "it saves the family as " + p.value("family").toString();
+  if (p.value("consoleMode") != "java" || p.value("jnlpPath") != "/kvm.jnlp")
+    return "it drops the stored console options";
+  return {};
+}
 int main(int argc, char **argv) {
   // Test mode must be on before QApplication: the platform theme reads
   // kdeglobals (colours, icon theme, fonts) during construction.
@@ -1008,6 +1035,9 @@ int main(int argc, char **argv) {
         app.exit(5);
       } else if (QString why = fullScreenFails(w, console, controller); !why.isEmpty()) {
         fprintf(stderr, "Full screen: %s\n", qPrintable(why));
+        app.exit(5);
+      } else if (QString why = unknownFamilyFails(w); !why.isEmpty()) {
+        fprintf(stderr, "Unknown family: %s\n", qPrintable(why));
         app.exit(5);
       } else {
         QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");

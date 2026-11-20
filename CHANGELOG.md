@@ -28,6 +28,12 @@
   AMI connection gets an ATEN JNLP from the BMC, or an ATEN connection an AMI
   one, the error says which family to select, now also when that JNLP is
   incomplete; such a JNLP showed the other family's parsing error before.
+* **A connection keeps a console type this version does not know**, such as
+  one saved by a newer OldIPMI. Editing it no longer turns it into a Supermicro
+  (ATEN) connection: the dialog selects no type and says so, and saving keeps
+  the stored type and its console options. The console pane names the stored
+  type instead of “Supermicro”. Connecting still fails at login with the list
+  of types to select.
 
 ### Removed
 * **Preset connections:** a fresh installation starts with an empty connection

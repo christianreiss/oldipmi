@@ -13,6 +13,7 @@ AppDialog {
     readonly property bool editing: !!original.id
     // Connecting an open profile only brings it to the front, so its edits would not be saved.
     readonly property bool openNow: editing && (controller.sessions[original.id] || {state: "disconnected"}).state !== "disconnected"
+    // The chosen family's tile; -1 keeps a stored family this version does not know.
     property int familyIndex: 0
     property string certPath: ""
     property string keyPath: ""
@@ -95,7 +96,7 @@ AppDialog {
 
     // Accept a pasted URL ("https://bmc.example/#login") and keep only the host.
     readonly property string host: hostField.text.trim().replace(/^[a-z]+:\/\//i, "").replace(/[\/?#].*$/, "")
-    readonly property string family: Families.list[Math.max(0, familyIndex)].id
+    readonly property string family: familyIndex >= 0 ? Families.list[familyIndex].id : (original.family || "")
     readonly property bool account: Families.needsAccount(family)
     readonly property string hostProblem: host === "" ? "" : /[\s@\\]/.test(host) ? "Enter a hostname or IP address only." : ""
     readonly property bool valid: host !== "" && hostProblem === "" && (userField.text !== "" || !account)
@@ -110,8 +111,12 @@ AppDialog {
         p.http = httpSwitch.checked;
         p.legacyTLS = tlsSwitch.checked;
         p.allowPlainConsole = plainSwitch.checked;
-        p.consoleMode = Families.offers(family, "consoleMode") ? ["auto", "java", "html5"][modeBox.currentIndex] : "auto";
-        p.jnlpPath = Families.offers(family, "jnlp") ? jnlpField.text.trim() : "";
+        // A family this version knows says which console options apply; an
+        // unknown one keeps its stored options.
+        if (familyIndex >= 0) {
+            p.consoleMode = Families.offers(family, "consoleMode") ? ["auto", "java", "html5"][modeBox.currentIndex] : "auto";
+            p.jnlpPath = Families.offers(family, "jnlp") ? jnlpField.text.trim() : "";
+        }
         p.clientCert = certPath;
         p.clientKey = keyPath;
         return p;
@@ -306,7 +311,8 @@ AppDialog {
         }
         QQC2.Label {
             visible: !dialog.compact
-            text: Families.list[Math.max(0, dialog.familyIndex)].hint
+            text: dialog.familyIndex >= 0 ? Families.list[dialog.familyIndex].hint
+                : "This connection's console type, \"" + dialog.family + "\", is not one this version of OldIPMI knows. Choose the BMC's type above; saving without one keeps it."
             font.pointSize: Theme.small
             color: Theme.muted
             wrapMode: Text.Wrap

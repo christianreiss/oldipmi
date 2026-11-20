@@ -4,20 +4,22 @@
 // app registers as the FamilyTable singleton (main.cpp). `id` is stored in the
 // profile.
 var list = App.FamilyTable.list;
+// The family's place in the list, or -1 for one this version does not know.
 function index(id) {
     for (var i = 0; i < list.length; ++i)
         if (list[i].id === id) return i;
-    return 0;
+    return -1;
 }
 function name(id) {
     for (var i = 0; i < list.length; ++i)
         if (list[i].id === id) return list[i].name;
     return id || "Unknown";
 }
-// The family's short name ("AMI MegaRAC" rather than the full description).
+// The family's short name ("AMI MegaRAC" rather than the full description); an
+// unknown family's id.
 function shortName(id) {
-    var f = list[index(id)];
-    return f ? f.short : "";
+    var i = index(id);
+    return i >= 0 ? list[i].short : (id || "");
 }
 // Bundled illustration per family (desktop/images, compiled into the binary).
 function image(id) {

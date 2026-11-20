@@ -95,7 +95,11 @@ private slots:
       QCOMPARE(js("needsAccount(ID)").toBool(), f["account"].toBool());
       QCOMPARE(familyNeedsAccount(id), f["account"].toBool());
     }
-    // An unknown family offers no option and needs an account.
+    // An unknown family has no place in the list, keeps its id as its names,
+    // offers no option and needs an account.
+    QCOMPARE(m_engine.evaluate("index('fixture')").toInt(), -1);
+    QCOMPARE(m_engine.evaluate("name('fixture')").toString(), QString("fixture"));
+    QCOMPARE(m_engine.evaluate("shortName('fixture')").toString(), QString("fixture"));
     QCOMPARE(m_engine.evaluate("offers('fixture', 'jnlp')").toBool(), false);
     QCOMPARE(m_engine.evaluate("needsAccount('fixture')").toBool(), true);
     QVERIFY(familyNeedsAccount("fixture"));
