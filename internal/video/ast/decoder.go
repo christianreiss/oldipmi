@@ -48,7 +48,7 @@ type Decoder struct {
 	// Quantization tables m_QT[4][64], pre-scaled by 65536 (fixed point).
 	qt [4][64]int64
 
-	// Huffman tables m_HTDC[4]/m_HTAC[4].
+	// Huffman tables m_HTDC[4]/m_HTAC[4], shared by every Decoder.
 	htDC, htAC [4]*huffmanTable
 
 	// Per-component DC predictors (Decoder.m_DCY/DCCb/DCCr, length-1 arrays).
@@ -117,7 +117,7 @@ func New() *Decoder {
 		// neg_pow2[i] = (short)(1 - 2^i)
 		d.negPow2[i] = int16(1 - (1 << uint(i)))
 	}
-	d.htDC, d.htAC = initHuffmanTables()
+	d.htDC, d.htAC = sharedHuffmanTables()
 	d.initColorTable()
 	d.initRangeLimitTable()
 	d.precalculateCrCbTables() // builds the green tables (m_Cr_Cb_green_tab analog folded into calcRGB)

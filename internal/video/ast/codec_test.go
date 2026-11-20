@@ -3,6 +3,9 @@ package ast
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -142,6 +145,33 @@ func TestHuffmanTableConstruction(t *testing.T) {
 
 // TestColorTables sanity-checks the YUV→RGB coefficient tables against the
 // closed-form values initColorTable computes, at a few anchor points.
+// Every decoder shares one set of Huffman tables, so decoding must leave
+// them as initHuffmanTables builds them.
+func TestHuffmanTablesAreSharedAndOnlyRead(t *testing.T) {
+	a, b := New(), New()
+	if a.htDC != b.htDC || a.htAC != b.htAC {
+		t.Fatal("two decoders hold their own Huffman tables")
+	}
+	for _, name := range []string{"ivtp", "html5"} {
+		d := New()
+		for i := range goldenStreams[name] {
+			frame, err := os.ReadFile(filepath.Join("testdata", "streams", fmt.Sprintf("%s-%d.bin", name, i+1)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := decodeFrame(d, frame); err != nil {
+				t.Fatalf("%s-%d: %v", name, i+1, err)
+			}
+		}
+	}
+	dc, ac := initHuffmanTables()
+	for i := range dc {
+		if *a.htDC[i] != *dc[i] || *a.htAC[i] != *ac[i] {
+			t.Fatalf("Huffman table %d changed while decoding", i)
+		}
+	}
+}
+
 func TestColorTables(t *testing.T) {
 	d := New()
 	fixG := func(v float64) int { return int(v*65536.0 + 0.5) }

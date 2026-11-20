@@ -4,6 +4,8 @@ package ast
 // helpers in Decoder.java (loadHuffmanTable, loadHuffmanTableYDC/YAC,
 // initHuffmanTable).
 
+import "sync"
+
 // huffmanTable mirrors com.ami.kvm.jviewer.soc.video.HuffmanTable.
 type huffmanTable struct {
 	Length    [17]int8     // code lengths per bit-length (Java byte[17])
@@ -62,6 +64,10 @@ func loadHuffmanTable(ht *huffmanTable, nrcodes [17]int8, values []int16, huffco
 	}
 	return ht
 }
+
+// sharedHuffmanTables builds the tables once: they take about 1.5 MB, and
+// every Decoder only reads them (decompressJPEG).
+var sharedHuffmanTables = sync.OnceValues(initHuffmanTables)
 
 // initHuffmanTables ports Decoder.initHuffmanTable.
 func initHuffmanTables() (htDC, htAC [4]*huffmanTable) {
