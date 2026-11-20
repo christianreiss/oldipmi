@@ -1,17 +1,9 @@
 .pragma library
-// Console families understood by oldipmi-core. `id` is stored in the profile.
-var list = [
-    { id: "aten", name: "Supermicro (ATEN)", short: "Supermicro",
-      hint: "Supermicro X9 and newer, and most X8 boards. Uses the Java iKVM protocol or the HTML5 console, whichever the firmware offers." },
-    { id: "ami", name: "AMI MegaRAC", short: "AMI MegaRAC",
-      hint: "AMI MegaRAC firmware, including Supermicro X8 boards that shipped with it (e.g. X8DTU), and ASUS, Tyan or Gigabyte BMCs." },
-    { id: "avocent", name: "Dell iDRAC (Avocent)", short: "Dell iDRAC",
-      hint: "Dell PowerEdge 12th generation and older with an Avocent-based iDRAC 6/7 virtual console." },
-    { id: "cisco", name: "Cisco IMC", short: "Cisco IMC",
-      hint: "Cisco UCS C-Series Integrated Management Controller (Avocent-based KVM)." },
-    { id: "demo", name: "Demo console (no hardware)", short: "Demo",
-      hint: "A synthetic console that echoes keys, pointer and clicks. For trying OldIPMI and testing AI agents without a BMC. Address \"demo\", or e.g. \"demo-1920x1080\"." }
-];
+.import OldIPMI 1.0 as App
+// Console families understood by oldipmi-core: desktop/families.json, which the
+// app registers as the FamilyTable singleton (main.cpp). `id` is stored in the
+// profile.
+var list = App.FamilyTable.list;
 function index(id) {
     for (var i = 0; i < list.length; ++i)
         if (list[i].id === id) return i;
@@ -36,9 +28,20 @@ function image(id) {
 var emptyImage = "qrc:/images/empty-state.png";
 var errorImage = "qrc:/images/error-state.png";
 function names() { return list.map(function (f) { return f.name; }); }
-// ISO mount exists only for the AMI and ATEN adapters.
-function hasMedia(id) { return id === "ami" || id === "aten"; }
-function needsAccount(id) { return id !== "demo"; }
+// Whether the family offers an advanced option of the connection dialog: a flag
+// of its entry (consoleMode, jnlp or clientCertificate).
+function offers(id, option) {
+    for (var i = 0; i < list.length; ++i)
+        if (list[i].id === id) return list[i][option] === true;
+    return false;
+}
+// False for a family without an account (no username or password: the demo
+// console); true for any other, known or not.
+function needsAccount(id) {
+    for (var i = 0; i < list.length; ++i)
+        if (list[i].id === id) return list[i].account !== false;
+    return true;
+}
 
 var stages = [
     { id: "logging_in", name: "Logging in", failed: "Login failed" },

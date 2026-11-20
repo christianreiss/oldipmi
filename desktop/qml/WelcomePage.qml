@@ -95,7 +95,7 @@ Item {
                 Layout.maximumWidth: content.width
                 Layout.topMargin: Math.round(Theme.gu * 1.2)
                 Repeater {
-                    model: Families.list.filter(f => f.id !== "demo")
+                    model: Families.list.filter(f => !f.synthetic)
                     delegate: RowLayout {
                         required property var modelData
                         spacing: Kirigami.Units.smallSpacing

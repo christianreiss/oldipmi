@@ -110,8 +110,8 @@ AppDialog {
         p.http = httpSwitch.checked;
         p.legacyTLS = tlsSwitch.checked;
         p.allowPlainConsole = plainSwitch.checked;
-        p.consoleMode = family === "aten" ? ["auto", "java", "html5"][modeBox.currentIndex] : "auto";
-        p.jnlpPath = Families.hasMedia(family) ? jnlpField.text.trim() : "";
+        p.consoleMode = Families.offers(family, "consoleMode") ? ["auto", "java", "html5"][modeBox.currentIndex] : "auto";
+        p.jnlpPath = Families.offers(family, "jnlp") ? jnlpField.text.trim() : "";
         p.clientCert = certPath;
         p.clientKey = keyPath;
         return p;
@@ -496,12 +496,12 @@ AppDialog {
         onHeightChanged: dialog.tryReveal()
 
         ColumnLayout {
-            visible: dialog.family === "aten" || Families.hasMedia(dialog.family)
+            visible: Families.offers(dialog.family, "consoleMode") || Families.offers(dialog.family, "jnlp")
             spacing: Kirigami.Units.largeSpacing
             Layout.fillWidth: true
             Caption { text: "CONSOLE" }
             RowLayout {
-                visible: dialog.family === "aten"
+                visible: Families.offers(dialog.family, "consoleMode")
                 spacing: Kirigami.Units.largeSpacing
                 Layout.fillWidth: true
                 ColumnLayout {
@@ -526,7 +526,7 @@ AppDialog {
                 }
             }
             ColumnLayout {
-                visible: Families.hasMedia(dialog.family)
+                visible: Families.offers(dialog.family, "jnlp")
                 spacing: Kirigami.Units.smallSpacing
                 Layout.fillWidth: true
                 FieldLabel { text: "JNLP endpoint override" }
@@ -595,7 +595,7 @@ AppDialog {
         }
 
         ColumnLayout {
-            visible: dialog.family === "aten"
+            visible: Families.offers(dialog.family, "clientCertificate")
             spacing: Kirigami.Units.largeSpacing
             Layout.fillWidth: true
             Caption { text: "CLIENT CERTIFICATE (MUTUAL TLS)" }

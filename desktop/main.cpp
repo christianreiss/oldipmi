@@ -1,6 +1,7 @@
 #include "agentapi.h"
 #include "console.h"
 #include "controller.h"
+#include "families.h"
 #include "framethumbnail.h"
 #include "i18n.h"
 #include "settings.h"
@@ -830,6 +831,9 @@ int main(int argc, char **argv) {
   }
   qmlRegisterType<Console>("OldIPMI", 1, 0, "ConsoleView");
   qmlRegisterType<FrameThumbnail>("OldIPMI", 1, 0, "FrameThumbnail");
+  // The family table (desktop/families.json) for qml/families.js.
+  qmlRegisterSingletonType("OldIPMI", 1, 0, "FamilyTable",
+                           [](QQmlEngine *, QJSEngine *js) -> QJSValue { return familyTableScript(js); });
   // The self-test never opens the user's wallet.
   MemoryCredentials testCredentials;
   Controller controller(nullptr, test ? &testCredentials : nullptr, profiles);

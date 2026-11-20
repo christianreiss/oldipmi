@@ -1,0 +1,60 @@
+{
+  "about": "The console families oldipmi-core supports, for the desktop: the C++ code (desktop/families.cpp) and the QML (qml/families.js) read this table, and the Go tests of internal/backend check it against the core's driver registry (drivers.go) and the pictures (desktop/images/family-<id>.png). id is stored in the profile; name, short and hint are what the connection dialog, the list and the console pane show. account: the family needs a username and password (false: neither, and no wallet entry). consoleMode, jnlp and clientCertificate: the advanced options the connection dialog offers (the console mode, the JNLP endpoint override, the client certificate). synthetic: no hardware behind it (the demo console); the welcome page and the core's message for an unknown family leave it out.",
+  "families": [
+    {
+      "id": "aten",
+      "name": "Supermicro (ATEN)",
+      "short": "Supermicro",
+      "hint": "Supermicro X9 and newer, and most X8 boards. Uses the Java iKVM protocol or the HTML5 console, whichever the firmware offers.",
+      "account": true,
+      "consoleMode": true,
+      "jnlp": true,
+      "clientCertificate": true,
+      "synthetic": false
+    },
+    {
+      "id": "ami",
+      "name": "AMI MegaRAC",
+      "short": "AMI MegaRAC",
+      "hint": "AMI MegaRAC firmware, including Supermicro X8 boards that shipped with it (e.g. X8DTU), and ASUS, Tyan or Gigabyte BMCs.",
+      "account": true,
+      "consoleMode": false,
+      "jnlp": true,
+      "clientCertificate": false,
+      "synthetic": false
+    },
+    {
+      "id": "avocent",
+      "name": "Dell iDRAC (Avocent)",
+      "short": "Dell iDRAC",
+      "hint": "Dell PowerEdge 12th generation and older with an Avocent-based iDRAC 6/7 virtual console.",
+      "account": true,
+      "consoleMode": false,
+      "jnlp": false,
+      "clientCertificate": false,
+      "synthetic": false
+    },
+    {
+      "id": "cisco",
+      "name": "Cisco IMC",
+      "short": "Cisco IMC",
+      "hint": "Cisco UCS C-Series Integrated Management Controller (Avocent-based KVM).",
+      "account": true,
+      "consoleMode": false,
+      "jnlp": false,
+      "clientCertificate": false,
+      "synthetic": false
+    },
+    {
+      "id": "demo",
+      "name": "Demo console (no hardware)",
+      "short": "Demo",
+      "hint": "A synthetic console that echoes keys, pointer and clicks. For trying OldIPMI and testing AI agents without a BMC. Address \"demo\", or e.g. \"demo-1920x1080\".",
+      "account": false,
+      "consoleMode": false,
+      "jnlp": false,
+      "clientCertificate": false,
+      "synthetic": true
+    }
+  ]
+}

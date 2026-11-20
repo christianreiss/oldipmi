@@ -1,4 +1,5 @@
 #include "controller.h"
+#include "families.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
@@ -284,9 +285,9 @@ void Controller::connectHost(QVariantMap p, QString password) {
   m_pendingProfile = p;
   m_pendingPassword.clear();
   bool entered = !password.isEmpty();
-  // The synthetic "demo" console (internal/demo) needs no password and never touches KWallet.
-  bool demo = p.value("family").toString() == "demo";
-  if (!entered && !demo && p.value("remember").toBool()) {
+  // A family without an account (the demo console) needs no password and never touches KWallet.
+  const bool account = familyNeedsAccount(p.value("family").toString());
+  if (!entered && account && p.value("remember").toBool()) {
     // Do not reuse a stored credential after changing its host or account.
     for (const auto &v : m_hosts) {
       auto saved = v.toMap();
@@ -298,7 +299,7 @@ void Controller::connectHost(QVariantMap p, QString password) {
       }
     }
   }
-  if (password.isEmpty() && !demo) {
+  if (password.isEmpty() && account) {
     fail("Enter the password for " + p.value("username").toString() + "@" +
          p.value("host").toString() + " to open its console.");
     emit passwordRequired();

@@ -1,6 +1,9 @@
 // The error page's hints (desktop/qml/families.js): which next step each kind of
 // backend failure gets. The messages are shaped like those oldipmi-core sends.
+// And the family helpers there, which answer from the family table.
+#include "families.h"
 #include <QFile>
+#include <QJsonObject>
 #include <QJSEngine>
 #include <QtTest>
 
@@ -15,8 +18,12 @@ private slots:
   void initTestCase() {
     QFile f(FAMILIES_JS);
     QVERIFY2(f.open(QIODevice::ReadOnly), FAMILIES_JS);
-    // A QML JavaScript library; without its pragma it is plain JavaScript.
-    QString source = QString::fromUtf8(f.readAll()).replace(".pragma library", "");
+    // A QML JavaScript library; without its pragma and import it is plain
+    // JavaScript, given the family table the way the app registers it.
+    QString source = QString::fromUtf8(f.readAll()).replace(".pragma library", "").replace(".import OldIPMI 1.0 as App", "");
+    QJSValue app = m_engine.newObject();
+    app.setProperty("FamilyTable", familyTableScript(&m_engine));
+    m_engine.globalObject().setProperty("App", app);
     QJSValue loaded = m_engine.evaluate(source, FAMILIES_JS);
     QVERIFY2(!loaded.isError(), qPrintable(loaded.toString()));
   }
@@ -66,6 +73,32 @@ private slots:
       QCOMPARE(got, QString());
     else
       QVERIFY2(got.startsWith(hint), qPrintable(got));
+  }
+  // The family helpers answer from the table (desktop/families.json), which QML
+  // gets as a JavaScript array; the controller asks the same table.
+  void familyHelpers() {
+    QVERIFY(m_engine.evaluate("Array.isArray(list)").toBool());
+    const QJsonArray table = familyTable();
+    QVERIFY(!table.isEmpty());
+    QCOMPARE(m_engine.evaluate("list.length").toInt(), table.size());
+    for (int i = 0; i < table.size(); ++i) {
+      const QJsonObject f = table[i].toObject();
+      const QString id = f["id"].toString();
+      auto js = [&](const char *expression) { return m_engine.evaluate(QString(expression).replace("ID", "'" + id + "'")); };
+      QCOMPARE(js("index(ID)").toInt(), i);
+      QCOMPARE(js("name(ID)").toString(), f["name"].toString());
+      QCOMPARE(js("shortName(ID)").toString(), f["short"].toString());
+      QCOMPARE(js("image(ID)").toString(), "qrc:/images/family-" + id + ".png");
+      QCOMPARE(js("offers(ID, 'consoleMode')").toBool(), f["consoleMode"].toBool());
+      QCOMPARE(js("offers(ID, 'jnlp')").toBool(), f["jnlp"].toBool());
+      QCOMPARE(js("offers(ID, 'clientCertificate')").toBool(), f["clientCertificate"].toBool());
+      QCOMPARE(js("needsAccount(ID)").toBool(), f["account"].toBool());
+      QCOMPARE(familyNeedsAccount(id), f["account"].toBool());
+    }
+    // An unknown family offers no option and needs an account.
+    QCOMPARE(m_engine.evaluate("offers('fixture', 'jnlp')").toBool(), false);
+    QCOMPARE(m_engine.evaluate("needsAccount('fixture')").toBool(), true);
+    QVERIFY(familyNeedsAccount("fixture"));
   }
   void errorDetailDropsTheStage() {
     QCOMPARE(call("errorDetail", "Login failed: dial tcp: lookup x: no such host"),
