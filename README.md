@@ -246,9 +246,9 @@ It needs `rpm-build` and the build dependencies of the native build above
 run). `--mock` rebuilds the SRPM in a clean mock chroot instead
 (`--mock-root fedora-43-x86_64` to choose one; results in `dist/rpm/mock/`),
 `--release N` sets the release, and arguments after `--` go to `rpmbuild`.
-rpmlint runs when installed. The package's `License` tag carries
-`LicenseRef-Unspecified` for OldIPMI's own code until the repository declares a
-license.
+rpmlint runs when installed. The package's `License` tag is `GPL-3.0-or-later`
+for OldIPMI's own code, plus MIT, Apache-2.0 and BSD-3-Clause for the adapted
+code and the vendored Go modules.
 
 ### Publish to repo.uggs.io
 
@@ -335,3 +335,17 @@ imported or deleted automatically. To roll back, build/run a separate checkout o
 `ce0b1a7`; private `.env` configuration remains outside version control.
 
 See [THIRD_PARTY.md](THIRD_PARTY.md) for provenance and licenses.
+
+## License
+
+Copyright © 2026 Christian Reiß.
+
+OldIPMI is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. It is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; see [LICENSE](LICENSE) for details.
+
+Code adapted from other projects keeps its MIT license, and the Go modules are
+under Apache-2.0 and BSD-3-Clause; [THIRD_PARTY.md](THIRD_PARTY.md) lists every
+source with its license text.

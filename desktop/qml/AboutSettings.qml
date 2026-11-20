@@ -48,11 +48,23 @@ FormCard.FormCardPage {
             description: "KWallet, folder \"OldIPMI\"; one entry per connection"
         }
     }
-    FormCard.FormHeader { title: "Licenses" }
+    FormCard.FormHeader { title: "License" }
     FormCard.FormCard {
         FormCard.FormTextDelegate {
-            text: "OldIPMI and third-party components"
+            text: "© 2026 Christian Reiß"
+            description: "OldIPMI is free software: you can share and change it under the GNU General Public License, version 3 or later. It comes with no warranty."
+        }
+        FormCard.FormDelegateSeparator {}
+        FormCard.FormTextDelegate {
+            text: "Third-party components"
             description: "Provenance and license texts are listed in THIRD_PARTY.md and the licenses/ directory shipped with the application."
+        }
+        FormCard.FormDelegateSeparator {}
+        FormCard.FormButtonDelegate {
+            text: "Read the license"
+            description: "GNU GPL 3.0 on gnu.org; also in the LICENSE file shipped with OldIPMI"
+            icon.name: "license"
+            onClicked: Qt.openUrlExternally("https://www.gnu.org/licenses/gpl-3.0.html")
         }
     }
 }

@@ -7,6 +7,10 @@
   Ctrl+Shift+C while the console is released: puts the remote screen on the
   clipboard as an image at its own resolution, without the stage around it, and
   confirms it with a short note.
+* **License:** OldIPMI is free software under the GNU General Public License,
+  version 3 or later (`LICENSE`). The About page shows the notice and opens the
+  license text; the RPM declares `GPL-3.0-or-later` and ships `LICENSE`, and so
+  does the portable bundle.
 
 ### Changed
 * **New app icon:** a server front with a glowing console prompt, in the style

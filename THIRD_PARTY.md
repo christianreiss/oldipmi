@@ -1,5 +1,9 @@
 # Third-party code and protocol sources
 
+OldIPMI itself is licensed under the GNU General Public License, version 3 or
+later (`LICENSE`). The components below keep their own licenses (MIT,
+Apache-2.0, BSD-3-Clause), all compatible with it.
+
 The native application contains no vendor Java code, JARs or shared libraries.
 
 * `internal/ami/codec`, `internal/ami/vmedia`, `internal/ami/ivtp.go`, and
@@ -27,7 +31,8 @@ The native application contains no vendor Java code, JARs or shared libraries.
   License: `licenses/beefkvm-MIT.txt`.
 * The illustrations in `desktop/images` were generated for this project with xAI
   Imagine (one master image, the others derived from it by image editing) and then
-  made transparent. They contain no vendor logos, trademarks or text.
+  made transparent. They contain no vendor logos, trademarks or text, and are
+  distributed under the project license.
 * Go IPMI dependency versions are locked in `go.mod` / `go.sum`. No external
   `ipmitool` process is used.
 * Qt 6 and KDE Frameworks 6 are dynamically linked. Bundle license texts are

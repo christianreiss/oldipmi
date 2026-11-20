@@ -93,6 +93,7 @@ for package in sorted(license_packages | {'qt6-qtbase', 'qt6-qtdeclarative', 'kf
 (APP / 'usr/share/doc/OldIPMI').mkdir(parents=True,exist_ok=True)
 (APP / 'usr/share/doc/OldIPMI/runtime-packages.txt').write_text(run('rpm','-q','--qf','%{NAME} %{VERSION}-%{RELEASE} %{SOURCERPM}\n',*sorted(license_packages)))
 shutil.copytree(ROOT / 'licenses', APP / 'usr/share/licenses/OldIPMI', dirs_exist_ok=True)
+copy(ROOT / 'LICENSE', APP / 'usr/share/licenses/OldIPMI/LICENSE')
 for name in ('README.md', 'THIRD_PARTY.md', 'CHANGELOG.md'):
     copy(ROOT / name, APP / 'usr/share/doc/OldIPMI' / name)
 copy(Path('/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf'), APP / 'usr/share/fonts/DejaVuSans.ttf')
