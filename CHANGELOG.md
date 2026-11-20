@@ -11,6 +11,9 @@
   version 3 or later (`LICENSE`). The About page shows the notice and opens the
   license text; the RPM declares `GPL-3.0-or-later` and ships `LICENSE`, and so
   does the portable bundle.
+* **Two more demo addresses:** `demo-hang` keeps the login waiting until you
+  cancel it, and `demo-unreachable` fails like a BMC that does not answer, with
+  its hint. Like the other demo variants, neither needs a network.
 
 ### Changed
 * **New app icon:** a server front with a glowing console prompt, in the style

@@ -306,12 +306,14 @@ it prints only connection stages and allowlisted console information.
 and 12-byte headers to stderr; `OLDIPMI_TRACE_AVPT_DUMP=DIR` additionally writes
 video payloads (screen content, mode 0600) for codec work. Never commit them.
 A connection of type **Demo console (no hardware)** (family `demo`, address `demo`,
-`demo-1920x1080` for another size, `demo-fail` / `demo-slow` for failing or slow setup)
+`demo-1920x1080` for another size, `demo-fail` / `demo-slow` for failing or slow setup,
+`demo-hang` for a login that waits until it is cancelled, `demo-unreachable` for the
+error of a BMC that does not answer)
 opens a synthetic console that echoes every key, pointer move and click: a BMC-free
 end-to-end check of the UI and of all MCP tools.
 `oldipmi --self-test --screenshots DIR` walks through every UI state offscreen
-(it writes its own test-mode connections first; the error state uses
-`oldipmi.invalid`) and saves PNGs
+(it writes its own test-mode connections first and never touches the network:
+the connecting and error states use `demo-hang` and `demo-unreachable`) and saves PNGs
 for review; `--size WxH` fixes the window size. `slop native --config
 tools/slop/native.json --root . --out .slop/native` renders the full matrix
 (17 states × light/dark × 1200x800/720x480 × scale 1/2 × text 1/1.5) for the

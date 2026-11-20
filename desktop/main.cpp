@@ -53,8 +53,8 @@ static int qmlWarningsResult() {
   return 6;
 }
 // Developer aid (--screenshots DIR, with --self-test): walks through the UI
-// states and saves one PNG per state and window. Never contacts a real BMC:
-// the error state uses the reserved name "oldipmi.invalid".
+// states and saves one PNG per state and window. Never touches the network: the
+// connecting and error states use the demo console's "hang" and "unreachable".
 static void call0(QObject *root, const char *method, const QVariant &arg) {
   QMetaObject::invokeMethod(root, method, Q_ARG(QVariant, arg));
 }
@@ -120,11 +120,12 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
     auto *p = popup(name);
     return p && p->property("opened").toBool();
   };
-  QVariantMap demo{{"name", "Demo BMC"}, {"host", "oldipmi.invalid"}, {"family", "aten"},
-                   {"username", "ADMIN"}, {"remember", false}};
-  // A private address with no host behind it: the login stays pending until cancelled.
-  QVariantMap pending{{"name", "Lab server"}, {"host", "10.255.255.1"}, {"family", "ami"},
-                      {"username", "ADMIN"}, {"remember", false}};
+  // Fails at the login as an unreachable BMC does, so the error page shows its hint.
+  QVariantMap demo{{"name", "Demo BMC"}, {"host", "demo-unreachable"}, {"family", "demo"},
+                   {"remember", false}};
+  // The login stays pending until it is cancelled, however long the step takes.
+  QVariantMap pending{{"name", "Lab server"}, {"host", "demo-hang"}, {"family", "demo"},
+                      {"remember", false}};
   auto failed = std::make_shared<bool>(false); // a check along the tour failed: exit 5
   auto steps = std::make_shared<QList<Step>>(QList<Step>{
       {"01-selected", [] {}, 600},
@@ -139,11 +140,11 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
       {"06-connecting", [=, &controller] {
          for (auto *w : QGuiApplication::topLevelWindows())
            if (w != qobject_cast<QWindow *>(root)) w->close();
-         controller.connectHost(pending, "not-a-real-password");
+         controller.connectHost(pending, {});
        }, 800, [&controller] { return controller.state() == "logging_in"; }},
       {"07-error", [=, &controller] {
          controller.disconnectHost();
-         controller.connectHost(demo, "not-a-real-password");
+         controller.connectHost(demo, {});
        }, 600, [&controller] { return !controller.errorStage().isEmpty(); }},
       {"08-console", [=, &controller] {
          controller.disconnectHost();
@@ -242,14 +243,17 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   auto index = std::make_shared<int>(0);
   auto next = std::make_shared<std::function<void()>>();
   auto settle = std::make_shared<std::function<void(int)>>();
-  *settle = [=, &app](int waited) {
+  *settle = [=, &app, &controller](int waited) {
     const auto &step = (*steps)[*index - 1];
     if (step.ready && !step.ready() && waited < 6000) {
       QTimer::singleShot(100, &app, [=] { (*settle)(waited + 100); });
       return;
     }
     if (step.ready && !step.ready())
-      fprintf(stderr, "Screenshot tour: %s did not become ready\n", qPrintable(step.name));
+      fprintf(stderr, "Screenshot tour: %s did not become ready (state %s, error stage \"%s\", "
+              "%d console(s) open, frame %s, message \"%s\")\n", qPrintable(step.name),
+              qPrintable(controller.state()), qPrintable(controller.errorStage()), controller.openCount(),
+              controller.hasFrame() ? "shown" : "none", qPrintable(controller.message()));
     (*next)();
   };
   *next = [=, &app] {

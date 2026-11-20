@@ -4,8 +4,9 @@
 // whole stack (MCP -> app -> oldipmi-core -> session -> frames) can be verified.
 //
 // The profile's host selects variants: "WxH" anywhere in it sets the
-// framebuffer size (e.g. "demo-1920x1080"), "fail" makes the login fail and
-// "slow" makes each setup stage take two seconds.
+// framebuffer size (e.g. "demo-1920x1080"), "fail" makes the login fail, "slow"
+// makes each setup stage take two seconds, "hang" keeps the login waiting until
+// it is cancelled, and "unreachable" fails the login as an unreachable BMC does.
 package demo
 
 import (
@@ -57,11 +58,18 @@ func Connect(ctx context.Context, p protocol.Profile) (protocol.Session, error) 
 			return nil
 		}
 	}
+	if strings.Contains(host, "hang") {
+		<-ctx.Done() // a login that never answers, independent of any timing
+		return nil, ctx.Err()
+	}
 	if err := wait(); err != nil {
 		return nil, err
 	}
 	if strings.Contains(host, "fail") {
 		return nil, fmt.Errorf("demo login rejected (the host name contains \"fail\")")
+	}
+	if strings.Contains(host, "unreachable") {
+		return nil, fmt.Errorf("demo BMC unreachable (the host name contains \"unreachable\"): no route to host")
 	}
 	info := &protocol.ConsoleInfo{Protocol: "OldIPMI demo (synthetic, no network)",
 		Endpoints:    []protocol.Endpoint{{Role: "Video / input", Address: "in-process", Transport: "none"}},
