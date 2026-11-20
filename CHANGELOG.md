@@ -28,6 +28,12 @@
   stay as they are.
 
 ### Fixed
+* **A hostile Avocent BMC can no longer stall a console with one picture.**
+  For every two-colour pattern in a picture, the backend looked up to a screen
+  row back for the second colour. A picture made only of such patterns over a
+  plain area kept it busy for up to a minute. All the looking back of one picture
+  is now limited to 16 pixels per pixel of the screen, which real pictures stay
+  far below; they look exactly as before.
 * **A Cisco IMC console no longer crashes when the screen size changes
   mid-picture.** A BMC that reported a new screen size while it was still sending
   a picture made the backend draw that picture past the end of the screen and

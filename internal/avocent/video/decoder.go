@@ -114,6 +114,25 @@ func (f *Framebuffer) writePixels(src []uint32) {
 	f.Dirty = true
 }
 
+// before returns the colour of the nearest pixel before index i that is not
+// last, looking at most one row back; last if there is none. It looks at no
+// more than *looks pixels and counts them off.
+func (f *Framebuffer) before(i int, last uint32, looks *int) uint32 {
+	for k := i - 1; k >= 0 && k >= i-f.W && *looks > 0; k-- {
+		*looks--
+		if p := f.getPixel(k); p != last {
+			return p
+		}
+	}
+	return last
+}
+
+// patternLooks is how many pixels the PATTERN opcodes of one frame may look
+// at in all, per pixel of the screen. Real frames need about one; a frame of
+// patterns over a plain area would look a whole row back for every byte, and
+// one of 16 MiB at 4096 pixels a row took about 50 seconds (A2-14).
+const patternLooks = 16
+
 // getPixel reads the ARGB value at absolute index i (or 0 if out of range).
 func (f *Framebuffer) getPixel(i int) uint32 {
 	if i < 0 || i >= len(f.Pixels) {
@@ -220,6 +239,7 @@ func NewDecoder(d Depth) *Decoder {
 // at fb.Cur, until the payload is exhausted. Returns bytes consumed.
 func (d *Decoder) Decode(fb *Framebuffer, data []byte) (int, error) {
 	pos := 0
+	looks := patternLooks * len(fb.Pixels)
 	for pos < len(data) {
 		op := data[pos]
 		pos++
@@ -250,19 +270,7 @@ func (d *Decoder) Decode(fb *Framebuffer, data []byte) (int, error) {
 			// PATTERN: pick between two of the most recent distinct
 			// pixels for each bit of the payload
 			last := fb.getPixel(fb.Cur - 1)
-			// find previous distinct pixel by scanning back
-			var prev uint32 = last
-			limit := fb.Cur - 1
-			if limit > fb.W {
-				limit = fb.W
-			}
-			for k := fb.Cur - 1; k >= 0 && k >= fb.Cur-1-limit; k-- {
-				p := fb.getPixel(k)
-				if p != last {
-					prev = p
-					break
-				}
-			}
+			prev := fb.before(fb.Cur-1, last, &looks)
 			// first 4 pixels from opcode byte
 			out := [7]uint32{}
 			pick := func(bit int) uint32 {
