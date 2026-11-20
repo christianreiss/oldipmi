@@ -169,7 +169,8 @@ func TestModernDiscoverAndMeta(t *testing.T) {
 	if rs["3"]["result"].(map[string]any)["resultType"] != "complete" {
 		t.Fatalf("tools/call: %v", rs["3"])
 	}
-	if errCode(rs["4"]) != -32022 || !strings.Contains(fmt.Sprint(rs["4"]["error"]), "2026-07-28") || !strings.Contains(fmt.Sprint(rs["4"]["error"]), "2030-01-01") {
+	// It offers only the revision a request with _meta can speak (B-13).
+	if e := fmt.Sprint(rs["4"]["error"]); errCode(rs["4"]) != -32022 || !strings.Contains(e, "supported:[2026-07-28]") || !strings.Contains(e, "2030-01-01") {
 		t.Fatalf("unsupported version: %v", rs["4"])
 	}
 	if errCode(rs["5"]) != -32602 {

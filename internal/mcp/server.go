@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 	"time"
 )
@@ -33,7 +34,6 @@ type Greeter interface {
 
 const (
 	modernVersion  = "2026-07-28"
-	latestLegacy   = "2025-11-25"
 	maxRequestLine = 8 << 20
 	metaVersion    = "io.modelcontextprotocol/protocolVersion"
 	metaCaps       = "io.modelcontextprotocol/clientCapabilities"
@@ -41,10 +41,10 @@ const (
 	metaServerInfo = "io.modelcontextprotocol/serverInfo"
 )
 
-var legacyVersions = map[string]bool{"2025-11-25": true, "2025-06-18": true, "2025-03-26": true, "2024-11-05": true}
-
-// SupportedVersions lists every protocol revision this server speaks, newest first.
-var SupportedVersions = []string{modernVersion, "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
+// legacyVersions are the protocol revisions a client negotiates with
+// initialize, newest first. A request that names its revision in _meta speaks
+// modernVersion, the only one server/discover lists.
+var legacyVersions = []string{"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
 
 // JSON-RPC and MCP error codes.
 const (
@@ -302,7 +302,7 @@ func (s *Server) handle(raw []byte, async func(*response)) *response {
 		var ver string
 		json.Unmarshal(v, &ver)
 		if ver != modernVersion {
-			return errResp(m.ID, codeUnsupported, "Unsupported protocol version", map[string]any{"supported": SupportedVersions, "requested": ver})
+			return errResp(m.ID, codeUnsupported, "Unsupported protocol version", map[string]any{"supported": []string{modernVersion}, "requested": ver})
 		}
 		if _, ok := p.Meta[metaCaps]; !ok {
 			return errResp(m.ID, codeParams, "invalid params: _meta."+metaCaps+" is required", nil)
@@ -326,8 +326,8 @@ func (s *Server) handle(raw []byte, async func(*response)) *response {
 			ClientInfo      struct{ Name, Version string }
 		}
 		json.Unmarshal(m.Params, &ip)
-		v := latestLegacy
-		if legacyVersions[ip.ProtocolVersion] {
+		v := legacyVersions[0]
+		if slices.Contains(legacyVersions, ip.ProtocolVersion) {
 			v = ip.ProtocolVersion
 		}
 		s.greet(ip.ClientInfo.Name, ip.ClientInfo.Version, v)

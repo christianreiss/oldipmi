@@ -28,6 +28,10 @@
   stay as they are.
 
 ### Fixed
+* **Agents are offered only a protocol version they can use.** When an agent
+  named an MCP protocol version that `oldipmi-mcp` does not speak in a request's
+  metadata, the error listed every version it knows, although such requests
+  accept only the newest. It now lists just that one.
 * **An agent's batched requests always get all their replies.** When an agent
   sent several requests in one batch and a tool call finished while the quick
   replies were still being collected, `oldipmi-mcp` could lose replies or send a
