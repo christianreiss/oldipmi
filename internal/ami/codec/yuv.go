@@ -27,6 +27,9 @@ func (d *Decoder) convertYUVtoRGB(tx, ty int) {
 			for c := 0; c < limit; c++ {
 				idx := (r << 3) + c
 				pi := (off + c) * 3
+				if pi >= len(d.prevYUV) {
+					fail() // a skip code placed the tile outside the frame
+				}
 				yv := d.yTile[idx]
 				cb := d.cbTile[idx]
 				cr := d.crTile[idx]
@@ -80,6 +83,9 @@ func (d *Decoder) convertYUVtoRGB(tx, ty int) {
 			pos := ic[blk]
 			ic[blk]++
 			pi := (off + c) * 3
+			if pi >= len(d.decodeBuf) {
+				fail() // a skip code placed the tile outside the frame
+			}
 			chroma := yRow + (c >> 1)
 			yv := d.yTile420[blk][pos]
 			cb := d.cbTile[chroma]
@@ -140,6 +146,9 @@ func (d *Decoder) convertYUVToRGBPass2(tx, ty int) {
 		for c := 0; c < limit; c++ {
 			idx := (r << 3) + c
 			pi := (off + c) * 3
+			if pi >= len(d.prevYUV) {
+				fail() // a skip code placed the tile outside the frame
+			}
 			yv := d.prevYUV[pi] + (d.yTile[idx] - 128)
 			cb := d.prevYUV[pi+1] + (d.cbTile[idx] - 128)
 			cr := d.prevYUV[pi+2] + (d.crTile[idx] - 128)

@@ -39,6 +39,9 @@ func (d *Decoder) skipKbits(b int) {
 // VIRTADD=0).
 func (d *Decoder) updateReadBuf(i int) {
 	if d.newbits-i <= 0 {
+		if virtAdd+d.index >= len(d.recv) {
+			fail() // the data ends inside a block (skipKbits repeats the last word)
+		}
 		readbuf := uint64(d.recv[virtAdd+d.index])
 		d.index++
 		r0 := uint64(d.recv[0])

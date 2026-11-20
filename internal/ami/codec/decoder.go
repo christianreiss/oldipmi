@@ -12,7 +12,10 @@
 // performed in Java.
 package codec
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // virtAdd ports SOCIVTPPktHdr.VIRTADD (0 on this build).
 const virtAdd = 0
@@ -140,12 +143,15 @@ func (d *Decoder) Size() (w, h int) { return d.realWidth, d.realH }
 //
 // and then packs the 24-bit BGR decodeBuf into 32-bpp BGRX.
 func (d *Decoder) Decode(frame []byte) (result *Frame, err error) {
-	// A malformed entropy stream must terminate the session, never the backend.
-	// The imported codec uses direct table/bit-buffer indexing internally.
+	// A malformed frame must end the session, never the backend. The checks
+	// below, and those in decode that call fail, reject every one; any other
+	// panic is a check that is missing, and FuzzFrameDecode fails on it.
 	defer func() {
-		if recover() != nil {
-			result = nil
-			err = fmt.Errorf("invalid compressed AMI frame")
+		if v := recover(); v != nil {
+			result, err = nil, errFrame
+			if v != errFrame {
+				err = fmt.Errorf("%w (%w: %v)", errFrame, errFault, v)
+			}
 		}
 	}()
 
@@ -183,6 +189,17 @@ func (d *Decoder) Decode(frame []byte) (result *Frame, err error) {
 	}
 	return out, nil
 }
+
+var (
+	// errFrame rejects a frame: the error Decode returns for it.
+	errFrame = errors.New("invalid compressed AMI frame")
+	// errFault marks a frame the decoder failed on instead of rejecting it.
+	errFault = errors.New("decoder fault")
+)
+
+// fail rejects the frame from deep in decode, where the stream or a tile
+// position would take a read or write past the end of a buffer.
+func fail() { panic(errFrame) }
 
 const maxResolution = 1920 // Decoder.MAX_X/Y_RESOLUTION was 1500; ATEN HTML5 streams 1600x1200 and 1920x1280
 

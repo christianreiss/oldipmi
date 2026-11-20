@@ -1,6 +1,10 @@
 package codec
 
-import "testing"
+import (
+	"encoding/binary"
+	"errors"
+	"testing"
+)
 
 // TestZigzagDezigzag verifies the scan-order tables match JTables exactly and
 // are self-consistent: zigzag is a permutation of 0..63.
@@ -236,6 +240,32 @@ func FuzzFrameDecode(f *testing.F) {
 		if len(p) > 65536 {
 			return
 		}
-		New().Decode(p)
+		if _, err := New().Decode(p); errors.Is(err, errFault) {
+			t.Fatal(err)
+		}
 	})
+}
+
+// Frames whose data ends inside a block, or whose skip codes place a tile
+// outside the frame, are rejected; the decoder overran its buffers on them
+// and only its recover kept the backend alive (A2-03).
+func TestDecodeRejectsFramesThatOverrun(t *testing.T) {
+	for name, c := range map[string]struct {
+		mode420 bool
+		words   []uint32
+	}{
+		"data ends in a VQ header":     {true, []uint32{0x78000000, 0}},  // VQ 4-colour, a cache update, nothing after
+		"4:2:0 tile outside the frame": {true, []uint32{0xDFFFF000, 0}},  // VQ 1-colour skip to tile 255,255
+		"4:4:4 tile below the frame":   {false, []uint32{0xD00FF000, 0}}, // VQ 1-colour skip to tile 0,255
+		"pass-2 tile below the frame":  {false, []uint32{0xA00FF000, 0}}, // JPEG pass-2 skip to tile 0,255
+	} {
+		var stream []byte
+		for _, w := range c.words {
+			stream = binary.LittleEndian.AppendUint32(stream, w)
+		}
+		frame := astFrame(streamSpec{w: 16, h: 16, selector: 4, mode420: c.mode420}, stream)
+		if _, err := New().Decode(frame); err != errFrame {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
 }
