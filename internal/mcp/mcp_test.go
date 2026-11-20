@@ -747,8 +747,8 @@ func TestDisconnectSaysWhatHappened(t *testing.T) {
 	for reply, want := range map[string]string{
 		`{"previous":"connected","profile":{"name":"Lab-AMI"},"state":"disconnected"}`:  "Disconnected from Lab-AMI.",
 		`{"previous":"logging_in","profile":{"name":"Lab-AMI"},"state":"disconnected"}`: "Cancelled the connection to Lab-AMI (it was logging in).",
-		`{"previous":"disconnected","promptDismissed":true,"state":"disconnected"}`:    "Dismissed the password prompt",
-		`{"previous":"disconnected","promptDismissed":false,"state":"disconnected"}`:   "nothing to disconnect",
+		`{"previous":"disconnected","promptDismissed":true,"state":"disconnected"}`:     "Dismissed the password prompt",
+		`{"previous":"disconnected","promptDismissed":false,"state":"disconnected"}`:    "nothing to disconnect",
 	} {
 		f := &fake{result: map[string]string{"disconnect": reply}}
 		if c := content(callTool(t, f, "disconnect", `{}`)); !strings.Contains(c, want) {

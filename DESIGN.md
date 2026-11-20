@@ -55,11 +55,11 @@ no window; everything else is derived from them:
 │ ▣ OldIPMI     [+][≡] │ [◧] ▣ Server [Send key][Power][ISO][⧉][⤢][⛶][ⓘ] [Disconnect][⏻]   │
 │ [⌕ Filter, connect…] │       host · type                                                 │
 │ OPEN               2 │ ╭─────────────────────────────────────────────╮ ╭───────────────╮ │
-│ ▤ Lab-ATEN             ⏏  │ │                                             │ │ Console       │ │
+│ ▤ Lab-ATEN        ⏏  │ │                                             │ │ Console       │ │
 │   ● Connected        │ │       remote screen on the dark stage       │ │ information   │ │
 │ CONNECTIONS        3 │ │                                             │ │ (toggled: ⓘ)  │ │
-│ ▣ Lab-AMI          ▶  │ ├─────────────────────────────────────────────┤ │               │ │
-│   lab-ami.example.net │ │ ⌨ Keyboard and mouse captured   [Release]   │ │               │ │
+│ ▣ Lab-AMI         ▶  │ ├─────────────────────────────────────────────┤ │               │ │
+│   lab-ami.example.net│ │ ⌨ Keyboard and mouse captured   [Release]   │ │               │ │
 │ [Settings][Disc. all]│ ╰─────────────────────────────────────────────╯ ╰───────────────╯ │
 └──────────────────────┴───────────────────────────────────────────────────────────────────┘
 ```

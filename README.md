@@ -5,7 +5,7 @@ Plasma. Video is decoded directly into the native window. It needs no Java,
 Docker, Podman, browser, web server, or VNC bridge.
 
 This is a new implementation, not the old launcher repackaged. The previous
-container version is recoverable at Git commit `ce0b1a7`.
+container version is recoverable at Git commit `a5b5b9b`.
 
 ## Build and run
 
@@ -328,11 +328,11 @@ older from adding their former preset connections after a downgrade. It is saved
 atomically with owner-only access.
 The previous array format is migrated automatically, preserving a
 `hosts.json.pre-profiles` backup. To roll back just the profiles feature, use
-commit `8dd01fd` and restore that backup, or export the current object's
+commit `7cfdb7a` and restore that backup, or export the current object's
 `profiles` array to the old `hosts.json` format. KWallet entries use unchanged
 profile IDs. Removing a profile also removes its saved wallet entry. Old `.env` files are not
 imported or deleted automatically. To roll back, build/run a separate checkout of
-`ce0b1a7`; private `.env` configuration remains outside version control.
+`a5b5b9b`; private `.env` configuration remains outside version control.
 
 See [THIRD_PARTY.md](THIRD_PARTY.md) for provenance and licenses.
 
