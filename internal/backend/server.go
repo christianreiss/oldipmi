@@ -7,10 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"oldipmi/internal/ami"
-	"oldipmi/internal/aten"
-	"oldipmi/internal/avocent"
-	"oldipmi/internal/demo"
 	"oldipmi/internal/protocol"
 	"sync"
 	"sync/atomic"
@@ -70,20 +66,6 @@ func ReadCommand(r io.Reader) (Command, error) {
 		return c, fmt.Errorf("incompatible IPC version")
 	}
 	return c, nil
-}
-func Open(ctx context.Context, p protocol.Profile, password string) (protocol.Session, error) {
-	switch p.Family {
-	case "avocent", "cisco":
-		return avocent.Connect(ctx, p, password)
-	case "ami":
-		return ami.Connect(ctx, p, password)
-	case "aten":
-		return aten.Connect(ctx, p, password)
-	case "demo": // synthetic console for BMC-free end-to-end checks; never touches the network
-		return demo.Connect(ctx, p)
-	default:
-		return nil, fmt.Errorf("unsupported BMC family; select AMI, ATEN, Avocent or Cisco")
-	}
 }
 func Serve(parent context.Context, control, video net.Conn) error {
 	return serve(parent, control, video, Open)

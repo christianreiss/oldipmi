@@ -368,6 +368,15 @@ ports or installed background services. Control records are length-prefixed JSON
 `connecting`, and `connected`, plus optional nonsecret `info` metadata; frame records carry width, height and bounded raw RGBA bytes.
 A one-frame queue drops superseded display frames without delaying input.
 
+Each console family is a Go package under `internal/` whose `driver.go` holds
+its `Open`; the core's driver registry (`internal/backend/drivers.go`) maps the
+family's id to it, one line per family. `desktop/families.json` describes the
+same families for the desktop, which takes their names, hints and connection
+options from there (its `about` explains the fields), and
+`desktop/images/family-<id>.png` is the family's picture.
+`go test ./internal/backend` checks that the table, the registry and the
+pictures agree: a new family needs these pieces and its documentation.
+
 Profiles live in `hosts.json` in the application's XDG config directory
 (usually `~/.config/OldIPMI/OldIPMI`). The versioned object contains `version`
 and `profiles`, plus `defaultsVersion`, which is no longer read but keeps 0.3.0 and
