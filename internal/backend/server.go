@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -15,6 +16,12 @@ import (
 
 const Version = 1
 const MaxControl = 1 << 20
+
+// The refusals for a console without virtual media or power control.
+var (
+	errNoMedia = errors.New("virtual media is not available for this console type")
+	errNoPower = errors.New("power control is not available for this console type")
+)
 
 // How long the desktop may leave an event or a video frame unread before the
 // session ends. A frame is several MB and is only taken while the GUI's event
@@ -70,7 +77,7 @@ func ReadCommand(r io.Reader) (Command, error) {
 func Serve(parent context.Context, control, video net.Conn) error {
 	return serve(parent, control, video, Open)
 }
-func serve(parent context.Context, control, video net.Conn, open func(context.Context, protocol.Profile, string) (protocol.Session, error)) error {
+func serve(parent context.Context, control, video net.Conn, open func(context.Context, protocol.Profile, string) (protocol.Console, error)) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	defer control.Close()
@@ -143,6 +150,11 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 		return e
 	}
 	defer session.Close()
+	// Virtual media and power control are optional: without them, a mount or
+	// power command is refused, and an eject finds nothing mounted.
+	media, _ := session.(protocol.Media)
+	power, _ := session.(protocol.Power)
+	isMounted := func() bool { return media != nil && media.Mounted() }
 	latest := make(chan protocol.Frame, 1)
 	go func() {
 		for {
@@ -192,7 +204,7 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-mediaTick.C:
-			mounted := session.Mounted()
+			mounted := isMounted()
 			if mounted != wasMounted {
 				wasMounted = mounted
 				emit(Event{Type: EventMedia, Mounted: &mounted})
@@ -218,13 +230,23 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 			case OpRelease:
 				err = session.Release()
 			case OpMount:
-				err = session.Mount(ctx, c.Path)
+				if media == nil {
+					err = errNoMedia
+				} else {
+					err = media.Mount(ctx, c.Path)
+				}
 			case OpEject:
-				err = session.Eject()
+				if media != nil {
+					err = media.Eject()
+				}
 			case OpPower:
-				opctx, stop := context.WithTimeout(ctx, 15*time.Second)
-				err = session.Power(opctx, c.Action)
-				stop()
+				if power == nil {
+					err = errNoPower
+				} else {
+					opctx, stop := context.WithTimeout(ctx, 15*time.Second)
+					err = power.Power(opctx, c.Action)
+					stop()
+				}
 			default:
 				err = fmt.Errorf("unknown command")
 			}
@@ -233,7 +255,7 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 			} else {
 				ev := Event{ID: c.ID, Type: EventOK}
 				if c.Op == OpMount || c.Op == OpEject {
-					mounted := session.Mounted()
+					mounted := isMounted()
 					wasMounted = mounted
 					ev.Mounted = &mounted
 				}

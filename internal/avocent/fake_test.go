@@ -271,8 +271,9 @@ func TestConsoleSetupTranscript(t *testing.T) {
 			if !reflect.DeepEqual(g.stages, []string{"logging_in", "discovering", "connecting"}) {
 				t.Error("stages", g.stages)
 			}
-			if err := s.Mount(ctx, "/nonexistent.iso"); err == nil || err.Error() != "virtual media is not available for this console type" {
-				t.Error("mount:", err)
+			// No virtual media: the core refuses a mount itself (internal/backend).
+			if _, ok := any(s).(protocol.Media); ok {
+				t.Error("the console offers virtual media")
 			}
 			if err := s.Power(ctx, "bogus"); err == nil || err.Error() != "unknown power action" {
 				t.Error("power:", err)

@@ -371,7 +371,11 @@ A one-frame queue drops superseded display frames without delaying input.
 
 Each console family is a Go package under `internal/` whose `driver.go` holds
 its `Open`; the core's driver registry (`internal/backend/drivers.go`) maps the
-family's id to it, one line per family. `desktop/families.json` describes the
+family's id to it, one line per family. `Open` returns a `protocol.Console`
+(video, keyboard and pointer); a console with virtual media or chassis power
+control also implements `protocol.Media` or `protocol.Power` (IPMI power can be
+embedded from `internal/power`), and the core refuses those commands for one
+without. `desktop/families.json` describes the
 same families for the desktop, which takes their names, hints and connection
 options from there (its `about` explains the fields), and
 `desktop/images/family-<id>.png` is the family's picture.

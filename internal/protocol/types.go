@@ -55,16 +55,34 @@ type Input struct {
 	Buttons uint8  `json:"buttons"`
 	Wheel   int    `json:"wheel"`
 }
-type Session interface {
+
+// Console is an open console: the video it shows and the keyboard and pointer
+// it takes. Run delivers frames until ctx ends or the connection fails; a
+// frame's Pixels are only valid during the call. Release lets go of every key
+// and button the console holds down. Close ends the console and whatever it
+// opened; calling it again does nothing.
+//
+// A console with virtual media or chassis power control also implements Media
+// or Power; the core asks for them when a command needs them.
+type Console interface {
 	Run(context.Context, func(Frame)) error
 	Key(Input) error
 	Pointer(Input) error
 	Release() error
+	Close() error
+}
+
+// Media is a console's virtual media: a local ISO that the host sees as a
+// read-only CD/DVD until Eject.
+type Media interface {
 	Mount(context.Context, string) error
 	Eject() error
 	Mounted() bool
+}
+
+// Power is a console's chassis power control.
+type Power interface {
 	Power(context.Context, PowerAction) error
-	Close() error
 }
 
 // Policy is what p allows its connections.

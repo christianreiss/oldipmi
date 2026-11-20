@@ -44,7 +44,7 @@ func Size(host string) (int, int) {
 }
 
 // Connect walks through the usual setup stages and returns a demo session.
-func Connect(ctx context.Context, p protocol.Profile) (protocol.Session, error) {
+func Connect(ctx context.Context, p protocol.Profile) (protocol.Console, error) {
 	host := strings.ToLower(p.Host)
 	step := 150 * time.Millisecond
 	if strings.Contains(host, "slow") {

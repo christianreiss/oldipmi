@@ -283,11 +283,6 @@ func (c *Client) Release() error {
 	c.pressed.Clear()
 	return c.Pointer(protocol.Input{})
 }
-func (c *Client) Mount(context.Context, string) error {
-	return fmt.Errorf("virtual media is not available for this console type")
-}
-func (c *Client) Eject() error  { return nil }
-func (c *Client) Mounted() bool { return false }
 func (c *Client) Close() error {
 	c.once.Do(func() {
 		if c.control != nil {

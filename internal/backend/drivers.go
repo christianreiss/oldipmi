@@ -14,7 +14,7 @@ import (
 // its package's Open (driver.go). desktop/families.json describes the same
 // families for the desktop; TestFamilyTableMatchesTheDrivers keeps the two in
 // step.
-var drivers = map[string]func(ctx context.Context, p protocol.Profile, password string) (protocol.Session, error){
+var drivers = map[string]func(ctx context.Context, p protocol.Profile, password string) (protocol.Console, error){
 	"aten":    aten.Open,
 	"ami":     ami.Open,
 	"avocent": avocent.Open,
@@ -23,7 +23,7 @@ var drivers = map[string]func(ctx context.Context, p protocol.Profile, password 
 }
 
 // Open connects to the profile's console with its family's driver.
-func Open(ctx context.Context, p protocol.Profile, password string) (protocol.Session, error) {
+func Open(ctx context.Context, p protocol.Profile, password string) (protocol.Console, error) {
 	open, ok := drivers[p.Family]
 	if !ok {
 		return nil, fmt.Errorf("unsupported BMC family; select AMI, ATEN, Avocent or Cisco")

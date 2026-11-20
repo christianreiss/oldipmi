@@ -22,30 +22,30 @@ import (
 // fixture's events, in order, and then end. desktop/session_test.cpp plays the
 // same events to a Session.
 
-type opener = func(context.Context, protocol.Profile, string) (protocol.Session, error)
+type opener = func(context.Context, protocol.Profile, string) (protocol.Console, error)
 
 // The console of each dialogue; info is what its connecting event shows.
 var dialogueConsoles = map[string]func(info *protocol.ConsoleInfo) opener{
 	"consoleInUse": func(info *protocol.ConsoleInfo) opener {
-		return func(ctx context.Context, _ protocol.Profile, _ string) (protocol.Session, error) {
+		return func(ctx context.Context, _ protocol.Profile, _ string) (protocol.Console, error) {
 			protocol.Report(ctx, protocol.StageDiscovering, nil)
 			protocol.Report(ctx, protocol.StageConnecting, info)
 			return &scriptedConsole{mounted: []bool{false}, end: make(chan struct{})}, nil
 		}
 	},
 	"loginFails": func(*protocol.ConsoleInfo) opener {
-		return func(context.Context, protocol.Profile, string) (protocol.Session, error) {
+		return func(context.Context, protocol.Profile, string) (protocol.Console, error) {
 			return nil, errors.New("the BMC rejected the login")
 		}
 	},
 	"discoveryFails": func(*protocol.ConsoleInfo) opener {
-		return func(ctx context.Context, _ protocol.Profile, _ string) (protocol.Session, error) {
+		return func(ctx context.Context, _ protocol.Profile, _ string) (protocol.Console, error) {
 			protocol.Report(ctx, protocol.StageDiscovering, nil)
 			return nil, errors.New("no console found")
 		}
 	},
 	"connectionFails": func(info *protocol.ConsoleInfo) opener {
-		return func(ctx context.Context, _ protocol.Profile, _ string) (protocol.Session, error) {
+		return func(ctx context.Context, _ protocol.Profile, _ string) (protocol.Console, error) {
 			protocol.Report(ctx, protocol.StageDiscovering, nil)
 			protocol.Report(ctx, protocol.StageConnecting, info)
 			return nil, io.EOF
