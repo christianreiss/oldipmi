@@ -506,7 +506,6 @@ Rectangle {
             }
             Item { Layout.fillWidth: true }
             ActionButton {
-                objectName: "disconnectAllButton"
                 tone: "ghost"
                 icon.name: "network-disconnect"
                 text: "Disconnect all"

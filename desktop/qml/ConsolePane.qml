@@ -242,24 +242,15 @@ ColumnLayout {
     }
     Kirigami.Action {
         id: infoAction
+        objectName: "consoleDetails" // --probe-ui and the screenshot tour check it
         text: "Console information"
         icon.name: "documentinfo"
         checkable: true
         displayHint: Kirigami.DisplayHint.IconOnly
         tooltip: text
-        onCheckedChanged: if (details.checked !== infoAction.checked) details.checked = infoAction.checked
     }
     // In order of importance: what does not fit moves to the overflow menu from the end.
     readonly property list<Kirigami.Action> connectedActions: [sendKeyAction, powerAction, mediaAction, copyAction, fitAction, fullscreenAction, infoAction]
-
-    // Kept for --probe-ui and the screenshot tour: shows the console information.
-    QQC2.ToolButton {
-        id: details
-        objectName: "consoleDetails"
-        visible: false
-        checkable: true
-        onCheckedChanged: if (infoAction.checked !== details.checked) infoAction.checked = details.checked
-    }
 
     // An icon button of the full-screen bar; it keeps its size when the bar is short of room.
     component BarButton: IconButton {
@@ -893,7 +884,7 @@ ColumnLayout {
                 onDemoRequested: root.demoRequested()
             }
             Kirigami.ShadowedRectangle {
-                visible: details.checked && root.mode === "console" && !root.fullscreen && !root.infoDocked
+                visible: infoAction.checked && root.mode === "console" && !root.fullscreen && !root.infoDocked
                 anchors {
                     top: parent.top
                     right: parent.right
@@ -914,7 +905,7 @@ ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 1
                     closable: true
-                    onCloseRequested: details.checked = false
+                    onCloseRequested: infoAction.checked = false
                 }
             }
         }
@@ -923,7 +914,7 @@ ColumnLayout {
         // most of the pane.
         Rectangle {
             id: infoPanel
-            visible: details.checked && root.mode === "console" && !root.fullscreen && root.infoDocked
+            visible: infoAction.checked && root.mode === "console" && !root.fullscreen && root.infoDocked
             Layout.preferredWidth: Math.round(Math.max(Theme.gu * 9, Math.min(Theme.gu * 15, root.width * 0.32)))
             Layout.fillHeight: true
             Layout.rightMargin: Theme.stageMargin

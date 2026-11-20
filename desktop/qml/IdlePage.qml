@@ -184,7 +184,6 @@ Item {
                             Layout.topMargin: Kirigami.Units.smallSpacing
                             ActionButton {
                                 id: connectButton
-                                objectName: "idleConnectButton"
                                 tone: "primary"
                                 large: true
                                 text: "Connect"
