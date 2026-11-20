@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"oldipmi/internal/transport"
 	"strings"
 	"testing"
 )
@@ -19,11 +20,11 @@ func TestJNLPDoesNotExecuteResources(t *testing.T) {
 	}
 }
 func TestTLSPolicy(t *testing.T) {
-	c := TLSConfig(Profile{Host: "bmc"})
+	c := transport.TLSConfig(Profile{Host: "bmc"}.Policy())
 	if c.InsecureSkipVerify || c.MinVersion < tls.VersionTLS12 {
 		t.Fatal("weak defaults")
 	}
-	c = TLSConfig(Profile{LegacyTLS: true})
+	c = transport.TLSConfig(Profile{LegacyTLS: true}.Policy())
 	if !c.InsecureSkipVerify {
 		t.Fatal("explicit compatibility setting ignored")
 	}

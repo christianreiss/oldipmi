@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"oldipmi/internal/transport"
@@ -72,15 +71,6 @@ type Session interface {
 func (p Profile) Policy() transport.Policy {
 	return transport.Policy{Host: p.Host, HTTP: p.HTTP, LegacyTLS: p.LegacyTLS, AllowPlainConsole: p.AllowPlainConsole,
 		ClientCert: p.ClientCert, ClientKey: p.ClientKey}
-}
-
-// Wire, TLSConfig and Dial are package transport's, until the drivers use it
-// themselves.
-type Wire = transport.Wire
-
-func TLSConfig(p Profile) *tls.Config { return transport.TLSConfig(p.Policy()) }
-func Dial(ctx context.Context, p Profile, port int, secure bool) (*Wire, error) {
-	return transport.Dial(ctx, p.Policy(), port, secure)
 }
 func Read(r io.Reader, n int) ([]byte, error) {
 	if n < 0 || n > MaxPayload {

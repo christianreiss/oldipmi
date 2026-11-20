@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"oldipmi/internal/transport"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -27,8 +28,8 @@ import (
 // The transport policy of a profile: what each exception (plain HTTP login,
 // legacy TLS, unencrypted console, client certificate) allows, the exact error
 // when a BMC asks for more, and that nothing secret leaves before the policy is
-// met. Phase 3 moves this code to internal/transport; these tests pin today's
-// behaviour there, including its differences: the web login never presents the
+// met. The code is internal/transport's; these tests reach it through
+// Profile.Policy and keep its differences: the web login never presents the
 // client certificate, the console connection does.
 
 // testCert makes a self-signed certificate for 127.0.0.1, also as PEM files
@@ -248,11 +249,11 @@ func TestWebLoginSendsNoClientCertificate(t *testing.T) {
 }
 
 func TestTLSConfigPerProfile(t *testing.T) {
-	c := TLSConfig(Profile{Host: "bmc.example.net"})
+	c := transport.TLSConfig(Profile{Host: "bmc.example.net"}.Policy())
 	if c.ServerName != "bmc.example.net" || c.InsecureSkipVerify || c.MinVersion != tls.VersionTLS12 || c.CipherSuites != nil {
 		t.Errorf("default: %+v", c)
 	}
-	c = TLSConfig(Profile{Host: "bmc.example.net", LegacyTLS: true})
+	c = transport.TLSConfig(Profile{Host: "bmc.example.net", LegacyTLS: true}.Policy())
 	want := []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA, tls.TLS_RSA_WITH_AES_128_CBC_SHA,
 		tls.TLS_RSA_WITH_AES_256_CBC_SHA, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}
 	if c.ServerName != "bmc.example.net" || !c.InsecureSkipVerify || c.MinVersion != tls.VersionTLS10 || !reflect.DeepEqual(c.CipherSuites, want) {
@@ -321,7 +322,7 @@ func TestConsoleDialPolicy(t *testing.T) {
 			p := c.profile
 			p.Host = "127.0.0.1"
 			port := ln.Addr().(*net.TCPAddr).Port
-			w, err := Dial(context.Background(), p, port, c.secure)
+			w, err := transport.Dial(context.Background(), p.Policy(), port, c.secure)
 			if w != nil {
 				w.Write([]byte("ping"))
 				defer w.Close()
@@ -353,7 +354,7 @@ func TestConsoleDialPolicy(t *testing.T) {
 		})
 	}
 	for _, port := range []int{0, -1, 65536} {
-		if _, err := Dial(context.Background(), Profile{Host: "127.0.0.1"}, port, true); err == nil || err.Error() != "invalid console port" {
+		if _, err := transport.Dial(context.Background(), Profile{Host: "127.0.0.1"}.Policy(), port, true); err == nil || err.Error() != "invalid console port" {
 			t.Errorf("port %d: %v", port, err)
 		}
 	}
@@ -363,8 +364,8 @@ func TestConsoleDialPolicy(t *testing.T) {
 // or credentials ever reach it).
 func TestConsoleInfoPerLaunch(t *testing.T) {
 	p := Profile{Host: "bmc.example.net"}
-	ep := func(role, addr, transport string) Endpoint {
-		return Endpoint{Role: role, Address: addr, Transport: transport}
+	ep := func(role, addr, via string) Endpoint {
+		return Endpoint{Role: role, Address: addr, Transport: via}
 	}
 	for _, c := range []struct {
 		name   string
