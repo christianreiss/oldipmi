@@ -1,4 +1,4 @@
-package codec
+package ast
 
 // tables.go — port of soc/video/JTables.java.
 //

@@ -1,4 +1,4 @@
-package codec
+package ast
 
 // rc4.go — port of the RC4 layer in Decoder.java: Keys_Expansion,
 // DecodeRC4_setup, RC4_crypt, plus the DecodeKeys constant.

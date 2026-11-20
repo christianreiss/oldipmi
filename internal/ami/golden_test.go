@@ -12,7 +12,7 @@ import (
 // Golden frames: what a session shows for a run of video packets, compared
 // with the pictures in testdata/frames (UPDATE_GOLDEN=1 rewrites them, see
 // internal/testkit). They pin the packet assembly and the decoders that Phase 3
-// moves: AST2100 over IVTP (the streams in codec/testdata/streams, with pass-2
+// moves: AST2100 over IVTP (the streams in ../video/ast/testdata/streams, with pass-2
 // blocks and RC4 that carry state across frames) and the legacy VSC rectangles
 // (RGB555 raw, RLE and LRLE), which update the picture in place.
 
@@ -36,14 +36,14 @@ func fragments(e end, typ uint16, frame []byte, size int) error {
 func TestIVTPGoldenFrames(t *testing.T) {
 	var frames [][]byte
 	for i := 1; ; i++ {
-		b, err := os.ReadFile(fmt.Sprintf("codec/testdata/streams/ivtp-%d.bin", i))
+		b, err := os.ReadFile(fmt.Sprintf("../video/ast/testdata/streams/ivtp-%d.bin", i))
 		if err != nil {
 			break
 		}
 		frames = append(frames, b)
 	}
 	if len(frames) != 5 {
-		t.Fatalf("%d streams in codec/testdata/streams, want 5", len(frames))
+		t.Fatalf("%d streams in ../video/ast/testdata/streams, want 5", len(frames))
 	}
 	cert := selfSigned(t)
 	ln, port := listen(t, &cert)

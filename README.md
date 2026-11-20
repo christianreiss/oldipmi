@@ -299,7 +299,7 @@ The Go tests compare what each console family shows for a run of video packets
 with golden pictures in `internal/*/testdata/frames`. After a deliberate change
 to a decoder, `UPDATE_GOLDEN=1 go test ./internal/...` rewrites them; look at
 the new pictures before committing them.
-`GENERATE_STREAMS=1 go test ./internal/ami/codec -run TestGenerateGoldenStreams`
+`GENERATE_STREAMS=1 go test ./internal/video/ast -run TestGenerateGoldenStreams`
 writes new AST2100 test streams, after which the pictures need rewriting too.
 
 `testdata/ipc` holds the messages the desktop and its core exchange, as each

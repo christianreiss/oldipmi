@@ -1,4 +1,4 @@
-package codec
+package ast
 
 // bitreader.go — port of the bit-level reader in Decoder.java: lookKbits,
 // skipKbits, getKbits, updateReadBuf. The stream lives in d.recv as packed

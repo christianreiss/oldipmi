@@ -1,4 +1,4 @@
-package codec
+package ast
 
 // yuv.go — port of Decoder.convertYUVtoRGB and convertYUVToRGBPass2. Output is
 // written to d.decodeBuf as 24-bit BGR (3 bytes/pixel: [B,G,R]).

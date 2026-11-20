@@ -7,10 +7,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/hid"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
+	"oldipmi/internal/video/ast"
 	"oldipmi/internal/video/raster"
 	"sync"
 	"time"
@@ -27,10 +27,10 @@ type Client struct {
 	dec         decoder
 	media       *mediaSession
 	once        sync.Once
-	ast         *codec.Decoder // HTML5 mode video decoder
-	reqW, reqH  int            // HTML5 mode update-request size
-	lastPix     []byte         // last emitted HTML5 frame, to drop unchanged ones
-	mouseLen    int            // mouse-status (0x37) body length, 0 until known
+	ast         *ast.Decoder // HTML5 mode video decoder
+	reqW, reqH  int          // HTML5 mode update-request size
+	lastPix     []byte       // last emitted HTML5 frame, to drop unchanged ones
+	mouseLen    int          // mouse-status (0x37) body length, 0 until known
 }
 
 func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {

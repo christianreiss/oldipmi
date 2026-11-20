@@ -160,7 +160,7 @@ func TestJavaGoldenFrames(t *testing.T) {
 }
 
 // ast2100 turns a whole AST2100 frame (header and stream, as in
-// internal/ami/codec/testdata/streams) into an HTML5 rectangle: table selector,
+// internal/video/ast/testdata/streams) into an HTML5 rectangle: table selector,
 // a byte the client does not read, the YUV mode and the stream.
 func ast2100(frame []byte) []byte {
 	le := binary.LittleEndian
@@ -176,14 +176,14 @@ func ast2100(frame []byte) []byte {
 func TestHTML5GoldenFrames(t *testing.T) {
 	var rects [][]byte
 	for i := 1; ; i++ {
-		b, err := os.ReadFile(fmt.Sprintf("../ami/codec/testdata/streams/html5-%d.bin", i))
+		b, err := os.ReadFile(fmt.Sprintf("../video/ast/testdata/streams/html5-%d.bin", i))
 		if err != nil {
 			break
 		}
 		rects = append(rects, ast2100(b))
 	}
 	if len(rects) != 3 {
-		t.Fatalf("%d streams in ../ami/codec/testdata/streams, want 3", len(rects))
+		t.Fatalf("%d streams in ../video/ast/testdata/streams, want 3", len(rects))
 	}
 	// After the second frame one that changes nothing: its stream ends at once.
 	// The session must not show it.

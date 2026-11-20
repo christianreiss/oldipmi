@@ -1,4 +1,4 @@
-package codec
+package ast
 
 // decode.go — port of Decoder.decode (the main macro-block dispatch loop) and
 // its helpers decompressJPEG, decompressJPEGPass2, moveBlockIndex, plus the

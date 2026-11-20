@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/ami/vmedia"
 	"oldipmi/internal/hid"
 	"oldipmi/internal/power"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
+	"oldipmi/internal/video/ast"
 	"sync"
 	"time"
 )
@@ -216,7 +216,7 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 	}
 	var fragments []byte
 	next := 0
-	modern := codec.New()
+	modern := ast.New()
 	legacy := legacyDecoder{}
 	for {
 		t, st, b, e := c.read(c.wire)
@@ -262,7 +262,7 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 			if c.launch.Legacy {
 				f, e = legacy.Decode(fragments)
 			} else {
-				var cf *codec.Frame
+				var cf *ast.Frame
 				cf, e = modern.Decode(fragments)
 				if e == nil {
 					f = protocol.Frame{Width: cf.W, Height: cf.H, Pixels: cf.Pix}

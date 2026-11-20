@@ -1,4 +1,5 @@
-// Package codec decodes the AMI/ASPEED KVM video stream.
+// Package ast decodes the ASPEED AST2100 KVM video stream that AMI consoles
+// and the ATEN (Supermicro) HTML5 console send.
 //
 // The wire format is the ASPEED AST hardware video engine output: a tile-based
 // hybrid of VQ (vector quantization) and JPEG (DCT + Huffman + quantization),
@@ -9,7 +10,7 @@
 // entry point Decoder.decode(VideoEngineInfo, int[]) maps to (*Decoder).decode
 // here, and the public Decode() wraps it with the frame-header parse that
 // SOCFrameHdr/VideoHeader/SOCJVVideo.MakeIntArray performed in Java.
-package codec
+package ast
 
 import (
 	"errors"

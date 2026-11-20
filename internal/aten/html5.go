@@ -5,9 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
+	"oldipmi/internal/video/ast"
 
 	"golang.org/x/net/websocket"
 )
@@ -15,7 +15,7 @@ import (
 // ATEN firmware without Java iKVM serves a noVNC console: the same RFB-like
 // stream as the Java client, carried in WebSocket messages and authenticated by
 // the session token from the HTML5 console page. Video uses the ASPEED AST2100
-// encoding (87), which the AMI codec already decodes.
+// encoding (87), which internal/video/ast decodes.
 
 const encAST2100 = 87
 
@@ -97,7 +97,7 @@ func (c *Client) decodeAST2100(width, height int, p []byte) (protocol.Frame, err
 	}
 	le.PutUint32(hdr[69:], uint32(len(stream)))
 	if c.ast == nil {
-		c.ast = codec.New()
+		c.ast = ast.New()
 	}
 	cf, err := c.ast.Decode(append(hdr, stream...))
 	if err != nil {

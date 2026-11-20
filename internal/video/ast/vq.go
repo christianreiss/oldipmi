@@ -1,4 +1,4 @@
-package codec
+package ast
 
 // vq.go — port of Decoder.decompressVQ. The VQ path fills a 16×16 (or 8×8 in
 // 444) tile from a 1/2/4-entry 24-bit colour cache, optionally reading a

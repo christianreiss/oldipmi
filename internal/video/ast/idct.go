@@ -1,4 +1,4 @@
-package codec
+package ast
 
 // idct.go — port of Decoder.decodeHuffmanDataUnit (entropy decode into
 // m_DCT_coeff) and Decoder.inverseDCT (the AAN-style integer IDCT). Do not

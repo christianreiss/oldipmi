@@ -1,4 +1,4 @@
-package codec
+package ast
 
 // quant.go — port of the quantization-table builders in Decoder.java:
 // setQuantizationTable, loadLuminanceQuantizationTable,

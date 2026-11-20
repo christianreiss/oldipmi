@@ -1,4 +1,4 @@
-package codec
+package ast
 
 // huffman.go — port of soc/video/HuffmanTable.java and the table-loading
 // helpers in Decoder.java (loadHuffmanTable, loadHuffmanTableYDC/YAC,
