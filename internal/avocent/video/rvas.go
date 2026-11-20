@@ -169,7 +169,7 @@ func (r *RVAS) graphics(fb *Framebuffer, p []byte) (bool, error) {
 		return false, nil
 	}
 	r.inFrame = false
-	raw, e := ExpandRLE(r.rle, r.repeat, r.triple, fb.W*fb.H*4)
+	raw, e := expandRLE(r.rle, r.repeat, r.triple, fb.W*fb.H*4)
 	if e != nil {
 		return false, e
 	}
@@ -188,56 +188,15 @@ func (r *RVAS) graphics(fb *Framebuffer, p []byte) (bool, error) {
 	return true, nil
 }
 
-// ExpandRLE undoes the byte-level run-length coding. A triplet code byte is
-// followed by a value repeated three times; a repeat code byte by n and a
-// value repeated n+1 times, where n+1 of 1 or 2 stands for a literal repeat
-// or triplet code byte (consuming two bytes). Both codes zero means raw.
-func ExpandRLE(in []byte, repeat, triple byte, limit int) ([]byte, error) {
+// expandRLE undoes the byte-level run-length coding (raster.ExpandRLE) with
+// the codes of the stream; both codes zero means raw.
+func expandRLE(in []byte, repeat, triple byte, limit int) ([]byte, error) {
 	if repeat == 0 && triple == 0 {
 		return in, nil
 	}
-	if repeat == triple {
-		return nil, fmt.Errorf("RLE video: repeat and triplet codes are equal")
-	}
-	out := make([]byte, 0, min(limit, 4*len(in)))
-	emit := func(v byte, n int) error {
-		if len(out)+n > limit {
-			return fmt.Errorf("RLE video: expanded data exceeds the frame")
-		}
-		for range n {
-			out = append(out, v)
-		}
-		return nil
-	}
-	for i := 0; i < len(in); {
-		var e error
-		switch b := in[i]; {
-		case b == triple:
-			if i+1 >= len(in) {
-				return nil, fmt.Errorf("RLE video: truncated triplet")
-			}
-			e, i = emit(in[i+1], 3), i+2
-		case b == repeat:
-			if i+1 >= len(in) {
-				return nil, fmt.Errorf("RLE video: truncated run")
-			}
-			switch n := int(in[i+1]) + 1; n {
-			case 1:
-				e, i = emit(repeat, 1), i+2
-			case 2:
-				e, i = emit(triple, 1), i+2
-			default:
-				if i+2 >= len(in) {
-					return nil, fmt.Errorf("RLE video: truncated run")
-				}
-				e, i = emit(in[i+2], n), i+3
-			}
-		default:
-			e, i = emit(b, 1), i+1
-		}
-		if e != nil {
-			return nil, e
-		}
+	out, err := raster.ExpandRLE(make([]byte, 0, min(limit, 4*len(in))), in, repeat, triple, limit, false)
+	if err != nil {
+		return nil, fmt.Errorf("RLE video: %w", err)
 	}
 	return out, nil
 }
@@ -313,13 +272,13 @@ func (r *RVAS) bytePlane(fb *Framebuffer, d []byte) error {
 }
 
 func (r *RVAS) rgb16(v uint16) uint32 {
-	var R, G, B uint32
+	var R, G, B byte
 	if r.flags&rvasAlpha != 0 {
-		R, G, B = uint32(v>>10&0x1f)<<3, uint32(v>>5&0x1f)<<3, uint32(v&0x1f)<<3
+		R, G, B = raster.RGB555(v)
 	} else {
-		R, G, B = uint32(v>>11&0x1f)<<3, uint32(v>>5&0x3f)<<2, uint32(v&0x1f)<<3
+		R, G, B = raster.RGB565(v)
 	}
-	return 0xFF000000 | R<<16 | G<<8 | B
+	return 0xFF000000 | uint32(R)<<16 | uint32(G)<<8 | uint32(B)
 }
 
 func (r *RVAS) raw(fb *Framebuffer, d []byte) error {

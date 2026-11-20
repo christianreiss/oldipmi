@@ -17,22 +17,22 @@ func TestExpandRLEEscapes(t *testing.T) {
 		3,
 	}
 	want := []byte{1, 2, 7, 7, 7, 9, 9, 9, 9, 9, rep, tri, 3}
-	got, err := ExpandRLE(in, rep, tri, 100)
+	got, err := expandRLE(in, rep, tri, 100)
 	if err != nil || !bytes.Equal(got, want) {
 		t.Fatalf("ExpandRLE = % x, %v; want % x", got, err, want)
 	}
-	if raw, _ := ExpandRLE(in, 0, 0, 100); !bytes.Equal(raw, in) {
+	if raw, _ := expandRLE(in, 0, 0, 100); !bytes.Equal(raw, in) {
 		t.Fatal("codes 0/0 must pass data through unchanged")
 	}
 	for _, bad := range [][]byte{{tri}, {rep}, {rep, 5}} {
-		if _, err := ExpandRLE(bad, rep, tri, 100); err == nil {
+		if _, err := expandRLE(bad, rep, tri, 100); err == nil {
 			t.Errorf("truncated escape % x accepted", bad)
 		}
 	}
-	if _, err := ExpandRLE([]byte{rep, 200, 1}, rep, tri, 100); err == nil {
+	if _, err := expandRLE([]byte{rep, 200, 1}, rep, tri, 100); err == nil {
 		t.Error("run beyond the limit accepted")
 	}
-	if _, err := ExpandRLE(in, 3, 3, 100); err == nil {
+	if _, err := expandRLE(in, 3, 3, 100); err == nil {
 		t.Error("equal repeat and triplet codes accepted")
 	}
 }

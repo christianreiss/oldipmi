@@ -1,5 +1,5 @@
-// Package raster is what the console decoders share about pixels; for now,
-// the largest frame a console may send.
+// Package raster is what the console decoders share about pixels: the largest
+// frame a console may send, 16-bit colours and byte run-length coding.
 package raster
 
 // The largest frame a console may send, in pixels: as wide as DCI 4K and as

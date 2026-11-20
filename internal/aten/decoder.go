@@ -28,15 +28,12 @@ func rgb555(p []byte, plane bool) []byte {
 	for i := 0; i+1 < len(p); i += 2 {
 		o := i * 2
 		v := binary.LittleEndian.Uint16(p[i:])
-		out[o] = byte((v>>10)&31) << 3
-		out[o+1] = byte((v>>5)&31) << 3
-		out[o+2] = byte(v&31) << 3
-		out[o+3] = 255
 		if plane {
-			out[o] = p[i+1] & 0xf8
-			out[o+1] = (p[i] >> 3 & 0x1c) | (p[i+1] << 5)
-			out[o+2] = p[i] << 3
+			out[o], out[o+1], out[o+2] = raster.RGB565(v)
+		} else {
+			out[o], out[o+1], out[o+2] = raster.RGB555(v)
 		}
+		out[o+3] = 255
 	}
 	return out
 }
@@ -180,38 +177,13 @@ func unrle(p []byte, n int) ([]byte, error) {
 		if size > len(p)-off {
 			return fail()
 		}
-		end := off + size
-		for off < end {
-			v := p[off]
-			off++
-			count := 1
-			if off < end && v == 0x55 {
-				q := p[off]
-				off++
-				if q == 0 {
-					v = 0x55
-				} else if q == 1 {
-					v = 0xaa
-				} else {
-					if off >= end {
-						return fail()
-					}
-					v = p[off]
-					off++
-					count = int(q) + 1
-				}
-			} else if off < end && v == 0xaa {
-				v = p[off]
-				off++
-				count = 3
-			}
-			if count > n-len(out) {
-				return fail()
-			}
-			for k := 0; k < count; k++ {
-				out = append(out, v)
-			}
+		// Repeat code 0x55, triplet code 0xaa; one that ends a chunk stands
+		// for itself.
+		var e error
+		if out, e = raster.ExpandRLE(out, p[off:off+size], 0x55, 0xaa, n, true); e != nil {
+			return fail()
 		}
+		off += size
 	}
 	if len(out) != n {
 		return fail()

@@ -22,6 +22,7 @@ package video
 
 import (
 	"fmt"
+	"oldipmi/internal/video/raster"
 )
 
 // Framebuffer is a linear ARGB pixel buffer with a moving cursor. Cursor
@@ -200,9 +201,7 @@ func NewDecoder(d Depth) *Decoder {
 	case Depth15:
 		dec.lut = make([]uint32, 1<<15)
 		for i := 0; i < len(dec.lut); i++ {
-			r := (i & 0x7C00) >> 7
-			g := (i & 0x03E0) >> 2
-			b := (i & 0x001F) << 3
+			r, g, b := raster.RGB555(uint16(i))
 			dec.lut[i] = 0xFF000000 | uint32(r)<<16 | uint32(g)<<8 | uint32(b)
 		}
 	case Depth7Gray, Depth7Palette:

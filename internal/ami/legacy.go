@@ -114,9 +114,7 @@ func (d *legacyDecoder) Decode(b []byte) (protocol.Frame, error) {
 			for xx := 0; xx < rw; xx++ {
 				v := pixels[yy*rw+xx]
 				o := ((y+yy)*w + x + xx) * 4
-				d.frame.Pixels[o] = byte(int((v>>10)&31) * 255 / 31)
-				d.frame.Pixels[o+1] = byte(int((v>>5)&31) * 255 / 31)
-				d.frame.Pixels[o+2] = byte(int(v&31) * 255 / 31)
+				d.frame.Pixels[o], d.frame.Pixels[o+1], d.frame.Pixels[o+2] = raster.RGB555Scaled(v)
 				d.frame.Pixels[o+3] = 255
 			}
 		}
