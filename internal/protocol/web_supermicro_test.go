@@ -298,6 +298,27 @@ func TestSupermicroSessionNotAcceptedByConsoles(t *testing.T) {
 	}
 }
 
+// An AMI launch file, complete or not, names the family to select, and the
+// web session is closed again.
+func TestSupermicroAMIJNLPNamesTheFamily(t *testing.T) {
+	for _, jnlp := range []string{
+		`<jnlp><application-desc><argument>-kvmtoken</argument><argument>tok-1</argument><argument>-kvmport</argument><argument>7578</argument></application-desc></jnlp>`,
+		`<jnlp><application-desc><argument>-kvmtoken</argument></application-desc></jnlp>`,
+	} {
+		w, bmc, stages, ctx := newSMWeb(t, "", map[string]http.HandlerFunc{
+			"POST /cgi/login.cgi": atenLogin(false),
+			"GET " + atenJNLPPath: sessionOnly(jnlp),
+		})
+		_, err := w.Login(ctx, smPass)
+		if err == nil || err.Error() != "the BMC served a non-ATEN JNLP; select the AMI family for this profile" {
+			t.Fatalf("%s: %v", jnlp, err)
+		}
+		if !reflect.DeepEqual(*stages, []string{"logging_in", "discovering"}) || !bmc.hit("GET /cgi/logout.cgi") {
+			t.Fatal(*stages, bmc.hits)
+		}
+	}
+}
+
 func TestSupermicroWrongPasswordIsLoginStage(t *testing.T) {
 	w, bmc, stages, ctx := newSMWeb(t, "", map[string]http.HandlerFunc{
 		"POST /cgi/login.cgi": atenLogin(false),

@@ -118,7 +118,15 @@ func (w *Web) Login(ctx context.Context, password string) (Launch, error) {
 		w.Close()
 		return Launch{}, fmt.Errorf("BMC returned no JNLP (login was not accepted or the session expired; check the account and password)")
 	}
-	l, e := ParseJNLP(b)
+	doc, e := transport.ParseJNLP(b)
+	var l Launch
+	switch {
+	case e != nil:
+	case atenMain(doc.Main):
+		e = fmt.Errorf("this BMC needs the ATEN family; select it for this profile")
+	default:
+		l, e = jnlpLaunch(doc)
+	}
 	if e != nil {
 		w.Close()
 		return l, e
@@ -264,12 +272,16 @@ func (w *Web) atenJNLP(ctx context.Context) (Launch, error) {
 			missing.html = true
 			continue
 		}
-		l, e := ParseJNLP(b)
+		doc, e := transport.ParseJNLP(b)
+		var l Launch
+		switch {
+		case e == nil && !atenMain(doc.Main):
+			return Launch{}, fmt.Errorf("the BMC served a non-ATEN JNLP; select the AMI family for this profile")
+		case e == nil:
+			l, e = jnlpLaunch(doc)
+		}
 		if e != nil {
 			return l, fmt.Errorf("%v; set this profile's console mode to HTML5 if the BMC offers it, and report the BMC firmware version", e)
-		}
-		if l.Family != "aten" {
-			return l, fmt.Errorf("the BMC served a non-ATEN JNLP; select the AMI family for this profile")
 		}
 		l.Cookie = w.Cookie
 		return l, nil
@@ -416,15 +428,24 @@ func atenArgOffset(a []string) int {
 	return n
 }
 
+// atenMain reports whether a JNLP starts ATEN's iKVM client.
+func atenMain(main string) bool { return strings.Contains(main, "aten") }
+
 func ParseJNLP(b []byte) (Launch, error) {
 	doc, e := transport.ParseJNLP(b)
 	if e != nil {
 		return Launch{}, e
 	}
+	return jnlpLaunch(doc)
+}
+
+// jnlpLaunch reads the console's address and credentials from the arguments
+// of a JNLP, in the layout of its family.
+func jnlpLaunch(doc transport.JNLP) (Launch, error) {
 	a := doc.Args
 	l := Launch{Family: "ami", Args: map[string]string{}, Pos: a}
 	number := func(s string) int { n, _ := strconv.Atoi(strings.TrimSpace(s)); return n }
-	if strings.Contains(doc.Main, "aten") {
+	if atenMain(doc.Main) {
 		// KVMMain arguments (ATENtion; drac-kvm iKVM version table):
 		// 0 host, 1 user/token, 2 password/token, 3 host name, 4 KVM port
 		// (stunnel-local when tunnelled), 5 media port, 6 company, 7 board,

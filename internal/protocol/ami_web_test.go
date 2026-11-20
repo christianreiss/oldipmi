@@ -18,6 +18,9 @@ import (
 
 const amiJNLP = `<jnlp><application-desc><argument>-kvmtoken</argument><argument>tok-1</argument><argument>-kvmport</argument><argument>7578</argument><argument>-kvmsecure</argument><argument>1</argument><argument>-cdport</argument><argument>5120</argument><argument>-vmsecure</argument><argument>1</argument></application-desc></jnlp>`
 
+// The Java iKVM JNLP of an ATEN BMC (10 arguments, TLS tunnel on).
+const atenJNLP10 = `<jnlp><application-desc main-class="tw.com.aten.ikvm.KVMMain"><argument>bmc</argument><argument>tok</argument><argument>tok</argument><argument>null</argument><argument>63630</argument><argument>623</argument><argument>0</argument><argument>0</argument><argument>1</argument><argument>5900</argument></application-desc></jnlp>`
+
 type amiBMC struct {
 	mu     sync.Mutex
 	log    []string          // "METHOD path cookie=... form=..."
@@ -121,6 +124,13 @@ func TestAMIWebLoginFailures(t *testing.T) {
 			[]string{create, "GET /Java/jviewer.jnlp" + cookies, "GET /rpc/WEBSES/logout.asp" + cookies}, []string{"logging_in", "discovering"}},
 		{"broken JNLP", map[string]string{"/rpc/WEBSES/create.asp": session, "/Java/jviewer.jnlp": "<jnlp><application-desc><argument>-kvmtoken</argument></application-desc></jnlp>"},
 			"incomplete AMI JNLP argument pairs",
+			[]string{create, "GET /Java/jviewer.jnlp" + cookies, "GET /rpc/WEBSES/logout.asp" + cookies}, []string{"logging_in", "discovering"}},
+		// An ATEN launch file, complete or not, names the family to select.
+		{"ATEN JNLP", map[string]string{"/rpc/WEBSES/create.asp": session, "/Java/jviewer.jnlp": atenJNLP10},
+			"this BMC needs the ATEN family; select it for this profile",
+			[]string{create, "GET /Java/jviewer.jnlp" + cookies, "GET /rpc/WEBSES/logout.asp" + cookies}, []string{"logging_in", "discovering"}},
+		{"broken ATEN JNLP", map[string]string{"/rpc/WEBSES/create.asp": session, "/Java/jviewer.jnlp": `<jnlp><application-desc main-class="tw.com.aten.ikvm.KVMMain"><argument>bmc</argument></application-desc></jnlp>`},
+			"this BMC needs the ATEN family; select it for this profile",
 			[]string{create, "GET /Java/jviewer.jnlp" + cookies, "GET /rpc/WEBSES/logout.asp" + cookies}, []string{"logging_in", "discovering"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {

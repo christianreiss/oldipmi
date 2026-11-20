@@ -24,6 +24,10 @@
   of the illustrations. It is plain SVG, so it stays sharp from the title bar to
   the welcome page. The About page now shows the bundled icon, like the sidebar,
   instead of an installed theme icon that may be missing or older.
+* **A JNLP of the other BMC family always names the family to select.** If an
+  AMI connection gets an ATEN JNLP from the BMC, or an ATEN connection an AMI
+  one, the error says which family to select, now also when that JNLP is
+  incomplete; such a JNLP showed the other family's parsing error before.
 
 ### Removed
 * **Preset connections:** a fresh installation starts with an empty connection
