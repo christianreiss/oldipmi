@@ -42,7 +42,7 @@ Kirigami.ApplicationWindow {
     FontMetrics { id: fontMetrics; font: Kirigami.Theme.defaultFont }
     Binding { target: Theme; property: "fontHeight"; value: fontMetrics.height }
 
-    // Used by --probe-ui and the agent API: select (and show) a profile.
+    // Used by --probe-ui and the screenshot tour: select (and show) a profile.
     function loadHost(p) { selectedId = (p && p.id) || "" }
     // Connect (double-click, Enter, row button, context menu). Other consoles stay
     // open; a profile that is already open or opening is just brought to the front.

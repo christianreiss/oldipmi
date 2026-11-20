@@ -20,8 +20,7 @@ static constexpr qint64 CoalesceMs = 5000;         // merge repeated input into 
 struct AgentApi::Client {
   QPointer<QLocalSocket> sock;
   QByteArray buf;
-  QString name, version, protocol;
-  QDateTime since = QDateTime::currentDateTime();
+  QString name, version;
   struct Held { // what this client pressed on one session and has not released
     QSet<int> keys;
     int buttons = 0, x = 0, y = 0;
@@ -175,13 +174,6 @@ QString AgentApi::clientName() const {
     if (!names.contains(c->label()))
       names << c->label();
   return names.join(", ");
-}
-QVariantList AgentApi::clients() const {
-  QVariantList out;
-  for (auto &c : m_clients)
-    out << QVariantMap{{"name", c->name.isEmpty() ? c->label() : c->name}, {"version", c->version},
-                       {"protocol", c->protocol}, {"since", c->since}};
-  return out;
 }
 QVariantList AgentApi::activity() const {
   QVariantList out;
@@ -366,7 +358,6 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     if (client) {
       client->name = clean(a.value("name").toString());
       client->version = clean(a.value("version").toString(), 32);
-      client->protocol = clean(a.value("protocol").toString(), 16);
       log(label(client), "client", "Agent identified itself");
       emit clientsChanged();
     }
@@ -573,29 +564,24 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     log(who, "pointer", "Pointer input ×%1, last at " + QString::number(x) + "," + QString::number(y), true);
     reply(true, QJsonObject{});
   } else if (op == "release") {
-    if (a.value("scope").toString() == "client") {
-      if (client)
-        releaseHeld(client);
-    } else {
-      QString err;
-      auto key = a.value("profile").toString();
-      Session *only = nullptr;
-      if (!key.isEmpty()) {
-        only = resolve(a, &err);
-        if (!err.isEmpty())
-          return fail(err);
-      }
-      for (auto *s : m_c->allSessions())
-        if (!only || s == only)
-          s->releaseInput();
-      for (auto &cl : m_clients) {
-        if (only)
-          cl->held.remove(only->id);
-        else
-          cl->held.clear();
-      }
-      log(who, "release", "Released all keys and buttons");
+    QString err;
+    auto key = a.value("profile").toString();
+    Session *only = nullptr;
+    if (!key.isEmpty()) {
+      only = resolve(a, &err);
+      if (!err.isEmpty())
+        return fail(err);
     }
+    for (auto *s : m_c->allSessions())
+      if (!only || s == only)
+        s->releaseInput();
+    for (auto &cl : m_clients) {
+      if (only)
+        cl->held.remove(only->id);
+      else
+        cl->held.clear();
+    }
+    log(who, "release", "Released all keys and buttons");
     reply(true, QJsonObject{});
   } else if (op == "power") {
     auto *s = needConnected();
@@ -630,8 +616,6 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     note("eject ISO");
     log(label(client), "media", "Eject ISO");
     s->command({{"op", "eject"}}, this, done);
-  } else if (op == "instructions") {
-    reply(true, QJsonObject{{"text", mcpInstructions()}});
   } else {
     fail("Unknown operation '" + op + "'.");
   }

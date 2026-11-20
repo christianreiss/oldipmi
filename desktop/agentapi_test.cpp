@@ -218,7 +218,7 @@ private slots:
     QCOMPARE(init["serverInfo"].toObject()["name"].toString(), QString("oldipmi"));
     QVERIFY(init["instructions"].toString().contains(QStringLiteral(MCP_BINARY)));
     // The hello reaches the app, which then knows the agent by name.
-    QTRY_COMPARE(api.clients().value(0).toMap().value("name").toString(), QString("e2e-agent"));
+    QTRY_COMPARE(api.clientName(), QString("e2e-agent 1.0"));
     QVERIFY(tool("list_profiles", {}).second.contains("\"name\": \"Demo Fail\""));
     auto [connected, said] = tool("connect", {{"profile", "Demo"}});
     QCOMPARE(said, QString("Connected to Demo (OldIPMI demo (synthetic, no network)). Framebuffer 1024x768. Take a screenshot next."));
@@ -479,7 +479,7 @@ private slots:
     auto o = request(a, R"({"id":1,"op":"hello","args":{"name":"claude-code","version":"2.1.0","protocol":"2025-11-25"}})");
     QVERIFY(o["ok"].toBool());
     QVERIFY(api.clientName().contains("claude-code 2.1.0"));
-    QCOMPARE(api.clients().size(), 2);
+    QCOMPARE(api.clientCount(), 2);
     // Partial lines are buffered until the newline arrives.
     a.write(R"({"id":2,"op":"sta)");
     a.flush();

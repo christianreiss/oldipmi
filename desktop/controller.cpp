@@ -8,14 +8,8 @@
 #include <QJsonDocument>
 #include <QSaveFile>
 #include <QStandardPaths>
-#include <QTimer>
 #include <QUuid>
 #include <QDateTime>
-#include <QtEndian>
-#include <fcntl.h>
-#include <memory>
-#include <sys/socket.h>
-#include <unistd.h>
 
 static QString configPath() {
   return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
@@ -266,14 +260,6 @@ void Controller::stamp(const QString &id) {
     return;
   }
 }
-void Controller::clearMessage() {
-  if (m_shown) {
-    m_shown->errorStage.clear();
-    m_shown->message.clear();
-  }
-  m_message.clear();
-  emit changed();
-}
 void Controller::sendKeys(QVariantList usages) {
   if (m_shown)
     m_shown->sendKeys(usages);
@@ -410,11 +396,6 @@ void Controller::mountISO() {
 void Controller::ejectISO() {
   if (m_shown)
     m_shown->command({{"op", "eject"}});
-}
-void Controller::power(QString action) {
-  releaseInput();
-  if (m_shown)
-    m_shown->command({{"op", "power"}, {"action", action}});
 }
 void Controller::powerFor(QString id, QString action) {
   auto *s = id.isEmpty() ? m_shown : m_sessions.value(id);

@@ -61,7 +61,6 @@ public:
   // Puts the shown console's picture on the clipboard at its own resolution, without
   // alpha (as the MCP screenshot). Returns its size; an invalid size when nothing is shown.
   Q_INVOKABLE QSize copyFrame();
-  Q_INVOKABLE void clearMessage();
   Q_INVOKABLE QString profilesPath() const { return m_configFile; }
   // Profile waiting for a password (after passwordRequired/walletUnavailable).
   Q_INVOKABLE QVariantMap pendingProfile() const { return m_pendingProfile; }
@@ -77,13 +76,10 @@ public:
   Q_INVOKABLE void releaseInput();
   Q_INVOKABLE void mountISO();
   Q_INVOKABLE void ejectISO();
-  Q_INVOKABLE void power(QString action);
   // Power action for a specific session (by profile id); the shown one when id is empty.
   Q_INVOKABLE void powerFor(QString id, QString action);
   Q_INVOKABLE QString chooseCertificate(bool key);
   void preview();
-  // Result callback: (ok, message). Invoked when the backend answers command `id`.
-  using Result = Session::Result;
   void agentNote(QString message);
 signals:
   void changed();
