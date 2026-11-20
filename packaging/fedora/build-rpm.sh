@@ -3,7 +3,7 @@
 #
 # Sources are the committed HEAD (git archive) plus a "go mod vendor" tarball of
 # the same commit, so the spec builds offline (mock, COPR). The version comes
-# from project() in CMakeLists.txt. Each run replaces the previous dist/rpm/.
+# from the VERSION file. Each run replaces the previous dist/rpm/.
 set -euo pipefail
 
 usage() {
