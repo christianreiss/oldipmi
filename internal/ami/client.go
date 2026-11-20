@@ -111,25 +111,25 @@ func (c *Client) attach(ctx context.Context) (err error) {
 				return e
 			}
 			switch t {
-			case 23:
-				if err = c.send(c.wire, 58, nil); err != nil {
+			case opSessionAccepted:
+				if err = c.send(c.wire, opConnectionComplete, nil); err != nil {
 					return err
 				}
-				b := make([]byte, 373)
+				b := make([]byte, validateVideoSize)
 				copy(b[1:130], c.launch.Token)
 				host, _, _ := net.SplitHostPort(c.wire.LocalAddr().String())
 				copy(b[130:195], host)
 				copy(b[195:324], p.Username)
-				if err = c.send(c.wire, 18, b); err != nil {
+				if err = c.send(c.wire, opValidateVideo, b); err != nil {
 					return err
 				}
-			case 19:
+			case opValidateVideoResp:
 				if len(b) == 0 || b[0] != 1 {
 					return fmt.Errorf("AMI rejected native session")
 				}
-				err = c.send(c.wire, 6, nil)
+				err = c.send(c.wire, opResumeRedirection, nil)
 				i = 20
-			case 8:
+			case opStopSession:
 				return fmt.Errorf("AMI stopped native session")
 			}
 			if i == 19 {
@@ -141,9 +141,9 @@ func (c *Client) attach(ctx context.Context) (err error) {
 	return err
 }
 func (c *Client) read(w *protocol.Wire) (uint16, uint16, []byte, error) {
-	n := 8
+	n := ivtpHeaderSize
 	if c.launch.Legacy {
-		n = 7
+		n = vscHeaderSize
 	}
 	b, e := protocol.Read(w, n)
 	if e != nil {
@@ -151,7 +151,7 @@ func (c *Client) read(w *protocol.Wire) (uint16, uint16, []byte, error) {
 	}
 	off := 2
 	t := binary.LittleEndian.Uint16(b)
-	if n == 7 {
+	if n == vscHeaderSize {
 		off = 1
 		t = uint16(b[0])
 	}
@@ -164,12 +164,12 @@ func (c *Client) read(w *protocol.Wire) (uint16, uint16, []byte, error) {
 	return t, st, b, e
 }
 func (c *Client) send(w *protocol.Wire, t uint16, b []byte) error {
-	n, off := 8, 2
+	n, off := ivtpHeaderSize, 2
 	if c.launch.Legacy {
-		n, off = 7, 1
+		n, off = vscHeaderSize, 1
 	}
 	p := make([]byte, n+len(b))
-	if n == 7 {
+	if n == vscHeaderSize {
 		p[0] = byte(t)
 	} else {
 		binary.LittleEndian.PutUint16(p, t)
@@ -207,7 +207,7 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 				case <-runctx.Done():
 					return
 				case <-t.C:
-					c.send(c.wire, 57, nil)
+					c.send(c.wire, opKeepAlive, nil)
 				}
 			}
 		}()
@@ -221,7 +221,7 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 		if e != nil {
 			return e
 		}
-		video := uint16(25)
+		video := opVideoFragment
 		if c.launch.Legacy {
 			video = 3
 			if t == 33 {
@@ -232,7 +232,7 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 			if t == 9 {
 				return fmt.Errorf("BMC ended session (%d)", st)
 			}
-		} else if t == 8 {
+		} else if t == opStopSession {
 			return fmt.Errorf("BMC ended session (%d)", st)
 		}
 		if t != video {
@@ -300,7 +300,7 @@ func (c *Client) hidPacket(device, proto, iface byte, report []byte) error {
 		sum += v
 	}
 	p[11] = -sum
-	w, t := c.wire, uint16(1)
+	w, t := c.wire, opHIDPkt
 	if c.hid != nil {
 		w, t = c.hid, 4
 	}
