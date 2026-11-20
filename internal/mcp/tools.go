@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"oldipmi/internal/hid"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -63,6 +64,10 @@ const (
 	defaultKeyGap   = 8
 	defaultMaxImage = 1568
 )
+
+// powerActions are the power tool's actions, in its schema's order; the app's
+// agent API takes the same words (testdata/ipc/names.json, "powerActions").
+var powerActions = []string{"on", "off", "reset", "soft"}
 
 // sleep waits d or until ctx is cancelled; tests replace it.
 var sleep = func(ctx context.Context, d time.Duration) error {
@@ -799,15 +804,13 @@ func rawTools() []Tool {
 			}),
 		{Name: "power", Title: "Chassis power", Destructive: true,
 			Description: "Chassis power control: on, off (hard), reset (hard), soft (ACPI shutdown request). Takes effect IMMEDIATELY with no confirmation and may destroy unsaved work on the host; prefer soft over off. Only with the user's consent.",
-			Schema:      obj(map[string]any{"action": map[string]any{"type": "string", "enum": []string{"on", "off", "reset", "soft"}}}, "action"),
+			Schema:      obj(map[string]any{"action": map[string]any{"type": "string", "enum": powerActions}}, "action"),
 			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
 				act, err := argStr(a, "action")
 				if err != nil {
 					return nil, err
 				}
-				switch act {
-				case "on", "off", "reset", "soft":
-				default:
+				if !slices.Contains(powerActions, act) {
 					return nil, fmt.Errorf("action must be on, off, reset or soft")
 				}
 				if _, err := call(b, "power", map[string]any{"action": act}); err != nil {

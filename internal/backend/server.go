@@ -23,14 +23,14 @@ const MaxControl = 1 << 20
 const writeTimeout = 30 * time.Second
 
 type Command struct {
-	Version  int              `json:"version"`
-	ID       int              `json:"id"`
-	Op       string           `json:"op"`
-	Profile  protocol.Profile `json:"profile"`
-	Password string           `json:"password"`
-	Input    protocol.Input   `json:"input"`
-	Path     string           `json:"path"`
-	Action   string           `json:"action"`
+	Version  int                  `json:"version"`
+	ID       int                  `json:"id"`
+	Op       string               `json:"op"`
+	Profile  protocol.Profile     `json:"profile"`
+	Password string               `json:"password"`
+	Input    protocol.Input       `json:"input"`
+	Path     string               `json:"path"`
+	Action   protocol.PowerAction `json:"action"`
 }
 type Event struct {
 	Version int                   `json:"version"`

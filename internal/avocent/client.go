@@ -9,6 +9,7 @@ import (
 	"oldipmi/internal/avocent/apcp"
 	"oldipmi/internal/avocent/video"
 	"oldipmi/internal/hid"
+	"oldipmi/internal/power"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
 	"os"
@@ -17,8 +18,10 @@ import (
 )
 
 type Client struct {
+	// IPMI is the chassis power control (Power) with the account of the
+	// login; Close forgets its password.
+	power.IPMI
 	p              protocol.Profile
-	password       string
 	control, video *transport.Wire
 	mu             sync.Mutex
 	pressed        hid.Pressed
@@ -26,7 +29,7 @@ type Client struct {
 }
 
 func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
-	c = &Client{p: p, password: password}
+	c = &Client{IPMI: power.NewIPMI(p, password), p: p}
 	defer func() {
 		if err != nil {
 			c.Close()
@@ -285,9 +288,6 @@ func (c *Client) Mount(context.Context, string) error {
 }
 func (c *Client) Eject() error  { return nil }
 func (c *Client) Mounted() bool { return false }
-func (c *Client) Power(ctx context.Context, action string) error {
-	return protocol.Power(ctx, c.p, c.password, action)
-}
 func (c *Client) Close() error {
 	c.once.Do(func() {
 		if c.control != nil {
@@ -296,7 +296,7 @@ func (c *Client) Close() error {
 		if c.video != nil {
 			c.video.Close()
 		}
-		c.password = ""
+		c.IPMI.Close()
 	})
 	return nil
 }

@@ -63,7 +63,7 @@ type Session interface {
 	Mount(context.Context, string) error
 	Eject() error
 	Mounted() bool
-	Power(context.Context, string) error
+	Power(context.Context, PowerAction) error
 	Close() error
 }
 

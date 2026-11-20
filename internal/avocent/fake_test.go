@@ -278,6 +278,10 @@ func TestConsoleSetupTranscript(t *testing.T) {
 				t.Error("power:", err)
 			}
 			s.Close()
+			// Close forgets the password, so power fails before it connects.
+			if err := s.Power(ctx, protocol.PowerOn); err == nil || err.Error() != "power control requires account credentials" {
+				t.Error("power after Close:", err)
+			}
 			if e := <-done; e != nil {
 				t.Fatal(e)
 			}

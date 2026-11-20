@@ -88,7 +88,7 @@ func (s *scriptedConsole) Mounted() bool {
 	}
 	return m
 }
-func (s *scriptedConsole) Power(context.Context, string) error {
+func (s *scriptedConsole) Power(context.Context, protocol.PowerAction) error {
 	close(s.end)
 	return errors.New("power control requires account credentials")
 }

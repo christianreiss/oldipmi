@@ -412,11 +412,14 @@ func (c *Client) Release() error {
 	c.pressed.Clear()
 	return c.pointer(protocol.Input{})
 }
-func (c *Client) Power(ctx context.Context, action string) error {
-	codes := map[string]byte{"off": 0, "on": 1, "reset": 2, "soft": 3}
-	v, ok := codes[action]
+
+// powerCodes are what the console protocol sends for each power action.
+var powerCodes = map[protocol.PowerAction]byte{protocol.PowerOff: 0, protocol.PowerOn: 1, protocol.PowerReset: 2, protocol.PowerSoft: 3}
+
+func (c *Client) Power(ctx context.Context, action protocol.PowerAction) error {
+	v, ok := powerCodes[action]
 	if !ok {
-		return fmt.Errorf("unknown power action")
+		return protocol.ErrUnknownPowerAction
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -9,6 +9,7 @@ import (
 	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/ami/vmedia"
 	"oldipmi/internal/hid"
+	"oldipmi/internal/power"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
 	"sync"
@@ -16,6 +17,9 @@ import (
 )
 
 type Client struct {
+	// IPMI is the chassis power control (Power) with the account of the
+	// login; Close forgets its password.
+	power.IPMI
 	p             protocol.Profile
 	launch        Launch
 	web           *web
@@ -27,11 +31,10 @@ type Client struct {
 	media         *vmedia.Session
 	mediaCancel   context.CancelFunc
 	once          sync.Once
-	password      string
 }
 
 func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
-	c = &Client{p: p, width: 1024, height: 768, password: password}
+	c = &Client{IPMI: power.NewIPMI(p, password), p: p, width: 1024, height: 768}
 	defer func() {
 		if err != nil {
 			c.Close()
@@ -350,12 +353,9 @@ func (c *Client) Close() error {
 		if c.web != nil {
 			c.web.Close()
 		}
-		c.password = ""
+		c.IPMI.Close()
 	})
 	return nil
-}
-func (c *Client) Power(ctx context.Context, action string) error {
-	return protocol.Power(ctx, c.p, c.password, action)
 }
 func (c *Client) Mount(ctx context.Context, path string) error {
 	c.mu.Lock()

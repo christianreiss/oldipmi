@@ -286,18 +286,18 @@ func (s *Session) Eject() error {
 
 func (s *Session) Mounted() bool { s.mu.Lock(); defer s.mu.Unlock(); return s.media != "" }
 
-func (s *Session) Power(_ context.Context, action string) error {
+func (s *Session) Power(_ context.Context, action protocol.PowerAction) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch action {
-	case "on", "reset":
+	case protocol.PowerOn, protocol.PowerReset:
 		s.power = "on"
-	case "off", "soft":
+	case protocol.PowerOff, protocol.PowerSoft:
 		s.power = "off"
 	default:
-		return fmt.Errorf("unknown power action")
+		return protocol.ErrUnknownPowerAction
 	}
-	s.message = "Power '" + action + "' accepted (demo: no real host is affected)."
+	s.message = "Power '" + string(action) + "' accepted (demo: no real host is affected)."
 	s.changed()
 	return nil
 }
