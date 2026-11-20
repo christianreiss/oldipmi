@@ -347,7 +347,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       return nullptr;
     }
     if (!s || !s->connected()) {
-      fail("Not connected (state: " + (s ? s->state : QString("disconnected")) + "). Use connect first.");
+      fail("Not connected (state: " + (s ? s->state : QString(ipc::StateDisconnected)) + "). Use connect first.");
       return nullptr;
     }
     return s;
@@ -401,11 +401,11 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       st["changeSeq"] = double(s->changeSeq);
       st["msSinceChange"] = double(s->msSinceChange());
       // Only an open session's; a closed one's would mislead.
-      st["consoleInfo"] = s->state == "disconnected" ? QJsonObject{} : QJsonObject::fromVariantMap(s->consoleInfo);
-      if (s->state != "disconnected")
+      st["consoleInfo"] = s->state == ipc::StateDisconnected ? QJsonObject{} : QJsonObject::fromVariantMap(s->consoleInfo);
+      if (s->state != ipc::StateDisconnected)
         st["profile"] = profileJson(s->profile);
     } else {
-      st["state"] = "disconnected";
+      st["state"] = ipc::StateDisconnected;
       st["message"] = m_c->message();
       st["mounted"] = false;
       st["width"] = 0;
@@ -439,10 +439,10 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     m_c->connectHost(p, "");
     m_requesting.clear();
     auto *s = m_c->session(id);
-    if (!s || s->state == "disconnected") {
+    if (!s || s->state == ipc::StateDisconnected) {
       if (m_passwordFor == name) {
         log(label(client), "connect", "Waiting for the user to enter the password for '" + name + "'");
-        return reply(true, QJsonObject{{"state", "disconnected"}, {"passwordRequired", true}, {"profile", profileJson(p)}});
+        return reply(true, QJsonObject{{"state", ipc::StateDisconnected}, {"passwordRequired", true}, {"profile", profileJson(p)}});
       }
       return fail(m_c->message());
     }
@@ -458,7 +458,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     if (all) {
       QJsonArray closed;
       for (auto *o : m_c->allSessions())
-        if (o->state != "disconnected")
+        if (o->state != ipc::StateDisconnected)
           closed.append(profileJson(o->profile));
       r["closed"] = closed;
       r["promptDismissed"] = !m_passwordFor.isEmpty();
@@ -472,11 +472,11 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       auto prof = explicitProfile ? findProfile(a.value("profile").toString()) : QVariantMap{};
       bool promptHere = !m_passwordFor.isEmpty() &&
                         (!explicitProfile || prof.value("name").toString() == m_passwordFor);
-      r["previous"] = s ? s->state : QString("disconnected");
+      r["previous"] = s ? s->state : QString(ipc::StateDisconnected);
       r["promptDismissed"] = promptHere;
-      if (s && s->state != "disconnected")
+      if (s && s->state != ipc::StateDisconnected)
         r["profile"] = profileJson(s->profile);
-      if ((s && s->state != "disconnected") || promptHere) {
+      if ((s && s->state != ipc::StateDisconnected) || promptHere) {
         note("disconnect");
         log(label(client), "connect", "Disconnect");
       }
@@ -486,7 +486,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
         m_passwordFor.clear();
       m_c->disconnectProfile(target);
     }
-    r["state"] = "disconnected";
+    r["state"] = ipc::StateDisconnected;
     QJsonArray remaining;
     for (const auto &id : m_c->openIds())
       remaining.append(profileJson(m_c->session(id)->profile));
@@ -499,7 +499,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       return fail(err);
     auto img = s ? s->lastFrame : QImage();
     if (img.isNull())
-      return fail("No frame yet (state: " + (s ? s->state : QString("disconnected")) +
+      return fail("No frame yet (state: " + (s ? s->state : QString(ipc::StateDisconnected)) +
                   "). Connect first, or wait_for_change after connecting.");
     int fw = img.width(), fh = img.height();
     int x = a.value("x").toInt(0), y = a.value("y").toInt(0);
@@ -588,12 +588,12 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     if (!s)
       return;
     auto action = a.value("action").toString();
-    if (!QStringList{"on", "off", "reset", "soft"}.contains(action))
+    if (!QStringList{ipc::PowerOn, ipc::PowerOff, ipc::PowerReset, ipc::PowerSoft}.contains(action))
       return fail("Unknown power action.");
     s->releaseInput();
     note("power " + action);
     log(label(client), "power", "Power " + action + " requested");
-    s->command({{"op", "power"}, {"action", action}}, this, [this, action, done, who](bool ok, QString m) {
+    s->command({{"op", ipc::OpPower}, {"action", action}}, this, [this, action, done, who](bool ok, QString m) {
       note(ok ? "power " + action + " accepted" : "power " + action + " failed: " + m);
       log(who, "power", ok ? "Power " + action + " accepted" : "Power " + action + " failed");
       done(ok, ok ? "Power action '" + action + "' accepted." : m);
@@ -608,14 +608,14 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       return fail("path must be an absolute, readable .iso file.");
     note("mount " + f.fileName());
     log(label(client), "media", "Mount ISO " + f.fileName());
-    s->command({{"op", "mount"}, {"path", f.canonicalFilePath()}}, this, done);
+    s->command({{"op", ipc::OpMount}, {"path", f.canonicalFilePath()}}, this, done);
   } else if (op == "eject") {
     auto *s = needConnected();
     if (!s)
       return;
     note("eject ISO");
     log(label(client), "media", "Eject ISO");
-    s->command({{"op", "eject"}}, this, done);
+    s->command({{"op", ipc::OpEject}}, this, done);
   } else {
     fail("Unknown operation '" + op + "'.");
   }

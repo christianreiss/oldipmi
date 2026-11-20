@@ -56,7 +56,7 @@ QVariantMap Controller::sessions() const {
 QStringList Controller::openIds() const {
   QStringList out;
   for (auto *s : m_sessions)
-    if (s->state != "disconnected")
+    if (s->state != ipc::StateDisconnected)
       out << s->id;
   out.sort();
   return out;
@@ -64,7 +64,7 @@ QStringList Controller::openIds() const {
 int Controller::openCount() const { return int(openIds().size()); }
 bool Controller::isOpen(QString id) const {
   auto *s = m_sessions.value(id);
-  return s && s->state != "disconnected";
+  return s && s->state != ipc::StateDisconnected;
 }
 void Controller::setShown(Session *s) {
   if (s == m_shown)
@@ -355,7 +355,7 @@ void Controller::disconnectProfile(QString id) {
                       (id.isEmpty() || m_pendingProfile.value("id").toString() == id);
   // Nothing open and no password prompt: only dismiss a shown failure and keep
   // the last message, instead of reporting a cancellation that did not happen.
-  if (!promptIsOurs && (!s || s->state == "disconnected")) {
+  if (!promptIsOurs && (!s || s->state == ipc::StateDisconnected)) {
     if (s) {
       setMessage(s->message); // the failure text stays visible after its session is gone
       removeSession(s);
@@ -363,7 +363,7 @@ void Controller::disconnectProfile(QString id) {
     }
     return;
   }
-  bool cancelled = !s || s->state != "connected";
+  bool cancelled = !s || s->state != ipc::StateConnected;
   if (promptIsOurs)
     cancelCredentials();
   removeSession(s);
@@ -391,18 +391,18 @@ void Controller::mountISO() {
   auto f = QFileDialog::getOpenFileName(nullptr, "Mount read-only ISO", {},
                                         "ISO images (*.iso)");
   if (auto *s = any ? m_sessions.value(target) : nullptr; s && !f.isEmpty())
-    s->command({{"op", "mount"}, {"path", f}});
+    s->command({{"op", ipc::OpMount}, {"path", f}});
 }
 void Controller::ejectISO() {
   if (m_shown)
-    m_shown->command({{"op", "eject"}});
+    m_shown->command({{"op", ipc::OpEject}});
 }
 void Controller::powerFor(QString id, QString action) {
   auto *s = id.isEmpty() ? m_shown : m_sessions.value(id);
   if (!s)
     return;
   s->releaseInput();
-  s->command({{"op", "power"}, {"action", action}});
+  s->command({{"op", ipc::OpPower}, {"action", action}});
 }
 QString Controller::chooseCertificate(bool key) {
   return QFileDialog::getOpenFileName(

@@ -350,7 +350,7 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, C
          controller.cancelCredentials();
          credentials.available = true;
          controller.connectHost(pending, {});
-       }, 800, [=, &controller] { return controller.state() == "logging_in" && visibleWindows().size() == 1; }},
+       }, 800, [=, &controller] { return controller.state() == ipc::StageLoggingIn && visibleWindows().size() == 1; }},
       {"07-error", [=, &controller] {
          controller.disconnectHost();
          controller.connectHost(demo, {});
@@ -932,7 +932,7 @@ int main(int argc, char **argv) {
       auto bytes = QJsonDocument(event).toJson(QJsonDocument::Compact);
       fprintf(stdout, "%s\n", bytes.constData());
       fflush(stdout);
-      if (controller.state() == "disconnected" && controller.message().contains(" failed:")) {
+      if (controller.state() == ipc::StateDisconnected && controller.message().contains(" failed:")) {
         fprintf(stderr, "%s\n", qPrintable(controller.message()));
         app.exit(4);
       }

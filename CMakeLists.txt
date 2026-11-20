@@ -8,7 +8,7 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml Network Test)
 find_package(KF6Wallet REQUIRED)
 find_package(KF6Kirigami REQUIRED)
-qt_add_executable(oldipmi desktop/agentapi.cpp desktop/agentapi.h desktop/main.cpp desktop/framethumbnail.cpp desktop/framethumbnail.h desktop/controller.cpp desktop/controller.h desktop/session.cpp desktop/session.h desktop/credentials.cpp desktop/credentials.h desktop/console.cpp desktop/console.h desktop/settings.cpp desktop/settings.h desktop/singleinstance.cpp desktop/singleinstance.h desktop/runtimedir.cpp desktop/runtimedir.h desktop/i18n.h)
+qt_add_executable(oldipmi desktop/agentapi.cpp desktop/agentapi.h desktop/main.cpp desktop/framethumbnail.cpp desktop/framethumbnail.h desktop/controller.cpp desktop/controller.h desktop/session.cpp desktop/session.h desktop/credentials.cpp desktop/credentials.h desktop/console.cpp desktop/console.h desktop/settings.cpp desktop/settings.h desktop/singleinstance.cpp desktop/singleinstance.h desktop/runtimedir.cpp desktop/runtimedir.h desktop/i18n.h desktop/ipc.h)
 target_compile_definitions(oldipmi PRIVATE OLDIPMI_VERSION="${PROJECT_VERSION}")
 # One instruction text for the GUI button and the MCP server's initialize reply.
 configure_file(internal/mcp/instructions.md ${CMAKE_BINARY_DIR}/mcp_instructions.md COPYONLY)
@@ -83,3 +83,8 @@ target_link_libraries(session_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6:
 add_dependencies(session_tests fakecore)
 add_test(NAME session_ipc COMMAND ${ISOLATED} $<TARGET_FILE:session_tests>)
 set_tests_properties(session_ipc PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+# desktop/ipc.h against testdata/ipc/names.json, which the Go tests check too.
+qt_add_executable(ipc_tests desktop/ipc_test.cpp desktop/ipc.h)
+target_compile_definitions(ipc_tests PRIVATE IPC_FIXTURES="${CMAKE_SOURCE_DIR}/testdata/ipc" IPC_HEADER="${CMAKE_SOURCE_DIR}/desktop/ipc.h")
+target_link_libraries(ipc_tests PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME ipc_names COMMAND ${ISOLATED} $<TARGET_FILE:ipc_tests>)

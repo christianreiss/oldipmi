@@ -1,4 +1,5 @@
 #pragma once
+#include "ipc.h"
 #include <QElapsedTimer>
 #include <QImage>
 #include <QJsonObject>
@@ -33,13 +34,13 @@ public:
   void pointer(int x, int y, int buttons, int wheel);
   void releaseInput();
   void sendKeys(const QVariantList &usages);
-  bool connected() const { return state == "connected"; }
+  bool connected() const { return state == ipc::StateConnected; }
   qint64 msSinceChange() const { return sinceChange.isValid() ? sinceChange.elapsed() : 0; }
   void setMessage(const QString &m);
 
   const QString id;       // profile id; unique among open sessions
   QVariantMap profile;
-  QString state = "disconnected", message, errorStage;
+  QString state = ipc::StateDisconnected, message, errorStage;
   quint64 messageStamp = 0;
   QVariantMap consoleInfo;
   bool mounted = false;

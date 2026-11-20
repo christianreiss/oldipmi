@@ -46,7 +46,7 @@ void Session::stop() {
   if (m_process) {
     disconnect(m_process, nullptr, this, nullptr);
     if (m_control)
-      command({{"op", "disconnect"}});
+      command({{"op", ipc::OpDisconnect}});
     if (!m_process->waitForFinished(1500))
       m_process->terminate();
     if (!m_process->waitForFinished(2500)) {
@@ -67,19 +67,19 @@ void Session::begin(const QString &password) {
   consoleInfo.clear();
   errorStage.clear();
   startedAt = QDateTime::currentMSecsSinceEpoch();
-  state = "logging_in";
+  state = ipc::StageLoggingIn;
   setMessage("Opening console on " + profile.value("host").toString() + "…");
   emit changed();
   int ctl[2], vid[2];
   if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, ctl) < 0) {
-    state = "disconnected";
+    state = ipc::StateDisconnected;
     fail("Cannot create private IPC.");
     return;
   }
   if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, vid) < 0) {
     close(ctl[0]);
     close(ctl[1]);
-    state = "disconnected";
+    state = ipc::StateDisconnected;
     fail("Cannot create video IPC.");
     return;
   }
@@ -95,7 +95,7 @@ void Session::begin(const QString &password) {
       close(childCtl);
     if (childVid >= 0)
       close(childVid);
-    state = "disconnected";
+    state = ipc::StateDisconnected;
     fail("Cannot pass private IPC descriptors.");
     return;
   }
@@ -113,7 +113,7 @@ void Session::begin(const QString &password) {
     close(childVid);
   });
   connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
-    state = "disconnected";
+    state = ipc::StateDisconnected;
     if (error == QProcess::FailedToStart)
       fail("The native backend could not run. Check the application bundle.");
     else if (error == QProcess::Crashed)
@@ -126,7 +126,7 @@ void Session::begin(const QString &password) {
             readControl();
             failPending("Connection ended.");
             lastFrame = QImage();
-            state = "disconnected";
+            state = ipc::StateDisconnected;
             mounted = false;
             emit frameReady(QImage());
             if (message.startsWith("Connected") || message.startsWith("Opening") ||
@@ -149,7 +149,7 @@ void Session::begin(const QString &password) {
   close(childVid);
   if (!started)
     return;
-  command({{"op", "connect"},
+  command({{"op", ipc::OpConnect},
            {"profile", QJsonObject::fromVariantMap(profile)},
            {"password", password}});
 }
@@ -198,23 +198,23 @@ void Session::readControl() {
       return;
     }
     // A reply carries its command's id; only an event's error is the console's.
-    const bool consoleError = o["type"] == "error" && o.value("id").toInt() == 0;
-    if (consoleError && state != "connected" && state != "disconnected")
+    const bool consoleError = o["type"] == ipc::EventError && o.value("id").toInt() == 0;
+    if (consoleError && state != ipc::StateConnected && state != ipc::StateDisconnected)
       errorStage = state;
     // A console that never delivered a picture failed while connecting.
-    if (consoleError && state == "connected" && lastFrame.isNull())
-      errorStage = "connecting";
+    if (consoleError && state == ipc::StateConnected && lastFrame.isNull())
+      errorStage = ipc::StageConnecting;
     if (o.contains("state"))
       state = o["state"].toString();
-    if (o["type"] == "error")
+    if (o["type"] == ipc::EventError)
       setMessage(o["message"].toString());
-    else if (o["state"] == "logging_in")
+    else if (o["state"] == ipc::StageLoggingIn)
       setMessage("Logging in…");
-    else if (o["state"] == "discovering")
+    else if (o["state"] == ipc::StageDiscovering)
       setMessage("Discovering console…");
-    else if (o["state"] == "connecting")
+    else if (o["state"] == ipc::StageConnecting)
       setMessage("Connecting to console…");
-    else if (o["state"] == "connected")
+    else if (o["state"] == ipc::StateConnected)
       setMessage("Connected — click the console to control it.");
     if (o.contains("info")) {
       auto resolution = consoleInfo.value("resolution");
@@ -225,10 +225,10 @@ void Session::readControl() {
     if (o.contains("mounted"))
       mounted = o["mounted"].toBool();
     if (int id = o.value("id").toInt(); id && m_pending.count(id) &&
-        (o["type"] == "ok" || o["type"] == "error")) {
+        (o["type"] == ipc::EventOK || o["type"] == ipc::EventError)) {
       auto p = std::move(m_pending[id]);
       m_pending.erase(id);
-      settle(p, o["type"] == "ok", o["message"].toString());
+      settle(p, o["type"] == ipc::EventOK, o["message"].toString());
     }
     emit changed();
   }
@@ -276,16 +276,16 @@ void Session::readVideo() {
 }
 void Session::key(int usage, bool down) {
   if (connected())
-    command({{"op", "key"}, {"input", QJsonObject{{"usage", usage}, {"down", down}}}});
+    command({{"op", ipc::OpKey}, {"input", QJsonObject{{"usage", usage}, {"down", down}}}});
 }
 void Session::pointer(int x, int y, int buttons, int wheel) {
   if (connected())
-    command({{"op", "pointer"},
+    command({{"op", ipc::OpPointer},
              {"input", QJsonObject{{"x", x}, {"y", y}, {"buttons", buttons}, {"wheel", wheel}}}});
 }
 void Session::releaseInput() {
   if (connected())
-    command({{"op", "release"}});
+    command({{"op", ipc::OpRelease}});
 }
 void Session::sendKeys(const QVariantList &usages) {
   // Press in order, release in reverse: a chord such as Ctrl+Alt+Del.
@@ -301,7 +301,7 @@ void Session::preview() {
   startedAt = QDateTime::currentMSecsSinceEpoch();
   QImage im(800, 600, QImage::Format_RGBA8888);
   im.fill(QColor("#223548")); // slop-ok: synthetic framebuffer content, not UI chrome
-  state = "connected"; // a framebuffer without a backend; input and power go nowhere
+  state = ipc::StateConnected; // a framebuffer without a backend; input and power go nowhere
   lastFrame = im;
   ++frameSeq;
   ++changeSeq;

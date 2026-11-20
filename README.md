@@ -307,6 +307,10 @@ side sends them. The Go tests check that the core reads every key the desktop
 sends and sends its events in exactly that form; the C++ tests check the desktop
 against the same files, with a stand-in core (`desktop/fakecore_test.cpp`) that
 plays a script. A change to either side's messages changes these files.
+`testdata/ipc/names.json` lists the names (ops, event types, states, power
+actions) and the keys of each message; both sides' tests check their constants
+(`internal/backend/ipc.go`, `protocol.Stage*` and `protocol.Power*`, and
+`desktop/ipc.h`) against it in both directions.
 `testdata/agent` does the same for the agent socket: requests as `oldipmi-mcp`
 sends them and the replies the app gave on its demo console. The `agent_api`
 test replays them (`UPDATE_GOLDEN=1` records the replies anew), and the MCP
