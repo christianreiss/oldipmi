@@ -2,8 +2,8 @@
 // The names of the desktop-core IPC, as testdata/ipc/names.json lists them;
 // the core spells the same in internal/backend/ipc.go and internal/protocol.
 // ipc_test.cpp reads this file and checks it against names.json both ways, so
-// it holds one constant per line, in the form below. QML spells the states
-// itself.
+// it holds one constant per line, in one of the forms below. QML spells the
+// states itself.
 
 namespace ipc {
 
@@ -35,5 +35,10 @@ inline constexpr char PowerOn[] = "on";
 inline constexpr char PowerOff[] = "off"; // at once
 inline constexpr char PowerReset[] = "reset";
 inline constexpr char PowerSoft[] = "soft"; // graceful shutdown
+
+// The largest video frame the core sends (internal/video/raster); the desktop
+// refuses a larger one.
+inline constexpr unsigned MaxFrameWidth = 4096;
+inline constexpr unsigned MaxFrameHeight = 2160;
 
 } // namespace ipc

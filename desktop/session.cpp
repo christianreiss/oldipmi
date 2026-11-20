@@ -242,7 +242,7 @@ void Session::readVideo() {
     quint32 n = qFromBigEndian<quint32>(m_videoBuffer.constData()),
             w = qFromBigEndian<quint32>(m_videoBuffer.constData() + 4),
             h = qFromBigEndian<quint32>(m_videoBuffer.constData() + 8);
-    if (w == 0 || h == 0 || w > 4096 || h > 2160 || n != 8 + w * h * 4) {
+    if (w == 0 || h == 0 || w > ipc::MaxFrameWidth || h > ipc::MaxFrameHeight || n != 8 + w * h * 4) {
       fail("Invalid framebuffer from backend.");
       m_process->terminate();
       return;

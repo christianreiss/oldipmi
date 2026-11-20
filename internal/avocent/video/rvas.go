@@ -3,6 +3,7 @@ package video
 import (
 	"encoding/binary"
 	"fmt"
+	"oldipmi/internal/video/raster"
 )
 
 // RVAS decodes the Avocent "RLE video" stream (AVSP packet 0x8b / 0x860b)
@@ -101,7 +102,7 @@ func (r *RVAS) Feed(fb *Framebuffer, p []byte) (bool, error) {
 }
 
 func resize(fb *Framebuffer, w, h int) error {
-	if w < 1 || h < 1 || w > 4096 || h > 2160 {
+	if !raster.ValidSize(w, h) {
 		return fmt.Errorf("invalid Avocent framebuffer dimensions")
 	}
 	if w != fb.W || h != fb.H {

@@ -12,6 +12,7 @@ import (
 	"oldipmi/internal/power"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
+	"oldipmi/internal/video/raster"
 	"os"
 	"sync"
 	"time"
@@ -205,7 +206,7 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 			}
 			height := int(binary.BigEndian.Uint16(f.Payload[4:]))
 			width := int(binary.BigEndian.Uint16(f.Payload[6:]))
-			if width < 1 || height < 1 || width > 4096 || height > 2160 {
+			if !raster.ValidSize(width, height) {
 				return fmt.Errorf("invalid Avocent framebuffer dimensions")
 			}
 			fb.Resize(width, height)

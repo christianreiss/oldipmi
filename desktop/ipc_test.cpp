@@ -1,7 +1,8 @@
-// testdata/ipc/names.json is the one list of the IPC's names. Here the
-// constants of desktop/ipc.h are checked against it in both directions: every
-// constant is in the file with its value, and every entry of the file is a
-// constant. internal/backend/names_test.go does the same for the core.
+// testdata/ipc/names.json is the one list of the IPC's names and its frame
+// limit. Here the constants of desktop/ipc.h are checked against it in both
+// directions: every constant is in the file with its value, and every entry of
+// the file is a constant. internal/backend/names_test.go does the same for the
+// core.
 #include "ipc.h"
 #include <QFile>
 #include <QJsonDocument>
@@ -30,17 +31,20 @@ void IpcNames::headerMatchesNamesJson() {
   // The constants of ipc.h by group, read from its text.
   static const QRegularExpression constant(
       R"re(^inline constexpr char (Op|Event|State|Stage|Power)(\w+)\[\] = "([^"]*)";)re");
+  static const QRegularExpression limit(R"re(^inline constexpr unsigned (MaxFrame)(\w+) = (\d+);)re");
   QMap<QString, QVariantMap> got;
   for (const QString &line : QString::fromUtf8(header.readAll()).split('\n')) {
     if (!line.contains("constexpr"))
       continue;
-    const auto m = constant.match(line);
+    auto m = constant.match(line);
+    if (!m.hasMatch())
+      m = limit.match(line);
     QVERIFY2(m.hasMatch(), qPrintable("ipc.h: not one constant in the usual form: " + line));
     got[m.captured(1)][m.captured(2)] = m.captured(3);
   }
   const QMap<QString, QString> groups{{"Op", "ops"},       {"Event", "events"},
                                       {"State", "states"}, {"Stage", "stages"},
-                                      {"Power", "powerActions"}};
+                                      {"Power", "powerActions"}, {"MaxFrame", "maxFrame"}};
   for (auto it = groups.cbegin(); it != groups.cend(); ++it) {
     const QVariantMap want = fixture.value(it.value()).toObject().toVariantMap();
     QVERIFY2(!want.isEmpty(), qPrintable("names.json has no " + it.value()));
@@ -50,6 +54,8 @@ void IpcNames::headerMatchesNamesJson() {
   }
   // The text is what the desktop compiles.
   QCOMPARE(QString(ipc::StageLoggingIn), fixture["stages"]["LoggingIn"].toString());
+  QCOMPARE(ipc::MaxFrameWidth, unsigned(fixture["maxFrame"]["Width"].toInt()));
+  QCOMPARE(ipc::MaxFrameHeight, unsigned(fixture["maxFrame"]["Height"].toInt()));
 }
 
 QTEST_GUILESS_MAIN(IpcNames)

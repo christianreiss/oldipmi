@@ -366,7 +366,7 @@ The GUI owns one backend child per open connection (any number at once, one `Ses
 carry version-1 control messages and RGBA video frames. There are no listening
 ports or installed background services. Control records are length-prefixed JSON
 (maximum 1 MiB); setup state events include `logging_in`, `discovering`,
-`connecting`, and `connected`, plus optional nonsecret `info` metadata; frame records carry width, height and bounded raw RGBA bytes.
+`connecting`, and `connected`, plus optional nonsecret `info` metadata; frame records carry width, height and raw RGBA bytes, at most 4096×2160 pixels (`maxFrame` in `testdata/ipc/names.json`).
 A one-frame queue drops superseded display frames without delaying input.
 
 Each console family is a Go package under `internal/` whose `driver.go` holds

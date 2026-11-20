@@ -1,5 +1,5 @@
 {
-  "about": "The names of the desktop-core IPC, by the rest of their constant name: Go has backend.Op*, Event*, State* and protocol.Stage*, Power*; desktop/ipc.h has ipc::Op* and so on. A console's state is one of states or stages. A media event reports the ISO's state in mounted and, when the ISO failed, why in message. fields lists the JSON keys of each message part; the profile's keys are those of connect.json.",
+  "about": "The names of the desktop-core IPC, by the rest of their constant name: Go has backend.Op*, Event*, State* and protocol.Stage*, Power*; desktop/ipc.h has ipc::Op* and so on. A console's state is one of states or stages. maxFrame is the largest video frame in pixels: Go has video/raster.MaxWidth and MaxHeight, desktop/ipc.h has ipc::MaxFrameWidth and MaxFrameHeight. A media event reports the ISO's state in mounted and, when the ISO failed, why in message. fields lists the JSON keys of each message part; the profile's keys are those of connect.json.",
   "ops": {
     "Connect": "connect",
     "Disconnect": "disconnect",
@@ -30,6 +30,10 @@
     "Off": "off",
     "Reset": "reset",
     "Soft": "soft"
+  },
+  "maxFrame": {
+    "Width": 4096,
+    "Height": 2160
   },
   "fields": {
     "command": ["version", "id", "op", "profile", "password", "input", "path", "action"],

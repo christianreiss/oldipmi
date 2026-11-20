@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"maps"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/video/raster"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -65,6 +66,7 @@ func consts(t *testing.T, dir, prefix string) map[string]string {
 func TestIPCNames(t *testing.T) {
 	var n struct {
 		Ops, Events, States, Stages, PowerActions map[string]string
+		MaxFrame                                  map[string]int
 		Fields                                    map[string][]string
 	}
 	fixture(t, "names.json", &n)
@@ -81,6 +83,9 @@ func TestIPCNames(t *testing.T) {
 		if got := consts(t, c.dir, c.prefix); len(c.want) == 0 || !maps.Equal(got, c.want) {
 			t.Errorf("%s* constants are %v, names.json has %v", c.prefix, got, c.want)
 		}
+	}
+	if want := map[string]int{"Width": raster.MaxWidth, "Height": raster.MaxHeight}; !maps.Equal(n.MaxFrame, want) {
+		t.Errorf("raster.MaxWidth and MaxHeight are %v, names.json maxFrame has %v", want, n.MaxFrame)
 	}
 	for _, stage := range n.Stages {
 		if stageLabel[stage] == "" {

@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/video/raster"
 )
 
 type decoder struct {
@@ -14,7 +15,7 @@ type decoder struct {
 }
 
 func (d *decoder) Resize(w, h int) error {
-	if w < 1 || h < 1 || w > 4096 || h > 2160 {
+	if !raster.ValidSize(w, h) {
 		return fmt.Errorf("invalid ATEN resolution")
 	}
 	if d.frame.Width != w || d.frame.Height != h {

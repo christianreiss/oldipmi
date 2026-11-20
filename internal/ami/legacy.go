@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/video/raster"
 )
 
 // Legacy MegaRAC VSC frames: 9-byte header, followed by rectangular RGB555
@@ -21,7 +22,7 @@ func (d *legacyDecoder) Decode(b []byte) (protocol.Frame, error) {
 	}
 	le := binary.LittleEndian
 	w, h := int(le.Uint16(b[4:])), int(le.Uint16(b[6:]))
-	if w < 1 || h < 1 || w > 4096 || h > 2160 || w*h > 4096*2160 {
+	if !raster.ValidSize(w, h) {
 		return fail()
 	}
 	n := int(le.Uint32(b))

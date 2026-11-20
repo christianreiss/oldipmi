@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"oldipmi/internal/hid"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/video/raster"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -40,7 +41,7 @@ func Size(host string) (int, int) {
 	}
 	w, _ := strconv.Atoi(m[1])
 	h, _ := strconv.Atoi(m[2])
-	return min(max(w, 320), 4096), min(max(h, 200), 2160)
+	return min(max(w, 320), raster.MaxWidth), min(max(h, 200), raster.MaxHeight)
 }
 
 // Connect walks through the usual setup stages and returns a demo session.

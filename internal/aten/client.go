@@ -11,6 +11,7 @@ import (
 	"oldipmi/internal/hid"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
+	"oldipmi/internal/video/raster"
 	"sync"
 	"time"
 )
@@ -248,7 +249,7 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 					frame(f)
 					continue
 				}
-				if x == 0 && y == 0 && w > 0 && hgt > 0 && w <= 4096 && hgt <= 2160 {
+				if x == 0 && y == 0 && raster.ValidSize(w, hgt) {
 					if e = c.dec.Resize(w, hgt); e != nil {
 						return e
 					}
