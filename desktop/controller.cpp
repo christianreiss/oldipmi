@@ -102,8 +102,9 @@ void Controller::disconnectAll() {
   emit changed();
 }
 void Controller::loadProfiles() {
+  // Nothing is built in: without a file the list starts empty, and nothing is written.
   QFile f(m_configFile);
-  bool initialized = false;
+  bool migrate = false;
   if (f.exists()) {
     if (!f.open(QIODevice::ReadOnly) || f.size() > 1024 * 1024) {
       m_profilesReadable = false;
@@ -115,10 +116,10 @@ void Controller::loadProfiles() {
         if (!QFile::exists(m_configFile + ".pre-profiles") &&
             !f.copy(m_configFile + ".pre-profiles"))
           m_profilesReadable = false;
+        migrate = true;
       } else if (doc.isObject() && doc["version"].toInt() == 1 &&
                  doc["profiles"].isArray()) {
         m_hosts = doc["profiles"].toArray().toVariantList();
-        initialized = doc["defaultsVersion"].toInt() >= 1;
       } else {
         m_profilesReadable = false;
       }
@@ -128,27 +129,8 @@ void Controller::loadProfiles() {
     fail("Could not read or migrate profiles safely; the existing file was preserved.");
     return;
   }
-  if (initialized)
-    return;
-  auto profiles = m_hosts;
-  for (const auto &name : {QString("Lab-AMI"), QString("Lab-Avocent"), QString("Lab-Cisco")}) {
-    QString host = name.toLower() + ".example.net";
-    bool exists = false;
-    for (const auto &v : profiles)
-      if (v.toMap().value("host").toString().trimmed().compare(host, Qt::CaseInsensitive) == 0)
-        exists = true;
-    if (exists)
-      continue;
-    bool ami = name == "Lab-AMI";
-    profiles.append(QVariantMap{
-      {"id", QUuid::createUuid().toString(QUuid::WithoutBraces)},
-      {"name", name}, {"host", host}, {"username", "admin"},
-      {"family", ami ? "ami" : name == "Lab-Avocent" ? "avocent" : "cisco"},
-      {"remember", true}, {"http", ami}, {"legacyTLS", true},
-      {"allowPlainConsole", ami}});
-  }
-  if (persist(profiles))
-    m_hosts = profiles;
+  if (migrate)
+    persist(m_hosts); // rewritten once in the current format
 }
 bool Controller::persist(const QVariantList &hosts) {
   if (!m_profilesReadable) {
@@ -162,6 +144,7 @@ bool Controller::persist(const QVariantList &hosts) {
     return false;
   }
   f.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
+  // defaultsVersion is no longer read; it stops 0.3.0 and older from adding their presets again.
   auto data = QJsonDocument(QJsonObject{{"version", 1}, {"defaultsVersion", 1},
                {"profiles", QJsonArray::fromVariantList(hosts)}}).toJson();
   if (f.write(data) != data.size() || !f.commit()) {

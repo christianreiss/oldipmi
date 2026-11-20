@@ -89,10 +89,9 @@ scaling, Right Ctrl release, shortcut list), *AI agents (MCP)* (agent control on
 status, setup, recent agent activity) and *About* (version, file locations).
 Preferences are stored in `OldIPMI.conf` in the XDG config directory.
 
-Lab-AMI, Lab-Avocent and Lab-Cisco are added once on first launch; deleted defaults stay
-deleted. Lab-Cisco is configured for Cisco APCP. Cisco IMC sends its video as Avocent
-packet 139, an RLE-compressed bit-slice format (also byte-plane and raw tiles),
-which OldIPMI decodes. Its text mode (character cells plus font tables, used by
+OldIPMI starts with an empty connection list; nothing is built in. Cisco IMC
+sends its video as Avocent packet 139, an RLE-compressed bit-slice format (also
+byte-plane and raw tiles), which OldIPMI decodes. Its text mode (character cells plus font tables, used by
 some BIOS screens) is not drawn yet and fails with an explicit message. The Java iKVM
 launch file the BMC hands out only supplies an AMI/ATEN session token and is never
 executed or used to fetch code. Every connection logs in and obtains a fresh session.
@@ -101,10 +100,8 @@ executed or used to fetch code. Every connection logs in and obtains a fresh ses
 
 TLS verification is enabled by default. HTTP login, unverified/legacy TLS and
 plain console/media transport are separate per-host exceptions, off by default
-for new profiles. The three initial profiles carry their previously verified
-compatibility settings: Lab-AMI enables all three, Lab-Avocent/Lab-Cisco legacy TLS only.
-The legacy TLS exception also allows obsolete RSA/3DES suites when required.
-No BMC TLS configuration, clocks or firmware are changed by OldIPMI.
+for new profiles. The legacy TLS exception also allows obsolete RSA/3DES suites
+when required. No BMC TLS configuration, clocks or firmware are changed by OldIPMI.
 
 ### Supermicro (ATEN) generations
 
@@ -325,8 +322,10 @@ ports or installed background services. Control records are length-prefixed JSON
 A one-frame queue drops superseded display frames without delaying input.
 
 Profiles live in `hosts.json` in the application's XDG config directory
-(usually `~/.config/OldIPMI/OldIPMI`). The versioned object contains `version`,
-`defaultsVersion`, and `profiles`; it is saved atomically with owner-only access.
+(usually `~/.config/OldIPMI/OldIPMI`). The versioned object contains `version`
+and `profiles`, plus `defaultsVersion`, which is no longer read but keeps 0.3.0 and
+older from adding their former preset connections after a downgrade. It is saved
+atomically with owner-only access.
 The previous array format is migrated automatically, preserving a
 `hosts.json.pre-profiles` backup. To roll back just the profiles feature, use
 commit `8dd01fd` and restore that backup, or export the current object's

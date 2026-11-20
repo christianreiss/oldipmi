@@ -38,39 +38,70 @@ class ControllerTest : public QObject {
     if (!f.open(QIODevice::ReadOnly)) return {};
     return f.readAll();
   }
+  // A saved profile with "remember" set and no wallet entry yet.
+  static QVariantMap savedProfile() {
+    return {{"id", "fixture-id"}, {"name", "Fixture"}, {"host", "bmc.example.invalid"},
+            {"username", "admin"}, {"family", "ami"}, {"remember", true}};
+  }
+  static QString writeProfiles(const QTemporaryDir &dir, const QVariantList &profiles) {
+    QString path = dir.filePath("hosts.json");
+    QFile f(path);
+    if (f.open(QIODevice::WriteOnly))
+      f.write(QJsonDocument(QJsonObject{{"version", 1},
+                                        {"profiles", QJsonArray::fromVariantList(profiles)}}).toJson());
+    return path;
+  }
 private slots:
+  void nothingIsBuiltIn() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    QString path = dir.filePath("hosts.json");
+    {
+      Controller c(nullptr, &wallet, path);
+      QVERIFY(c.hosts().isEmpty());
+    }
+    QVERIFY(!QFile::exists(path)); // nothing to save yet
+    // Without defaultsVersion, 0.3.0 and older added presets here; now the file stays as it is.
+    const QByteArray empty = R"({"version":1,"profiles":[]})";
+    QFile f(path); QVERIFY(f.open(QIODevice::WriteOnly)); f.write(empty); f.close();
+    Controller c(nullptr, &wallet, path);
+    QVERIFY(c.hosts().isEmpty());
+    QCOMPARE(read(path), empty);
+  }
   void migrationPreservesProfilesAndDeletion() {
     QTemporaryDir dir;
     QString path = dir.filePath("hosts.json");
-    QVariantMap existing{{"id","keep-wallet-id"},{"host","LAB-AMI.EXAMPLE.NET"},
+    QVariantMap existing{{"id","keep-wallet-id"},{"host","BMC1.EXAMPLE.INVALID"},
                          {"name","My server"},{"username","custom"},{"remember",true},
                          {"legacyTLS",false}};
-    auto legacy = QJsonDocument(QJsonArray{QJsonObject::fromVariantMap(existing)}).toJson();
+    QVariantMap second{{"id","second-id"},{"host","bmc2.example.invalid"},{"name","Second"},
+                       {"username","admin"},{"remember",true}};
+    auto legacy = QJsonDocument(QJsonArray{QJsonObject::fromVariantMap(existing),
+                                           QJsonObject::fromVariantMap(second)}).toJson();
     QFile f(path); QVERIFY(f.open(QIODevice::WriteOnly)); f.write(legacy); f.close();
     FakeCredentials wallet;
     wallet.values["keep-wallet-id"] = "fixture-password";
     QVariantList saved;
     {
       Controller c(nullptr, &wallet, path);
-      QCOMPARE(c.hosts().size(), 3);
-      QCOMPARE(c.hosts()[0].toMap(), existing);
+      QCOMPARE(c.hosts(), (QVariantList{existing, second})); // nothing added
       QCOMPARE(read(path + ".pre-profiles"), legacy);
+      auto converted = QJsonDocument::fromJson(read(path)).object();
+      QCOMPARE(converted["version"].toInt(), 1);
+      QCOMPARE(converted["profiles"].toArray().toVariantList(), c.hosts());
       QCOMPARE(wallet.reads + wallet.writes + wallet.removes, 0);
-      auto lab-avocent = c.hosts()[1].toMap();
-      QCOMPARE(lab-avocent["name"].toString(), "Lab-Avocent");
-      QVERIFY(c.removeHost(lab-avocent["id"].toString()));
+      QVERIFY(c.removeHost("second-id"));
       saved = c.hosts();
     }
     Controller reloaded(nullptr, &wallet, path);
     QCOMPARE(reloaded.hosts(), saved);
-    QCOMPARE(reloaded.hosts().size(), 2);
+    QCOMPARE(reloaded.hosts(), QVariantList{existing});
     QVERIFY(wallet.values.contains("keep-wallet-id"));
     QVERIFY(!read(path).contains("fixture-password"));
     QVERIFY(!(QFile::permissions(path) & (QFile::ReadGroup | QFile::ReadOther)));
   }
   void walletSaveEditRetrieveAndRemove() {
     QTemporaryDir dir; FakeCredentials wallet;
-    QString path = dir.filePath("hosts.json");
+    QString path = writeProfiles(dir, {savedProfile()});
     Controller c(nullptr, &wallet, path);
     auto p = c.hosts()[0].toMap();
     // Unsupported family is rejected locally, before any network operation.
@@ -94,7 +125,7 @@ private slots:
   }
   void missingAndUnavailableWallet() {
     QTemporaryDir dir; FakeCredentials wallet;
-    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    Controller c(nullptr, &wallet, writeProfiles(dir, {savedProfile()}));
     auto p = c.hosts()[0].toMap(); p["family"] = "fixture";
     QSignalSpy prompt(&c, &Controller::passwordRequired);
     QSignalSpy fallback(&c, &Controller::walletUnavailable);
@@ -116,7 +147,7 @@ private slots:
   }
   void changedAccountNeverReusesPassword() {
     QTemporaryDir dir; FakeCredentials wallet;
-    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    Controller c(nullptr, &wallet, writeProfiles(dir, {savedProfile()}));
     auto p = c.saveHost(c.hosts()[0].toMap(), "fixture-secret", true);
     p["username"] = "different-account";
     QSignalSpy prompt(&c, &Controller::passwordRequired);
@@ -153,7 +184,7 @@ private slots:
   }
   void failedStageAndActiveProfile() {
     QTemporaryDir dir; FakeCredentials wallet;
-    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    Controller c(nullptr, &wallet, writeProfiles(dir, {savedProfile()}));
     auto p = c.hosts()[0].toMap(); p["family"] = "fixture";
     c.connectHost(p, "fixture-secret");
     QCOMPARE(c.activeProfile().value("id"), p["id"]);

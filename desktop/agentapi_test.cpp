@@ -52,7 +52,7 @@ class AgentApiTest : public QObject {
 private slots:
   void profilesNeverExposeSecrets() {
     QTemporaryDir dir; NoCredentials w;
-    Controller c(nullptr, &w, dir.filePath("hosts.json"));
+    Controller c(nullptr, &w, writeProfiles(dir));
     AgentApi api(&c, dir.filePath("s"));
     auto r = run(api, "list_profiles");
     QVERIFY(r.ok);

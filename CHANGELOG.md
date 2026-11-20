@@ -14,6 +14,12 @@
   the welcome page. The About page now shows the bundled icon, like the sidebar,
   instead of an installed theme icon that may be missing or older.
 
+### Removed
+* **Preset connections:** a fresh installation starts with an empty connection
+  list; nothing is built in any more. Earlier versions added three preset
+  connections on first launch. Connections that already exist, presets included,
+  stay as they are.
+
 ## 0.3.0 (2026-11-19)
 
 ### Changed
