@@ -41,17 +41,23 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 	if err != nil {
 		return c, err
 	}
+	return c, c.attach(ctx)
+}
+
+// attach opens the console that the BMC's launch file describes.
+func (c *Client) attach(ctx context.Context) (err error) {
+	p := c.p
 	if c.launch.Family != "ami" {
-		return c, fmt.Errorf("this BMC needs the ATEN family; select it for this profile")
+		return fmt.Errorf("this BMC needs the ATEN family; select it for this profile")
 	}
 	if c.launch.Args["singleportenabled"] == "1" {
-		return c, fmt.Errorf("AMI single-port tunneling is not supported by this firmware adapter")
+		return fmt.Errorf("AMI single-port tunneling is not supported by this firmware adapter")
 	}
 	info := c.launch.ConsoleInfo(p)
 	protocol.Report(ctx, "connecting", &info)
 	c.wire, err = protocol.Dial(ctx, p, c.launch.Port, c.launch.Secure)
 	if err != nil {
-		return c, err
+		return err
 	}
 	stop := context.AfterFunc(ctx, func() { c.wire.Close() })
 	defer stop()
@@ -59,30 +65,30 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 	if c.launch.Legacy {
 		t, st, _, e := c.read(c.wire)
 		if e != nil {
-			return c, e
+			return e
 		}
 		if t != 14 || st != 0 {
-			return c, fmt.Errorf("AMI video prelogin refused (%d/%d)", t, st)
+			return fmt.Errorf("AMI video prelogin refused (%d/%d)", t, st)
 		}
 		c.hid, err = protocol.Dial(ctx, p, c.launch.HIDPort, true)
 		if err != nil {
-			return c, err
+			return err
 		}
 		stopHID := context.AfterFunc(ctx, func() { c.hid.Close() })
 		defer stopHID()
 		c.hid.SetDeadline(time.Now().Add(15 * time.Second))
 		t, st, _, err = c.read(c.hid)
 		if err != nil {
-			return c, err
+			return err
 		}
 		if t != 14 || st != 0 {
-			return c, fmt.Errorf("AMI HID prelogin refused (%d/%d)", t, st)
+			return fmt.Errorf("AMI HID prelogin refused (%d/%d)", t, st)
 		}
 		c.hid.SetDeadline(time.Time{})
 		auth := make([]byte, 99)
 		copy(auth[1:], c.launch.Token)
 		if err = c.send(c.wire, 12, auth); err != nil {
-			return c, err
+			return err
 		}
 		cookie := c.launch.Cookie
 		if len(c.launch.Pos) > 10 {
@@ -90,23 +96,23 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 		}
 		if cookie != "" {
 			if err = c.send(c.wire, 32, []byte(cookie)); err != nil {
-				return c, err
+				return err
 			}
 		}
 		if err = c.send(c.wire, 11, []byte{8}); err != nil {
-			return c, err
+			return err
 		}
 		err = c.send(c.wire, 7, nil)
 	} else {
 		for i := 0; i < 20; i++ {
 			t, _, b, e := c.read(c.wire)
 			if e != nil {
-				return c, e
+				return e
 			}
 			switch t {
 			case 23:
 				if err = c.send(c.wire, 58, nil); err != nil {
-					return c, err
+					return err
 				}
 				b := make([]byte, 373)
 				copy(b[1:130], c.launch.Token)
@@ -114,24 +120,24 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 				copy(b[130:195], host)
 				copy(b[195:324], p.Username)
 				if err = c.send(c.wire, 18, b); err != nil {
-					return c, err
+					return err
 				}
 			case 19:
 				if len(b) == 0 || b[0] != 1 {
-					return c, fmt.Errorf("AMI rejected native session")
+					return fmt.Errorf("AMI rejected native session")
 				}
 				err = c.send(c.wire, 6, nil)
 				i = 20
 			case 8:
-				return c, fmt.Errorf("AMI stopped native session")
+				return fmt.Errorf("AMI stopped native session")
 			}
 			if i == 19 {
-				return c, fmt.Errorf("AMI authentication response missing")
+				return fmt.Errorf("AMI authentication response missing")
 			}
 		}
 	}
 	c.wire.SetDeadline(time.Time{})
-	return c, err
+	return err
 }
 func (c *Client) read(w *protocol.Wire) (uint16, uint16, []byte, error) {
 	n := 8
