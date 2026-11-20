@@ -9,12 +9,15 @@ import (
 // ConsoleInfo is deliberately separate from Launch: session tokens, cookies,
 // argument lists and credentials must never cross into display metadata.
 type ConsoleInfo struct {
-	Protocol        string     `json:"protocol"`
-	Endpoints       []Endpoint `json:"endpoints"`
-	Capabilities    []string   `json:"capabilities"`
-	ProtocolVersion string     `json:"protocolVersion,omitempty"`
-	Companion       bool       `json:"companion,omitempty"`
-	LegacyTLS       bool       `json:"legacyTLS"`
+	Protocol     string     `json:"protocol"`
+	Endpoints    []Endpoint `json:"endpoints"`
+	Capabilities []string   `json:"capabilities"`
+	// What the console supports, by name, next to the Capabilities shown to
+	// the user. Not sent yet; defined here once for what follows.
+	Features        []string `json:"features,omitempty"`
+	ProtocolVersion string   `json:"protocolVersion,omitempty"`
+	Companion       bool     `json:"companion,omitempty"`
+	LegacyTLS       bool     `json:"legacyTLS"`
 }
 type Endpoint struct {
 	Role      string `json:"role"`

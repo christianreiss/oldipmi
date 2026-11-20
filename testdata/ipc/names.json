@@ -1,5 +1,5 @@
 {
-  "about": "The names of the desktop-core IPC, by the rest of their constant name: Go has backend.Op*, Event*, State* and protocol.Stage*, Power*; desktop/ipc.h has ipc::Op* and so on. A console's state is one of states or stages. fields lists the JSON keys of each message part; the profile's keys are those of connect.json.",
+  "about": "The names of the desktop-core IPC, by the rest of their constant name: Go has backend.Op*, Event*, State* and protocol.Stage*, Power*; desktop/ipc.h has ipc::Op* and so on. A console's state is one of states or stages. A media event reports the ISO's state in mounted and, when the ISO failed, why in message. fields lists the JSON keys of each message part; the profile's keys are those of connect.json.",
   "ops": {
     "Connect": "connect",
     "Disconnect": "disconnect",
@@ -33,8 +33,8 @@
   },
   "fields": {
     "command": ["version", "id", "op", "profile", "password", "input", "path", "action"],
-    "event": ["version", "id", "type", "state", "message", "mounted", "info", "features", "stage", "code"],
-    "consoleInfo": ["protocol", "endpoints", "capabilities", "protocolVersion", "companion", "legacyTLS"],
+    "event": ["version", "id", "type", "state", "message", "mounted", "info", "stage", "code"],
+    "consoleInfo": ["protocol", "endpoints", "capabilities", "features", "protocolVersion", "companion", "legacyTLS"],
     "endpoint": ["role", "address", "transport"],
     "input": ["usage", "down", "x", "y", "buttons", "wheel"]
   }

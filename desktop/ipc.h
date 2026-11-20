@@ -21,7 +21,7 @@ inline constexpr char OpPower[] = "power";
 inline constexpr char EventState[] = "state"; // the console's state changed
 inline constexpr char EventOK[] = "ok";       // the command with this id is done
 inline constexpr char EventError[] = "error"; // it failed or, without an id, the console ended
-inline constexpr char EventMedia[] = "media"; // the ISO was mounted or ejected
+inline constexpr char EventMedia[] = "media"; // the ISO was mounted, ejected or failed
 
 // A console's state: one of the setup stages, in order, or one of these two.
 inline constexpr char StageLoggingIn[] = "logging_in";

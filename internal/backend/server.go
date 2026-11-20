@@ -44,10 +44,9 @@ type Event struct {
 	Message string                `json:"message,omitempty"`
 	Mounted *bool                 `json:"mounted,omitempty"`
 	Info    *protocol.ConsoleInfo `json:"info,omitempty"`
-	// Not sent yet; they are defined here once for what follows:
-	Features []string `json:"features,omitempty"` // what the console supports, by name
-	Stage    string   `json:"stage,omitempty"`    // the setup stage an error ended
-	Code     string   `json:"code,omitempty"`     // the class of an error, for hints
+	// Not sent yet; defined here once for what follows:
+	Stage string `json:"stage,omitempty"` // the setup stage an error ended
+	Code  string `json:"code,omitempty"`  // the class of an error, for hints
 }
 
 func ReadCommand(r io.Reader) (Command, error) {

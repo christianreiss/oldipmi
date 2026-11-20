@@ -23,7 +23,7 @@ const (
 	EventState = "state" // the console's state changed (State, and Info once known)
 	EventOK    = "ok"    // the command with this ID is done
 	EventError = "error" // the command with this ID failed or, without an ID, the console ended
-	EventMedia = "media" // the ISO was mounted or ejected (Mounted)
+	EventMedia = "media" // the ISO was mounted or ejected (Mounted), or failed (Message)
 )
 
 // States: the setup stages (protocol.Stage*) and these two.
