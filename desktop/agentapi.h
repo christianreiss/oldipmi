@@ -50,6 +50,9 @@ public:
   QString errorString() const { return m_error; }
   QString socketPath() const { return m_path; }
   QString mcpPath() const;
+  // Replaces the oldipmi-mcp path that is shown and registered (the self-test shows
+  // the one of an installed OldIPMI).
+  void setMcpPath(QString path) { m_mcpPath = std::move(path); }
   int clientCount() const { return int(m_clients.size()); }
   QString clientName() const;
   QVariantList clients() const;
@@ -76,7 +79,7 @@ private:
     int count = 1;
   };
   Controller *m_c;
-  QString m_path, m_error;
+  QString m_path, m_error, m_mcpPath;
   bool m_enabled = false;
   QLocalServer m_server;
   QTimer m_retry; // takes the socket over once another instance lets go of it

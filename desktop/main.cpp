@@ -163,6 +163,25 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
       if (o->inherits("QQuickPopup") && o->property("opened").toBool())
         invoke(o, "close");
   };
+  // Popups still fading in or out, and scrims between clear and dark: a grab
+  // waits for them, so it never shows a dialog that is halfway open or closed.
+  auto inTransition = [root, label, visibleWindows] {
+    QStringList busy;
+    for (auto *o : root->findChildren<QObject *>())
+      if (o->inherits("QQuickPopup") && o->property("visible").toBool() && !o->property("opened").toBool())
+        busy << label(o);
+    for (auto *w : visibleWindows()) {
+      QQuickItem *top = w->contentItem();
+      while (top->parentItem())
+        top = top->parentItem();
+      for (auto *layer : top->childItems())
+        if (layer->inherits("QQuickOverlay"))
+          for (auto *item : layer->childItems())
+            if (item->isVisible() && item->opacity() > 0 && item->opacity() < 1)
+              busy << QString("%1 at opacity %2").arg(label(item)).arg(item->opacity());
+    }
+    return busy;
+  };
   // Silent lookups for the ready checks, which run many times; acts use find().
   auto console = [root] { return root->findChild<Console *>("console"); };
   auto popup = [root](const char *name) { return root->findChild<QObject *>(name); };
@@ -344,19 +363,21 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   constexpr int readyLimit = 60000; // CTest's timeout bounds the whole tour
   *settle = [=, &app, &controller](int waited) {
     const auto &step = (*steps)[*index - 1];
-    const bool ready = fit() && (!step.ready || step.ready());
+    const bool ready = fit() && inTransition().isEmpty() && (!step.ready || step.ready());
     if (!ready && waited < readyLimit) {
       QTimer::singleShot(100, &app, [=] { (*settle)(waited + 100); });
       return;
     }
     if (!ready) {
       auto *focus = window->activeFocusItem();
+      const QString busy = inTransition().join(", ");
       problem(QString("%1 did not become ready in %2 s (state %3, error stage \"%4\", %5 console(s) "
-                      "open, frame %6, message \"%7\", window %8, focus on %9)")
+                      "open, frame %6, message \"%7\", window %8, focus on %9, in transition: %10)")
                   .arg(step.name).arg(readyLimit / 1000).arg(controller.state(), controller.errorStage())
                   .arg(controller.openCount())
                   .arg(controller.hasFrame() ? "shown" : "none", controller.message(),
-                       window->isActive() ? "active" : "not active", focus ? label(focus) : "nothing"));
+                       window->isActive() ? "active" : "not active", focus ? label(focus) : "nothing",
+                       busy.isEmpty() ? "nothing" : busy));
     }
     (*next)();
   };
@@ -666,7 +687,11 @@ int main(int argc, char **argv) {
   Controller controller(nullptr, test ? &testCredentials : nullptr, profiles);
   FrameThumbnail::setController(&controller);
   AppSettings settings;
-  AgentApi agent(&controller);
+  // The self-test never opens the agent socket. Its pages show where an installed
+  // OldIPMI has it and oldipmi-mcp: the same in every run, and no local paths.
+  AgentApi agent(&controller, test ? QString("/run/user/1000/oldipmi/agent.sock") : QString());
+  if (test)
+    agent.setMcpPath("/usr/bin/oldipmi-mcp");
   // Auth-less local control socket for oldipmi-mcp; skipped by self-test and
   // --no-agent-api, and switchable at runtime in Settings → AI agents.
   bool agentAllowed = !test && !app.arguments().contains("--no-agent-api");

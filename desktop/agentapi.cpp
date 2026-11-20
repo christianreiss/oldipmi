@@ -147,6 +147,8 @@ void AgentApi::stop() {
   }
 }
 QString AgentApi::mcpPath() const {
+  if (!m_mcpPath.isEmpty())
+    return m_mcpPath;
   // An AppImage mounts at a new temporary path on every run, so a registered
   // path inside it would break; prefer a stable copy on PATH.
   if (!qEnvironmentVariableIsEmpty("APPIMAGE")) {
