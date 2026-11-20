@@ -112,9 +112,14 @@ void Session::begin(const QString &password) {
     close(childCtl);
     close(childVid);
   });
-  connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+  connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
     state = "disconnected";
-    fail("The native backend could not run. Check the application bundle.");
+    if (error == QProcess::FailedToStart)
+      fail("The native backend could not run. Check the application bundle.");
+    else if (error == QProcess::Crashed)
+      fail("The native backend crashed. Reconnect to obtain a fresh session.");
+    else
+      fail("The native backend failed: " + m_process->errorString());
   });
   connect(m_process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
           [this](int, QProcess::ExitStatus) {
@@ -130,6 +135,11 @@ void Session::begin(const QString &password) {
               setMessage("Connection ended. Reconnect to obtain a fresh session.");
             emit changed();
           });
+  // What the core logs (a Go panic, log.Printf, the AVPT trace) goes to the
+  // app's own stderr, the terminal or the journal; nothing reads its stdout.
+  // Kept by QProcess instead, it went unread and grew (C-08).
+  m_process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
+  m_process->setStandardOutputFile(QProcess::nullDevice());
   m_process->setProgram(
       qEnvironmentVariable("OLDIPMI_BIN_DIR", QCoreApplication::applicationDirPath()) +
       "/oldipmi-core");

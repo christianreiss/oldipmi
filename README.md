@@ -324,7 +324,8 @@ stdin and checks live video without injecting keys or changing power/media.
 hostname, and tests the complete desktop flow (including KWallet when enabled);
 it prints only connection stages and allowlisted console information.
 `OLDIPMI_TRACE_AVPT=1` makes `oldipmi-core` log Avocent/Cisco AVPT packet types
-and 12-byte headers to stderr; `OLDIPMI_TRACE_AVPT_DUMP=DIR` additionally writes
+and 12-byte headers to stderr (for a console opened in the app, the core's stderr
+is the app's own: the terminal or the journal); `OLDIPMI_TRACE_AVPT_DUMP=DIR` additionally writes
 video payloads (screen content, mode 0600) for codec work. Never commit them.
 A connection of type **Demo console (no hardware)** (family `demo`, address `demo`,
 `demo-1920x1080` for another size, `demo-fail` / `demo-slow` for failing or slow setup,

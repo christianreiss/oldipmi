@@ -9,7 +9,9 @@
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QTemporaryFile>
 #include <QTest>
+#include <unistd.h>
 
 class SessionTest : public QObject {
   Q_OBJECT
@@ -57,6 +59,33 @@ class SessionTest : public QObject {
           out << QJsonDocument::fromJson(line).object();
     return out;
   }
+  // Collects what this process and the cores it starts write to stderr
+  // while it lives.
+  struct StderrCapture {
+    QTemporaryFile file;
+    int saved = -1;
+    StderrCapture() {
+      if (!file.open())
+        qFatal("cannot open a temporary file");
+      fflush(stderr);
+      saved = dup(2);
+      dup2(file.handle(), 2);
+    }
+    ~StderrCapture() { restore(); }
+    void restore() {
+      if (saved < 0)
+        return;
+      fflush(stderr);
+      dup2(saved, 2);
+      close(saved);
+      saved = -1;
+    }
+    QByteArray text() {
+      restore();
+      file.seek(0);
+      return file.readAll();
+    }
+  };
   static QJsonObject expect(const char *op) { return {{"expect", op}}; }
   static QJsonObject send(const QJsonObject &e) { return {{"send", e}}; }
   static QJsonObject reply(const QJsonObject &e) { return {{"reply", e}}; }
@@ -189,8 +218,10 @@ private slots:
 
   // A core that ends settles the waiting callbacks; while setting up or
   // connected, the message says the connection ended. What it wrote to stderr
-  // is not shown (C-08, Phase 1). A Go panic ends the core with exit code 2.
+  // goes to the app's stderr, the terminal or the journal; it was kept unread
+  // before (C-08). A Go panic ends the core with exit code 2.
   void coreThatEndsSettlesCallbacks() {
+    StderrCapture err;
     auto *s = start({expect("connect"), send(event(3)), expect("power"),
                      QJsonObject{{"stderr", "panic: test\n"}}, QJsonObject{{"exit", 2}}});
     QTRY_VERIFY(s->connected());
@@ -201,22 +232,27 @@ private slots:
     QCOMPARE(s->message, QString("Connection ended. Reconnect to obtain a fresh session."));
     QVERIFY(s->lastFrame.isNull());
     delete s;
+    QVERIFY(err.text().contains("panic: test\n"));
   }
 
-  // A core that cannot start and one killed by a signal get the same message
-  // today, though only the first is about the bundle (C-08, Phase 1).
+  // A core that cannot start and one that crashes each get their own
+  // message; only the first is about the bundle (C-08).
   void coreThatDoesNotRun_data() {
     QTest::addColumn<QString>("binDir");
     QTest::addColumn<QJsonArray>("steps");
-    QTest::newRow("missing") << dir.filePath("no-core") << QJsonArray{};
-    QTest::newRow("killed") << QString(FAKECORE_DIR) << QJsonArray{expect("connect"), send(event(3)), QJsonObject{{"signal", 9}}};
+    QTest::addColumn<QString>("message");
+    QTest::newRow("missing") << dir.filePath("no-core") << QJsonArray{}
+                             << "The native backend could not run. Check the application bundle.";
+    QTest::newRow("killed") << QString(FAKECORE_DIR) << QJsonArray{expect("connect"), send(event(3)), QJsonObject{{"signal", 9}}}
+                            << "The native backend crashed. Reconnect to obtain a fresh session.";
   }
   void coreThatDoesNotRun() {
     QFETCH(QString, binDir);
     QFETCH(QJsonArray, steps);
+    QFETCH(QString, message);
     auto *s = start(steps, {{"host", "bmc1.example.net"}}, binDir);
     QTRY_COMPARE(s->state, QString("disconnected"));
-    QTRY_COMPARE(s->message, QString("The native backend could not run. Check the application bundle."));
+    QTRY_COMPARE(s->message, message);
     QVERIFY(s->lastFrame.isNull());
     delete s;
   }

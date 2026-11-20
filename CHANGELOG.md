@@ -28,6 +28,13 @@
   stay as they are.
 
 ### Fixed
+* **A crashed backend says so.** When the backend process of a console crashed,
+  OldIPMI said "The native backend could not run. Check the application
+  bundle."; it now says that the backend crashed.
+* **The backend's own messages reach the log.** What `oldipmi-core` writes to
+  stderr, such as a Go panic or the `OLDIPMI_TRACE_AVPT` trace, now appears on
+  OldIPMI's stderr (the terminal or the journal). It was kept in memory unread,
+  and with tracing on that memory grew for as long as the console was open.
 * **An ISO goes to the console it was chosen for.** If an agent brought another
   console to the front while the file dialog was open, the ISO was attached to
   that console instead.
