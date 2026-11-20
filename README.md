@@ -282,12 +282,16 @@ with `dnf list --installed oldipmi`.
 ## Checks
 
 ```sh
-go test -race ./...
-go vet ./...
-ctest --test-dir build --output-on-failure
-go test ./internal/ami -run '^$' -fuzz FuzzLegacyDecode -fuzztime 10s
-go test ./internal/aten -run '^$' -fuzz FuzzDecode -fuzztime 10s
+tools/check.sh
 ```
+
+runs every check: gofmt, `go vet`, `go mod tidy -diff`, `go test -race`, each fuzz
+target for 10 seconds (`FUZZTIME`) with 8 workers (`FUZZPARALLEL`) and a memory limit
+of 4 GB for them together (`FUZZMEM`), then
+builds `build/` and runs CTest, builds `build-asan/` with AddressSanitizer and
+UndefinedBehaviorSanitizer and runs CTest there, and validates the desktop file.
+`tools/check.sh --package DIR` runs the part that an offline package build can run
+on its finished build directory; the RPM's `%check` uses it.
 
 CTest runs every test with a fresh, private home and runtime directory
 (`tools/isolated.sh`), so it never touches your settings, wallet, `~/.qttest` or

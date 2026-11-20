@@ -80,19 +80,10 @@ export GOFLAGS="-mod=vendor -buildmode=pie -ldflags=-B=gobuildid"
 %check
 %{go_env}
 export GOFLAGS=-mod=vendor
-go vet ./...
-go test -race ./...
+# The project's checks that an offline build can run (see README, Checks); every
+# CTest runs with its own private home and runtime directory.
+tools/check.sh --package %{_vpath_builddir}
 desktop-file-validate %{buildroot}%{_datadir}/applications/net.alpha_labs.OldIPMI.desktop
-# Unix socket paths must stay below ~107 bytes, and the tests must not touch
-# the builder's real config or a running OldIPMI, so use short private dirs.
-# Serial on purpose: the single-instance lock is shared per XDG_RUNTIME_DIR.
-testtmp=$(mktemp -d /tmp/oi.XXXX)
-trap 'rm -rf "$testtmp"' EXIT
-mkdir -m 0700 "$testtmp/run" "$testtmp/home"
-XDG_RUNTIME_DIR="$testtmp/run" HOME="$testtmp/home" \
-XDG_CONFIG_HOME="$testtmp/home/.config" XDG_DATA_HOME="$testtmp/home/.local/share" \
-XDG_CACHE_HOME="$testtmp/home/.cache" QT_QPA_PLATFORM=offscreen \
-  ctest --test-dir %{_vpath_builddir} --output-on-failure
 
 %files
 %license LICENSE THIRD_PARTY.md
