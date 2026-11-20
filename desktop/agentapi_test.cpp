@@ -18,6 +18,24 @@ public:
   bool remove(const QString &) override { return true; }
 };
 
+// A wallet that is slow to answer, as KWallet is while it asks to be unlocked:
+// read() runs an event loop, after calling `during`.
+class SlowWallet : public Credentials {
+public:
+  std::function<void()> during;
+  int reads = 0;
+  bool read(const QString &, QString &) override {
+    ++reads;
+    if (during)
+      during();
+    QEventLoop loop;
+    QTimer::singleShot(200, &loop, &QEventLoop::quit);
+    loop.exec();
+    return false;
+  }
+  bool write(const QString &, const QString &) override { return true; }
+  bool remove(const QString &) override { return true; }
+};
 // Profiles that never reach a real BMC: the in-process demo console, a demo whose
 // login fails, and a non-demo profile on a reserved .invalid name without a password.
 static QString writeProfiles(const QTemporaryDir &dir) {
@@ -564,6 +582,33 @@ private slots:
     delete api;
     delete c;
     QVERIFY(!power->called);
+  }
+  // A client that leaves while its request waits in a nested event loop, here
+  // the wallet's: the request ends without touching the client, which is gone
+  // (B-06; the ASan build sees the use after free).
+  void clientLeavesWhileTheWalletIsOpen() {
+    QTemporaryDir dir;
+    const QString hosts = dir.filePath("hosts.json");
+    QFile h(hosts);
+    QVERIFY(h.open(QIODevice::WriteOnly));
+    h.write(R"({"version":1,"defaultsVersion":1,"profiles":[
+      {"id":"kept-1","name":"Kept","host":"bmc.invalid","family":"ami","username":"x","remember":true}]})");
+    h.close();
+    SlowWallet wallet;
+    Controller c(nullptr, &wallet, hosts);
+    AgentApi api(&c, dir.filePath("s"));
+    QVERIFY(api.start());
+    QLocalSocket client;
+    client.connectToServer(api.socketPath());
+    QVERIFY(client.waitForConnected(1000));
+    QTRY_COMPARE(api.clientCount(), 1);
+    wallet.during = [&client] { client.abort(); };
+    client.write(R"({"id":1,"op":"connect","args":{"profile":"Kept"}})" "\n");
+    client.flush();
+    QTRY_COMPARE(wallet.reads, 1);
+    QTRY_COMPARE(api.clientCount(), 0);
+    QVERIFY(c.pendingProfile().value("id") == "kept-1"); // the prompt is open, for the user
+    c.cancelCredentials();
   }
   void instructionsNameTheBinary() {
     QTemporaryDir dir; NoCredentials w;

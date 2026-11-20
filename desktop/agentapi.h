@@ -83,7 +83,10 @@ private:
   bool m_enabled = false;
   QLocalServer m_server;
   QTimer m_retry; // takes the socket over once another instance lets go of it
-  std::vector<std::unique_ptr<Client>> m_clients;
+  // Shared with the handler that runs for a client, which keeps it while it
+  // runs: a request can wait in a nested event loop (the wallet), during which
+  // the client may leave (B-06).
+  std::vector<std::shared_ptr<Client>> m_clients;
   QList<Entry> m_activity;
   QString m_passwordFor; // profile name whose password prompt is open after an agent connect
   QString m_requesting;  // profile name while an agent's connectHost() call runs

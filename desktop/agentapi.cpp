@@ -128,13 +128,11 @@ void AgentApi::stop() {
     m_enabled = false;
     emit enabledChanged();
   }
-  std::vector<Client *> all;
-  for (auto &c : m_clients)
-    all.push_back(c.get());
-  for (auto *c : all) {
+  const auto all = m_clients;
+  for (const auto &c : all) {
     if (c->sock)
       c->sock->abort();
-    dropClient(c);
+    dropClient(c.get());
   }
   if (m_server.isListening()) {
     m_server.close(); // also removes the socket file
@@ -210,12 +208,19 @@ void AgentApi::log(const QString &who, const QString &kind, const QString &text,
 }
 void AgentApi::accept() {
   while (auto *s = m_server.nextPendingConnection()) {
-    m_clients.push_back(std::make_unique<Client>());
-    Client *c = m_clients.back().get();
+    auto c = std::make_shared<Client>();
     c->sock = s;
-    connect(s, &QLocalSocket::readyRead, this, [this, c] { readClient(c); });
-    connect(s, &QLocalSocket::disconnected, this, [this, c] { dropClient(c); });
-    log(label(c), "client", "Agent connected");
+    m_clients.push_back(c);
+    std::weak_ptr<Client> weak = c;
+    connect(s, &QLocalSocket::readyRead, this, [this, weak] {
+      if (auto c = weak.lock())
+        readClient(c.get());
+    });
+    connect(s, &QLocalSocket::disconnected, this, [this, weak] {
+      if (auto c = weak.lock())
+        dropClient(c.get());
+    });
+    log(label(c.get()), "client", "Agent connected");
     emit clientsChanged();
   }
 }
@@ -229,14 +234,8 @@ void AgentApi::dropClient(Client *c) {
     c->sock->deleteLater();
   }
   log(label(c), "client", "Agent disconnected");
-  for (auto it = m_clients.begin(); it != m_clients.end(); ++it)
-    if (it->get() == c) {
-      // Deleted later: this may run inside one of the client's own signal handlers.
-      auto owned = std::make_shared<std::unique_ptr<Client>>(std::move(*it));
-      m_clients.erase(it);
-      QTimer::singleShot(0, this, [owned] {});
-      break;
-    }
+  // The caller holds the client until it returns (see m_clients).
+  std::erase_if(m_clients, [c](const auto &p) { return p.get() == c; });
   emit clientsChanged();
 }
 void AgentApi::releaseHeld(Client *c) {
