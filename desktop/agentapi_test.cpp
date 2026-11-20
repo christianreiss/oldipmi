@@ -69,6 +69,30 @@ class AgentApiTest : public QObject {
       return {};
     return QJsonDocument::fromJson(s.readLine()).object();
   }
+  // Points the sessions started until the guard ends at the stand-in core
+  // (desktop/fakecore_test.cpp), which plays these steps and logs each command
+  // to commands.jsonl in dir.
+  static auto useFakeCore(const QTemporaryDir &dir, const QByteArray &steps) {
+    QFile f(dir.filePath("script.json"));
+    if (!f.open(QIODevice::WriteOnly) || f.write(steps) < 0)
+      qFatal("cannot write %s", qPrintable(f.fileName()));
+    const QByteArray binDir = qgetenv("OLDIPMI_BIN_DIR");
+    qputenv("OLDIPMI_BIN_DIR", FAKECORE_DIR);
+    qputenv("OLDIPMI_FAKE_SCRIPT", f.fileName().toLocal8Bit());
+    qputenv("OLDIPMI_FAKE_LOG", dir.filePath("commands.jsonl").toLocal8Bit());
+    return qScopeGuard([binDir] {
+      if (binDir.isNull())
+        qunsetenv("OLDIPMI_BIN_DIR");
+      else
+        qputenv("OLDIPMI_BIN_DIR", binDir);
+      qunsetenv("OLDIPMI_FAKE_SCRIPT");
+      qunsetenv("OLDIPMI_FAKE_LOG");
+    });
+  }
+  static QByteArray received(const QTemporaryDir &dir) {
+    QFile f(dir.filePath("commands.jsonl"));
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+  }
 private slots:
   // testdata/agent/exchanges.json holds requests as oldipmi-mcp sends them and
   // the replies AgentApi gave, replayed here against the demo console;
@@ -521,6 +545,25 @@ private slots:
     QVERIFY(changed.count() > 20);
     api.clearActivity();
     QVERIFY(api.activity().isEmpty());
+  }
+  // Quitting while a power command waits for its answer: the agent API goes
+  // first, then the controller, whose sessions settle their callbacks. None may
+  // reach the agent API any more (C-07, B-10; the ASan build sees the use after
+  // free).
+  void quitWithAPowerCommandPending() {
+    QTemporaryDir dir;
+    auto fake = useFakeCore(dir, R"([{"expect": "connect"},
+      {"send": {"version": 1, "type": "state", "state": "connected"}}, {"expect": "power"}])");
+    NoCredentials w;
+    auto *c = new Controller(nullptr, &w, writeProfiles(dir));
+    auto *api = new AgentApi(c, dir.filePath("s"));
+    QVERIFY(run(*api, "connect", {{"profile", "Demo"}}).ok);
+    QTRY_VERIFY(c->session("demo-1") && c->session("demo-1")->connected());
+    auto power = runAsync(*api, "power", {{"action", "soft"}});
+    QTRY_VERIFY(received(dir).contains(R"("op":"power")"));
+    delete api;
+    delete c;
+    QVERIFY(!power->called);
   }
   void instructionsNameTheBinary() {
     QTemporaryDir dir; NoCredentials w;

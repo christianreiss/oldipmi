@@ -602,7 +602,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     s->releaseInput();
     note("power " + action);
     log(label(client), "power", "Power " + action + " requested");
-    s->command({{"op", "power"}, {"action", action}}, [this, action, done, who](bool ok, QString m) {
+    s->command({{"op", "power"}, {"action", action}}, this, [this, action, done, who](bool ok, QString m) {
       note(ok ? "power " + action + " accepted" : "power " + action + " failed: " + m);
       log(who, "power", ok ? "Power " + action + " accepted" : "Power " + action + " failed");
       done(ok, ok ? "Power action '" + action + "' accepted." : m);
@@ -617,14 +617,14 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       return fail("path must be an absolute, readable .iso file.");
     note("mount " + f.fileName());
     log(label(client), "media", "Mount ISO " + f.fileName());
-    s->command({{"op", "mount"}, {"path", f.canonicalFilePath()}}, done);
+    s->command({{"op", "mount"}, {"path", f.canonicalFilePath()}}, this, done);
   } else if (op == "eject") {
     auto *s = needConnected();
     if (!s)
       return;
     note("eject ISO");
     log(label(client), "media", "Eject ISO");
-    s->command({{"op", "eject"}}, done);
+    s->command({{"op", "eject"}}, this, done);
   } else if (op == "instructions") {
     reply(true, QJsonObject{{"text", mcpInstructions()}});
   } else {

@@ -847,8 +847,9 @@ int main(int argc, char **argv) {
   };
   applyAgentSetting();
   QObject::connect(&settings, &AppSettings::changed, &agent, applyAgentSetting);
-  QQmlApplicationEngine engine;
+  // The root context object must outlive the engine, which is destroyed first.
   LocalizedContext i18n;
+  QQmlApplicationEngine engine;
   engine.rootContext()->setContextObject(&i18n);
   engine.rootContext()->setContextProperty("controller", &controller);
   // False for the whole session with --no-agent-api or --self-test: Settings then

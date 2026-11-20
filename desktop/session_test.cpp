@@ -117,11 +117,11 @@ private slots:
     QCOMPARE(s->consoleInfo, info);
     QStringList results;
     auto record = [&results](bool ok, QString m) { results << (QString::number(ok) + " " + m).trimmed(); };
-    s->command({{"op", "key"}, {"input", QJsonObject{{"usage", 4}, {"down", true}}}}, record);
+    s->command({{"op", "key"}, {"input", QJsonObject{{"usage", 4}, {"down", true}}}}, this, record);
     QTRY_COMPARE(results.size(), 1);
-    s->command({{"op", "mount"}, {"path", "/srv/iso/install.iso"}}, record);
+    s->command({{"op", "mount"}, {"path", "/srv/iso/install.iso"}}, this, record);
     QTRY_VERIFY(results.size() == 2 && !s->mounted);
-    s->command({{"op", "power"}, {"action", "soft"}}, record);
+    s->command({{"op", "power"}, {"action", "soft"}}, this, record);
     QTRY_COMPARE(s->state, QString("disconnected"));
     QCOMPARE(results, (QStringList{"1", "1", "0 power control requires account credentials"}));
     QCOMPARE(s->errorStage, QString());
@@ -195,7 +195,7 @@ private slots:
                      QJsonObject{{"stderr", "panic: test\n"}}, QJsonObject{{"exit", 2}}});
     QTRY_VERIFY(s->connected());
     QStringList results;
-    s->command({{"op", "power"}, {"action", "soft"}}, [&results](bool ok, QString m) { results << QString::number(ok) + " " + m; });
+    s->command({{"op", "power"}, {"action", "soft"}}, this, [&results](bool ok, QString m) { results << QString::number(ok) + " " + m; });
     QTRY_COMPARE(s->state, QString("disconnected"));
     QCOMPARE(results, QStringList{"0 Connection ended."});
     QCOMPARE(s->message, QString("Connection ended. Reconnect to obtain a fresh session."));
@@ -227,13 +227,49 @@ private slots:
     QTRY_VERIFY(s->connected());
     QStringList results;
     auto record = [&results](bool ok, QString m) { results << QString::number(ok) + " " + m; };
-    s->command({{"op", "power"}, {"action", "soft"}}, record);
+    s->command({{"op", "power"}, {"action", "soft"}}, this, record);
     QTRY_COMPARE(commands().size(), 2);
     s->stop();
     QCOMPARE(results, QStringList{"0 Connection closed."});
-    s->command({{"op", "eject"}}, record);
+    s->command({{"op", "eject"}}, this, record);
     QCOMPARE(results, (QStringList{"0 Connection closed.", "0 Not connected."}));
     delete s;
+  }
+
+  // A callback runs only while its context exists: once the object that asked
+  // is gone, its reply is dropped (C-07).
+  void callbackNeedsItsContext() {
+    auto *s = start({expect("connect"), send(event(3)), expect("power"), reply(event(7)), expect("key"), reply(event(4))});
+    QTRY_VERIFY(s->connected());
+    QStringList results;
+    auto record = [&results](const QString &op) {
+      return [&results, op](bool ok, QString m) { results << (op + " " + QString::number(ok) + " " + m).trimmed(); };
+    };
+    auto *asker = new QObject;
+    s->command({{"op", "power"}, {"action", "soft"}}, asker, record("power"));
+    delete asker;
+    s->command({{"op", "key"}, {"input", QJsonObject{{"usage", 4}, {"down", false}}}}, this, record("key"));
+    QTRY_COMPARE(results, QStringList{"key 1"}); // the core answers in order: power's reply came first
+    delete s;
+  }
+
+  // A session that is deleted, as at quit or when its console closes, runs no
+  // callback from its destructor, where what the callback uses may be going
+  // away too. Each gets its answer from the event loop, while its context exists.
+  void deletedSessionAnswersLater() {
+    auto *s = start({expect("connect"), send(event(3)), expect("power"), expect("eject")});
+    QTRY_VERIFY(s->connected());
+    QStringList results;
+    auto *asker = new QObject;
+    s->command({{"op", "power"}, {"action", "soft"}}, this, [&results](bool ok, QString m) { results << QString::number(ok) + " " + m; });
+    s->command({{"op", "eject"}}, asker, [&results](bool, QString) { results << "asker gone, still called"; });
+    QTRY_COMPARE(commands().size(), 3);
+    delete s;
+    QVERIFY(results.isEmpty());
+    delete asker;
+    QTRY_COMPARE(results, QStringList{"0 Connection closed."});
+    QTest::qWait(50);
+    QCOMPARE(results, QStringList{"0 Connection closed."});
   }
 };
 

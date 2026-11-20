@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QLocalSocket>
 #include <QObject>
+#include <QPointer>
 #include <QProcess>
 #include <QVariantMap>
 #include <functional>
@@ -23,7 +24,11 @@ public:
   void begin(const QString &password);
   // Ends the backend process (blocking up to a few seconds) and clears the frame.
   void stop();
-  void command(QJsonObject obj, Result done = {});
+  void command(QJsonObject obj);
+  // With a callback: it gets the reply, or why there is none, once and only
+  // while `context` exists. It never runs from the destructor: a session that
+  // is deleted settles its callbacks from the event loop (C-07).
+  void command(QJsonObject obj, const QObject *context, Result done);
   void key(int usage, bool down);
   void pointer(int x, int y, int buttons, int wheel);
   void releaseInput();
@@ -56,7 +61,12 @@ private:
   QByteArray m_controlBuffer, m_videoBuffer;
   int m_id = 0;
   size_t m_frameHash = 0;
-  std::map<int, Result> m_pending;
+  struct Pending {
+    QPointer<const QObject> context;
+    Result done;
+  };
+  std::map<int, Pending> m_pending;
+  static void settle(const Pending &p, bool ok, const QString &message);
   void fail(const QString &message);
   void failPending(const QString &why);
   void readControl();

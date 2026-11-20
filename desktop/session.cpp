@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QJsonDocument>
+#include <QTimer>
 #include <QtEndian>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -14,7 +15,19 @@ quint64 Session::nextStamp() {
 }
 Session::Session(QString key, QVariantMap p, QObject *parent)
     : QObject(parent), id(std::move(key)), profile(std::move(p)) {}
-Session::~Session() { stop(); }
+Session::~Session() {
+  // What a callback uses may be going away too, as at quit, when the agent API
+  // goes before the sessions (C-07). So none runs from here: each gets its
+  // answer from the event loop, and only while its context exists.
+  for (auto &entry : std::exchange(m_pending, {}))
+    if (const QObject *context = entry.second.context)
+      QTimer::singleShot(0, context, [done = std::move(entry.second.done)] { done(false, "Connection closed."); });
+  stop();
+}
+void Session::settle(const Pending &p, bool ok, const QString &message) {
+  if (p.context && p.done)
+    p.done(ok, message);
+}
 void Session::setMessage(const QString &m) {
   message = m;
   messageStamp = nextStamp();
@@ -24,10 +37,8 @@ void Session::fail(const QString &m) {
   emit changed();
 }
 void Session::failPending(const QString &why) {
-  auto pending = std::move(m_pending);
-  m_pending.clear();
-  for (auto &entry : pending)
-    entry.second(false, why);
+  for (const auto &entry : std::exchange(m_pending, {}))
+    settle(entry.second, false, why);
 }
 void Session::stop() {
   failPending("Connection closed.");
@@ -132,16 +143,18 @@ void Session::begin(const QString &password) {
            {"profile", QJsonObject::fromVariantMap(profile)},
            {"password", password}});
 }
-void Session::command(QJsonObject o, Result done) {
+void Session::command(QJsonObject o) { command(std::move(o), nullptr, {}); }
+void Session::command(QJsonObject o, const QObject *context, Result done) {
+  Q_ASSERT(!done || context);
+  Pending p{context, std::move(done)};
   if (!m_control || m_control->state() != QLocalSocket::ConnectedState) {
-    if (done)
-      done(false, "Not connected.");
+    settle(p, false, "Not connected.");
     return;
   }
   o["version"] = 1;
   o["id"] = ++m_id;
-  if (done)
-    m_pending[m_id] = std::move(done);
+  if (p.done)
+    m_pending[m_id] = std::move(p);
   QByteArray b = QJsonDocument(o).toJson(QJsonDocument::Compact);
   QByteArray h(4, 0);
   qToBigEndian<quint32>(b.size(), h.data());
@@ -203,9 +216,9 @@ void Session::readControl() {
       mounted = o["mounted"].toBool();
     if (int id = o.value("id").toInt(); id && m_pending.count(id) &&
         (o["type"] == "ok" || o["type"] == "error")) {
-      auto done = std::move(m_pending[id]);
+      auto p = std::move(m_pending[id]);
       m_pending.erase(id);
-      done(o["type"] == "ok", o["message"].toString());
+      settle(p, o["type"] == "ok", o["message"].toString());
     }
     emit changed();
   }
