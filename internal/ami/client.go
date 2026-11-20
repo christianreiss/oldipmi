@@ -130,6 +130,10 @@ func (c *Client) send(w *transport.Wire, t uint16, b []byte) error {
 	copy(p[n:], b)
 	return w.WritePacket(p)
 }
+
+// keepaliveEvery is how often the native console (IVTP) sends its keepalive.
+var keepaliveEvery = 5 * time.Second
+
 func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 	stop := context.AfterFunc(ctx, func() {
 		c.wire.Close()
@@ -150,19 +154,11 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 			}
 		}()
 	}
+	// A failed keepalive ends the session with its error.
+	keepaliveFailed := make(chan error, 1)
 	if !c.launch.Legacy {
-		go func() {
-			t := time.NewTicker(5 * time.Second)
-			defer t.Stop()
-			for {
-				select {
-				case <-runctx.Done():
-					return
-				case <-t.C:
-					c.send(c.wire, opKeepAlive, nil)
-				}
-			}
-		}()
+		go transport.Keepalive(runctx, keepaliveEvery, func() error { return c.send(c.wire, opKeepAlive, nil) },
+			func(e error) { keepaliveFailed <- e; c.wire.Close() })
 	}
 	var fragments []byte
 	next := 0
@@ -171,7 +167,12 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 	for {
 		t, st, b, e := c.read(c.wire)
 		if e != nil {
-			return e
+			select {
+			case ke := <-keepaliveFailed:
+				return fmt.Errorf("the AMI keepalive could not be sent: %w", ke)
+			default:
+				return e
+			}
 		}
 		video := opVideoFragment
 		if c.launch.Legacy {

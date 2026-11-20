@@ -47,6 +47,12 @@
   stay as they are.
 
 ### Fixed
+* **An AMI console ends when its keepalive fails.** The native AMI console
+  (IVTP) sends a keepalive every 5 seconds but ignored a failed send, so a
+  console whose BMC had stopped taking data could stay open with a frozen
+  picture. It now ends, and the error page says that the keepalive could not
+  be sent and why, as the Supermicro and Avocent consoles already ended when
+  theirs failed.
 * **`oldipmi-mcp` only talks to an OldIPMI of the same user.** It checks who
   serves the agent socket (`SO_PEERCRED`) and refuses one served by another
   user, who could otherwise see every key an agent types.

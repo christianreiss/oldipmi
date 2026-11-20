@@ -14,6 +14,8 @@ import (
 	"math/big"
 	"net"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/transport"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -183,6 +185,44 @@ func TestIVTPSessionTranscript(t *testing.T) {
 	}
 	if !reflect.DeepEqual(stages, []string{"connecting"}) {
 		t.Fatal("stages", stages)
+	}
+}
+
+// brokenWrites fails every write, as a connection does once its write
+// deadline passes on a console that stopped taking data; reads go on.
+type brokenWrites struct{ net.Conn }
+
+func (brokenWrites) Write([]byte) (int, error) { return 0, os.ErrDeadlineExceeded }
+
+// A failed keepalive ends the native console's session with its error.
+func TestIVTPKeepaliveFailureEndsTheSession(t *testing.T) {
+	cert := selfSigned(t)
+	ln, port := listen(t, &cert)
+	done := accept(ln, false, func(e end) error { return e.send(23, 0, nil) }, func(e end, typ uint16) error {
+		if typ == 18 {
+			return e.send(19, 0, []byte{1})
+		}
+		return nil
+	})
+	c := client(protocol.Profile{Host: "127.0.0.1", Username: "admin", LegacyTLS: true},
+		Launch{Token: "ivtp-token", Port: port, Secure: true})
+	defer c.Close()
+	var stages []string
+	if err := c.attach(stagesOf(t, &stages)); err != nil {
+		t.Fatal(err)
+	}
+	every := keepaliveEvery
+	keepaliveEvery = 10 * time.Millisecond
+	defer func() { keepaliveEvery = every }()
+	c.wire = &transport.Wire{Conn: brokenWrites{c.wire.Conn}}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := c.Run(ctx, func(protocol.Frame) {}); err == nil || err.Error() != "the AMI keepalive could not be sent: i/o timeout" {
+		t.Fatalf("Run ended with %v", err)
+	}
+	c.Close()
+	if s := <-done; s.err != nil {
+		t.Fatal(s.err)
 	}
 }
 
