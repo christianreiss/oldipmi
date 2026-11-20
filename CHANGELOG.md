@@ -28,6 +28,10 @@
   stay as they are.
 
 ### Fixed
+* **A Cisco IMC console no longer crashes when the screen size changes
+  mid-picture.** A BMC that reported a new screen size while it was still sending
+  a picture made the backend draw that picture past the end of the screen and
+  crash. The unfinished picture is now dropped, and the next one is shown.
 * **A malformed virtual-media request no longer ends an AMI console.** An AMI
   BMC that sent a cut-short read or write command crashed the backend, and a read
   for an absurd amount of data (up to 8 TiB) made it allocate that much memory.

@@ -26,8 +26,10 @@ type RVAS struct {
 	palette        []uint32
 	reference      bool // a reference (full) frame has been seen
 	inFrame        bool
+	w, h           int // the screen size the frame in progress was placed on
 	subtype        byte
-	// Skipped counts packets dropped while waiting for the first reference frame.
+	// Skipped counts packets dropped: those before the first reference frame,
+	// and the rest of a frame during which the screen changed size.
 	Skipped int
 }
 
@@ -141,8 +143,15 @@ func (r *RVAS) graphics(fb *Framebuffer, p []byte) (bool, error) {
 		data = data[n*8:]
 		r.rle = r.rle[:0]
 		r.subtype, r.flags, r.bpp = p[0], flags, int(p[8])
+		r.w, r.h = fb.W, fb.H
 		r.reference, r.inFrame = true, true
 	} else if !r.inFrame {
+		r.Skipped++
+		return false, nil
+	} else if fb.W != r.w || fb.H != r.h {
+		// A no-change packet or another codec resized the screen: the tiles
+		// of this frame were placed on the old one, so it is dropped.
+		r.inFrame = false
 		r.Skipped++
 		return false, nil
 	} else if p[0] != r.subtype {

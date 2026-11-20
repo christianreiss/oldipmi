@@ -173,3 +173,25 @@ func TestRVASRejectsBadInput(t *testing.T) {
 		}
 	}
 }
+
+// A frame during which the screen changes size is dropped: its tiles were
+// placed on the old screen and drawing them overran the new one (A2-02). The
+// next frame is drawn.
+func TestRVASSizeChangeInsideFrame(t *testing.T) {
+	data := encodeBitSlice(make([]uint32, 16), 15)
+	for name, change := range map[string]func(*RVAS, *Framebuffer){
+		"no-change packet": func(r *RVAS, fb *Framebuffer) { r.Feed(fb, []byte{rvasNoChange, 0, 0, 1, 0, 32}) },
+		"another codec":    func(_ *RVAS, fb *Framebuffer) { fb.Resize(32, 1) },
+	} {
+		var r RVAS
+		fb := NewFramebuffer(1024, 768)
+		r.Feed(fb, rvasPacket(rvasBitSlice, rvasSOF|rvasRef, 32, 4, 15, []int{1, 8, 1, 23}, data[:15]))
+		change(&r, fb)
+		if done, err := r.Feed(fb, rvasPacket(rvasBitSlice, rvasEOF, 32, 4, 15, nil, data[15:])); done || err != nil || r.Skipped != 1 {
+			t.Errorf("%s: done=%v err=%v skipped=%d", name, done, err, r.Skipped)
+		}
+		if done, err := r.Feed(fb, rvasPacket(rvasBitSlice, rvasSOF|rvasEOF, 32, 1, 15, []int{0, 8, 0, 23}, data)); !done || err != nil {
+			t.Errorf("%s: next frame: done=%v err=%v", name, done, err)
+		}
+	}
+}
