@@ -34,6 +34,11 @@
   the stored type and its console options. The console pane names the stored
   type instead of “Supermicro”. Connecting still fails at login with the list
   of types to select.
+* **A console without virtual media says so in the same words for every
+  type.** Asked to mount an ISO, an Avocent or Cisco console now answers
+  “virtual media is not available for this console type” instead of “Avocent
+  virtual media is not implemented yet”, which a Cisco console said too. Only
+  agents see this: the desktop offers no ISO action on these consoles.
 
 ### Removed
 * **Preset connections:** a fresh installation starts with an empty connection

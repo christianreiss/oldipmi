@@ -284,7 +284,7 @@ func (c *Client) Release() error {
 	return c.Pointer(protocol.Input{})
 }
 func (c *Client) Mount(context.Context, string) error {
-	return fmt.Errorf("Avocent virtual media is not implemented yet")
+	return fmt.Errorf("virtual media is not available for this console type")
 }
 func (c *Client) Eject() error  { return nil }
 func (c *Client) Mounted() bool { return false }
