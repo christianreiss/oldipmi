@@ -289,8 +289,14 @@ go test ./internal/ami -run '^$' -fuzz FuzzLegacyDecode -fuzztime 10s
 go test ./internal/aten -run '^$' -fuzz FuzzDecode -fuzztime 10s
 ```
 
+CTest runs every test with a fresh, private home and runtime directory
+(`tools/isolated.sh`), so it never touches your settings, wallet, `~/.qttest` or
+a running OldIPMI. Its `desktop_tour` test walks the screenshot tour below and
+leaves the PNGs in `build/tour`.
+
 `oldipmi --self-test` opens a synthetic framebuffer and exits after checking
-rendering. `--preview` keeps that synthetic preview open. Neither contacts a BMC.
+rendering; it keeps passwords in memory and never opens KWallet. `--preview`
+keeps that synthetic preview open. Neither contacts a BMC.
 `oldipmi-core --probe` accepts `{ "profile": {...}, "password": "..." }` on
 stdin and checks live video without injecting keys or changing power/media.
 `oldipmi --probe-ui` accepts the same stdin JSON, resolves a saved profile by
@@ -304,7 +310,8 @@ A connection of type **Demo console (no hardware)** (family `demo`, address `dem
 opens a synthetic console that echoes every key, pointer move and click: a BMC-free
 end-to-end check of the UI and of all MCP tools.
 `oldipmi --self-test --screenshots DIR` walks through every UI state offscreen
-(test-mode profiles only; the error state uses `oldipmi.invalid`) and saves PNGs
+(it writes its own test-mode connections first; the error state uses
+`oldipmi.invalid`) and saves PNGs
 for review; `--size WxH` fixes the window size. `slop native --config
 tools/slop/native.json --root . --out .slop/native` renders the full matrix
 (17 states × light/dark × 1200x800/720x480 × scale 1/2 × text 1/1.5) for the

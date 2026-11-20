@@ -11,9 +11,11 @@
 #include <cstring>
 #include <QApplication>
 #include <QClipboard>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
@@ -56,6 +58,26 @@ static int qmlWarningsResult() {
 static void call0(QObject *root, const char *method, const QVariant &arg) {
   QMetaObject::invokeMethod(root, method, Q_ARG(QVariant, arg));
 }
+// The tour's connections, written to the test-mode profiles file before the
+// controller reads it: every run starts from the same list, whatever an earlier
+// run left (the tour removes them at its end). Returns the file, or "" on failure.
+static QString writeTourProfiles() {
+  const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+  const QString path = QDir(dir).filePath("hosts.json");
+  const QJsonArray profiles{
+      QJsonObject{{"id", "tour-ami"}, {"name", "Lab-AMI"}, {"host", "lab-ami.example.net"},
+                  {"username", "ADMIN"}, {"family", "ami"}, {"remember", false}},
+      QJsonObject{{"id", "tour-aten"}, {"name", "Lab-ATEN"}, {"host", "lab-aten.example.net"},
+                  {"username", "ADMIN"}, {"family", "aten"}, {"remember", false}},
+      QJsonObject{{"id", "tour-avocent"}, {"name", "Lab-Avocent"}, {"host", "lab-avocent.example.net"},
+                  {"username", "root"}, {"family", "avocent"}, {"legacyTLS", true}, {"remember", false}}};
+  const QByteArray data =
+      QJsonDocument(QJsonObject{{"version", 1}, {"defaultsVersion", 1}, {"profiles", profiles}}).toJson();
+  QFile f(path);
+  if (!QDir().mkpath(dir) || !f.open(QIODevice::WriteOnly | QIODevice::Truncate) || f.write(data) != data.size())
+    return {};
+  return path;
+}
 static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
                              Controller &controller, const QString &dir, QSize size) {
   auto *root = engine.rootObjects().first();
@@ -71,13 +93,12 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   // Offscreen Qt puts the pointer at the window origin, which renders false
   // hover states (tooltips); park it outside every window.
   QCursor::setPos(-10000, -10000);
-  // A previous tour removed all test-mode profiles; seed examples again.
-  if (controller.hosts().isEmpty()) {
-    controller.saveHost({{"name", "Lab-AMI"}, {"host", "lab-ami.example.net"}, {"family", "ami"}, {"username", "ADMIN"}}, {}, false);
-    controller.saveHost({{"name", "Lab-ATEN"}, {"host", "lab-aten.example.net"}, {"family", "aten"}, {"username", "ADMIN"}}, {}, false);
-    controller.saveHost({{"name", "Lab-Avocent"}, {"host", "lab-avocent.example.net"}, {"family", "avocent"}, {"username", "root"}, {"legacyTLS", true}}, {}, false);
-    call0(root, "loadHost", controller.hosts().first());
+  // The connections from writeTourProfiles(), the first one selected.
+  if (controller.hosts().size() != 3 || !QDir().mkpath(dir)) {
+    fprintf(stderr, "Screenshot tour: the tour's connections or %s are missing\n", qPrintable(dir));
+    return 5;
   }
+  call0(root, "loadHost", controller.hosts().first());
   // `wait` ms after `act`, the step is grabbed as soon as `ready` (if given) holds,
   // or 6 s later at the latest: a busy machine must not change what is captured.
   struct Step { QString name; std::function<void()> act; int wait; std::function<bool()> ready = {}; };
@@ -515,9 +536,19 @@ int main(int argc, char **argv) {
     return 0;
   }
   bool preview = app.arguments().contains("--preview");
+  const int shots = app.arguments().indexOf("--screenshots");
+  // Only with --self-test: the tour deletes profiles, which must be test-mode copies.
+  const bool tour = test && shots > 0 && shots + 1 < app.arguments().size();
+  QString profiles;
+  if (tour && (profiles = writeTourProfiles()).isEmpty()) {
+    fprintf(stderr, "Screenshot tour: could not write the test-mode connections\n");
+    return 5;
+  }
   qmlRegisterType<Console>("OldIPMI", 1, 0, "ConsoleView");
   qmlRegisterType<FrameThumbnail>("OldIPMI", 1, 0, "FrameThumbnail");
-  Controller controller;
+  // The self-test never opens the user's wallet.
+  MemoryCredentials testCredentials;
+  Controller controller(nullptr, test ? &testCredentials : nullptr, profiles);
   FrameThumbnail::setController(&controller);
   AppSettings settings;
   AgentApi agent(&controller);
@@ -637,8 +668,7 @@ int main(int argc, char **argv) {
       app.exit(4);
     });
   }
-  // Only with --self-test: the tour deletes profiles, which must be test-mode copies.
-  if (int i = app.arguments().indexOf("--screenshots"); test && i > 0 && i + 1 < app.arguments().size()) {
+  if (tour) {
     QSize size;
     if (int s = app.arguments().indexOf("--size"); s > 0 && s + 1 < app.arguments().size()) {
       auto wh = app.arguments()[s + 1].split('x');
@@ -649,7 +679,7 @@ int main(int argc, char **argv) {
         return 1;
       }
     }
-    return runScreenshotTour(app, engine, controller, app.arguments()[i + 1], size);
+    return runScreenshotTour(app, engine, controller, app.arguments()[shots + 1], size);
   }
   if (test || preview)
     QTimer::singleShot(100, &controller, &Controller::preview);
