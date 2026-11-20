@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/transport"
 	"reflect"
 	"strings"
 	"sync"
@@ -471,5 +474,66 @@ func TestNonJNLPResponseExplainsLogin(t *testing.T) {
 	}
 	if len(stages) != 1 || stages[0] != "logging_in" {
 		t.Fatal("rejected login reported as a later stage:", stages)
+	}
+}
+
+// A failed request keeps its cause behind the explanation, for the error codes
+// of step 3.9: the BMC's HTTP status (transport.HTTPStatus), the HTTP client's
+// error and the missing Java console stay readable, and the text starts as
+// before.
+func TestWebErrorsKeepTheirCause(t *testing.T) {
+	fail := func(rw http.ResponseWriter, r *http.Request) { rw.WriteHeader(503) }
+	abort := func(rw http.ResponseWriter, r *http.Request) { panic(http.ErrAbortHandler) }
+	status := func(err error) bool { return transport.HTTPStatus(err) == 503 }
+	client := func(err error) bool { var u *url.Error; return errors.As(err, &u) }
+	noJava := func(err error) bool { var ju javaUnavailable; return errors.As(err, &ju) }
+	aten := func(more map[string]http.HandlerFunc) map[string]http.HandlerFunc {
+		routes := map[string]http.HandlerFunc{"POST /cgi/login.cgi": atenLogin(false)}
+		for k, v := range more {
+			routes[k] = v
+		}
+		return routes
+	}
+	redfishWith := func(route string, h http.HandlerFunc) map[string]http.HandlerFunc {
+		routes := redfish(t, redfishIKVMOem, "/redfish/Kk1D4UVATDja0Jw.IKVM", smHTML5Page)
+		routes[route] = h
+		return routes
+	}
+	webPage := body("<html>no Java here</html>")
+	for _, c := range []struct {
+		name, mode, jnlpPath, text string
+		routes                     map[string]http.HandlerFunc
+		causes                     []func(error) bool
+	}{
+		{"login", "", "", "the BMC web login (/cgi/login.cgi) failed: BMC HTTP status 503;",
+			map[string]http.HandlerFunc{"POST /cgi/login.cgi": fail}, []func(error) bool{status}},
+		{"java request", "", "", "the Java iKVM request failed: BMC HTTP status 503;",
+			aten(map[string]http.HandlerFunc{"GET " + jnlpPath: fail}), []func(error) bool{status}},
+		{"java mode", "java", "", "this firmware has no Java iKVM (the JNLP URL answers 404);",
+			aten(nil), []func(error) bool{noJava}},
+		{"custom JNLP path", "", "/custom.jnlp", "this firmware has no Java iKVM (the JNLP URL answers 404) at this profile's custom JNLP path;",
+			aten(nil), []func(error) bool{noJava}},
+		{"html5 after java", "", "", "the BMC answered the Java iKVM request with a web page",
+			aten(map[string]http.HandlerFunc{"GET " + jnlpPath: webPage, "GET " + altJNLPPath: webPage, "GET " + html5Path: fail}),
+			[]func(error) bool{noJava, status}},
+		{"redfish login", "", "", "the Redfish login failed: BMC HTTP transport failed:",
+			redfishWith("POST "+redfishSessions, abort), []func(error) bool{client}},
+		{"redfish ikvm", "", "", "the Redfish iKVM request failed: BMC HTTP transport failed:",
+			redfishWith("GET "+redfishIKVMOem, abort), []func(error) bool{client}},
+		{"redfish page", "", "", "the Supermicro X12/X13 (Redfish OEM iKVM) console page request failed: BMC HTTP status 503;",
+			redfishWith("GET /redfish/Kk1D4UVATDja0Jw.IKVM", fail), []func(error) bool{status}},
+	} {
+		w, _, _, ctx := newSMWeb(t, c.mode, c.routes)
+		w.p.JNLPPath = c.jnlpPath
+		_, err := w.login(ctx, smPass)
+		noSecret(t, err)
+		if err == nil || !strings.HasPrefix(err.Error(), c.text) {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		for i, cause := range c.causes {
+			if !cause(err) {
+				t.Errorf("%s: cause %d lost: %v", c.name, i, err)
+			}
+		}
 	}
 }

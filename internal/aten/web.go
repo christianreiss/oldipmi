@@ -106,7 +106,7 @@ func (w *web) login(ctx context.Context, password string) (l Launch, err error) 
 		w.cgi = false
 		return w.redfishLaunch(ctx, password, true)
 	case err != nil:
-		return Launch{}, fmt.Errorf("the BMC web login (/cgi/login.cgi) failed: %v; check the hostname and this profile's HTTP / legacy TLS options", err)
+		return Launch{}, fmt.Errorf("the BMC web login (/cgi/login.cgi) failed: %w; check the hostname and this profile's HTTP / legacy TLS options", err)
 	}
 	if !w.hasSession() {
 		hint := ""
@@ -125,16 +125,16 @@ func (w *web) login(ctx context.Context, password string) (l Launch, err error) 
 		return l, err
 	}
 	if mode == protocol.ConsoleJava {
-		return Launch{}, fmt.Errorf("%v; set this profile's console mode to Auto or HTML5, or enable the Java plug-in in the BMC web interface", ju)
+		return Launch{}, fmt.Errorf("%w; set this profile's console mode to Auto or HTML5, or enable the Java plug-in in the BMC web interface", ju)
 	}
 	if w.p.JNLPPath != "" {
-		return Launch{}, fmt.Errorf("%v at this profile's custom JNLP path; clear the custom JNLP path, or set the console mode to HTML5", ju)
+		return Launch{}, fmt.Errorf("%w at this profile's custom JNLP path; clear the custom JNLP path, or set the console mode to HTML5", ju)
 	}
 	// Firmware without (or with disabled) Java iKVM: the web session must stay
 	// logged in because it authorizes the HTML5 WebSocket.
 	l, err = w.html5(ctx, password)
 	if err != nil && ju.html {
-		return l, fmt.Errorf("%v; the HTML5 console was also unavailable: %v", ju, err)
+		return l, fmt.Errorf("%w; the HTML5 console was also unavailable: %w", ju, err)
 	}
 	return l, err
 }
@@ -182,7 +182,7 @@ func (w *web) jnlp(ctx context.Context) (Launch, error) {
 			continue
 		}
 		if e != nil {
-			return Launch{}, fmt.Errorf("the Java iKVM request failed: %v; retry, or set this profile's console mode to HTML5", e)
+			return Launch{}, fmt.Errorf("the Java iKVM request failed: %w; retry, or set this profile's console mode to HTML5", e)
 		}
 		if !bytes.Contains(bytes.ToLower(b), []byte("<jnlp")) {
 			missing.html = true
@@ -193,7 +193,7 @@ func (w *web) jnlp(ctx context.Context) (Launch, error) {
 			return Launch{}, e
 		}
 		if e != nil {
-			return l, fmt.Errorf("%v; set this profile's console mode to HTML5 if the BMC offers it, and report the BMC firmware version", e)
+			return l, fmt.Errorf("%w; set this profile's console mode to HTML5 if the BMC offers it, and report the BMC firmware version", e)
 		}
 		return l, nil
 	}
@@ -212,7 +212,7 @@ func (w *web) html5(ctx context.Context, password string) (Launch, error) {
 		return l, nil
 	}
 	if e != nil {
-		return Launch{}, fmt.Errorf("the HTML5 console page request failed: %v; retry, or check the BMC web interface", e)
+		return Launch{}, fmt.Errorf("the HTML5 console page request failed: %w; retry, or check the BMC web interface", e)
 	}
 	l, ok := w.html5FromPage(b)
 	if !ok {
@@ -257,7 +257,7 @@ func (w *web) redfishLaunch(ctx context.Context, password string, login bool) (L
 	res, e := w.Do(ctx, "POST", redfishSessions, body, "application/json", false)
 	switch {
 	case e != nil:
-		return Launch{}, fmt.Errorf("the Redfish login failed: %v; check the hostname and this profile's HTTP / legacy TLS options", e)
+		return Launch{}, fmt.Errorf("the Redfish login failed: %w; check the hostname and this profile's HTTP / legacy TLS options", e)
 	case res.Status == 401 || res.Status == 403:
 		return Launch{}, fmt.Errorf("the BMC rejected the account or password (Redfish HTTP %d); check the credentials and that the account may use Redfish", res.Status)
 	case res.Status == 404 || res.Status == 405:
@@ -283,7 +283,7 @@ func (w *web) redfishLaunch(ctx context.Context, password string, login bool) (L
 	for _, path := range []string{redfishIKVMOem, redfishIKVMLegacy} {
 		r, e := w.Do(ctx, "GET", path, nil, "", false)
 		if e != nil {
-			return Launch{}, fmt.Errorf("the Redfish iKVM request failed: %v; retry", e)
+			return Launch{}, fmt.Errorf("the Redfish iKVM request failed: %w; retry", e)
 		}
 		if r.Status == 404 {
 			continue
@@ -310,7 +310,7 @@ func (w *web) redfishLaunch(ctx context.Context, password string, login bool) (L
 	}
 	page, e := w.Request(ctx, "GET", path, nil, true)
 	if e != nil {
-		return Launch{}, fmt.Errorf("the %s console page request failed: %v; retry, the console URI expires with the session", gen, e)
+		return Launch{}, fmt.Errorf("the %s console page request failed: %w; retry, the console URI expires with the session", gen, e)
 	}
 	l, found := w.html5FromPage(page)
 	if !found {
