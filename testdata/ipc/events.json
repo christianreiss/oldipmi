@@ -1,0 +1,18 @@
+[
+  {"version": 1, "type": "state", "state": "logging_in"},
+  {"version": 1, "type": "state", "state": "discovering"},
+  {"version": 1, "type": "state", "state": "connecting", "info": {
+    "protocol": "ATEN iKVM (HTML5)",
+    "endpoints": [{"role": "Console", "address": "bmc1.example.net:443", "transport": "TLS (WebSocket)"}],
+    "capabilities": ["Video", "Keyboard", "Pointer"],
+    "protocolVersion": "055.008",
+    "companion": true,
+    "legacyTLS": true
+  }},
+  {"version": 1, "type": "state", "state": "connected"},
+  {"version": 1, "id": 2, "type": "ok"},
+  {"version": 1, "id": 5, "type": "ok", "mounted": true},
+  {"version": 1, "type": "media", "mounted": false},
+  {"version": 1, "id": 7, "type": "error", "message": "power control requires account credentials"},
+  {"version": 1, "type": "error", "state": "disconnected", "message": "Console connection failed: EOF"}
+]

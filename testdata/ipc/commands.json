@@ -1,0 +1,9 @@
+[
+  {"version": 1, "id": 2, "op": "key", "input": {"usage": 4, "down": true}},
+  {"version": 1, "id": 3, "op": "pointer", "input": {"x": 640, "y": 360, "buttons": 1, "wheel": -1}},
+  {"version": 1, "id": 4, "op": "release"},
+  {"version": 1, "id": 5, "op": "mount", "path": "/srv/iso/install.iso"},
+  {"version": 1, "id": 6, "op": "eject"},
+  {"version": 1, "id": 7, "op": "power", "action": "soft"},
+  {"version": 1, "id": 8, "op": "disconnect"}
+]

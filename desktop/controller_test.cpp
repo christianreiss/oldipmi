@@ -3,6 +3,8 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -181,6 +183,38 @@ private slots:
     QCOMPARE(c.host(copy["id"].toString()), copy);
     Controller reloaded(nullptr, &wallet, path);
     QCOMPARE(reloaded.host(p["id"].toString())["consoleMode"].toString(), "html5");
+  }
+  // What reaches the core when a profile connects: the keys saveHost keeps,
+  // exactly those of testdata/ipc/connect.json, of which internal/backend
+  // checks that the core reads all but id, lastConnected and remember. A
+  // stand-in core (desktop/fakecore_test.cpp) records the command.
+  void connectSendsTheContractProfile() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    QFile f(QStringLiteral(IPC_FIXTURES "/connect.json"));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QJsonObject want = QJsonDocument::fromJson(f.readAll()).object();
+    QFile script(dir.filePath("script.json"));
+    QVERIFY(script.open(QIODevice::WriteOnly));
+    script.write(R"([{"expect": "connect"}])");
+    script.close();
+    const QString log = dir.filePath("commands.jsonl");
+    const QByteArray binDir = qgetenv("OLDIPMI_BIN_DIR");
+    auto restore = qScopeGuard([&binDir] {
+      if (binDir.isNull()) qunsetenv("OLDIPMI_BIN_DIR"); else qputenv("OLDIPMI_BIN_DIR", binDir);
+      qunsetenv("OLDIPMI_FAKE_SCRIPT"); qunsetenv("OLDIPMI_FAKE_LOG");
+    });
+    qputenv("OLDIPMI_BIN_DIR", FAKECORE_DIR);
+    qputenv("OLDIPMI_FAKE_SCRIPT", script.fileName().toLocal8Bit());
+    qputenv("OLDIPMI_FAKE_LOG", log.toLocal8Bit());
+    auto profile = want["profile"].toObject().toVariantMap();
+    profile["unknownKey"] = "dropped";
+    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    c.connectHost(profile, want["password"].toString());
+    QTRY_VERIFY(QFileInfo(log).size() > 0);
+    QFile commands(log);
+    QVERIFY(commands.open(QIODevice::ReadOnly));
+    QCOMPARE(QJsonDocument::fromJson(commands.readLine()).object(), want);
+    QCOMPARE(c.host(profile["id"].toString()).keys(), want["profile"].toObject().keys());
   }
   void failedStageAndActiveProfile() {
     QTemporaryDir dir; FakeCredentials wallet;

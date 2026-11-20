@@ -300,6 +300,12 @@ the new pictures before committing them.
 `GENERATE_STREAMS=1 go test ./internal/ami/codec -run TestGenerateGoldenStreams`
 writes new AST2100 test streams, after which the pictures need rewriting too.
 
+`testdata/ipc` holds the messages the desktop and its core exchange, as each
+side sends them. The Go tests check that the core reads every key the desktop
+sends and sends its events in exactly that form; the C++ tests check the desktop
+against the same files, with a stand-in core (`desktop/fakecore_test.cpp`) that
+plays a script. A change to either side's messages changes these files.
+
 CTest runs every test with a fresh, private home and runtime directory
 (`tools/isolated.sh`), so it never touches your settings, wallet, `~/.qttest` or
 a running OldIPMI. Its `desktop_tour` test walks the screenshot tour below and

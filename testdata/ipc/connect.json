@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "id": 1,
+  "op": "connect",
+  "password": "pw-1",
+  "profile": {
+    "allowPlainConsole": true,
+    "clientCert": "/etc/pki/oldipmi/client.pem",
+    "clientKey": "/etc/pki/oldipmi/client.key",
+    "consoleMode": "html5",
+    "family": "aten",
+    "host": "bmc1.example.net",
+    "http": true,
+    "id": "0b9e7c7e-6d5b-4a7e-9a52-3f2c7f1d9a10",
+    "jnlpPath": "/cgi/url_redirect.cgi?url_name=ikvm&url_type=jwsk",
+    "lastConnected": "2026-11-20T12:00:00Z",
+    "legacyTLS": true,
+    "name": "Rack 4",
+    "remember": true,
+    "username": "admin"
+  }
+}
