@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/transport"
 	"testing"
 	"time"
 )
@@ -95,7 +96,7 @@ func TestPointerButtonTranslation(t *testing.T) {
 	a, b := net.Pipe()
 	defer a.Close()
 	defer b.Close()
-	c := Client{wire: &protocol.Wire{Conn: a}, controlling: true}
+	c := Client{wire: &transport.Wire{Conn: a}, controlling: true}
 	done := make(chan error, 1)
 	go func() { done <- c.Pointer(protocol.Input{Buttons: 2, X: 12, Y: 34}) }()
 	p := make([]byte, 18)
@@ -163,7 +164,7 @@ func TestJavaMouseStatusLength(t *testing.T) {
 			defer srv.Close()
 			go io.Copy(io.Discard, srv)
 			go srv.Write(c.stream)
-			cl := &Client{wire: &protocol.Wire{Conn: cli}, pressed: map[uint32]bool{}, controlling: true}
+			cl := &Client{wire: &transport.Wire{Conn: cli}, pressed: map[uint32]bool{}, controlling: true}
 			cl.dec.Resize(16, 16)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()

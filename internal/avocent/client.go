@@ -3,13 +3,13 @@ package avocent
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"oldipmi/internal/avocent/apcp"
 	"oldipmi/internal/avocent/video"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/transport"
 	"os"
 	"sync"
 	"time"
@@ -18,7 +18,7 @@ import (
 type Client struct {
 	p              protocol.Profile
 	password       string
-	control, video *protocol.Wire
+	control, video *transport.Wire
 	mu             sync.Mutex
 	pressed        map[uint32]bool
 	once           sync.Once
@@ -46,11 +46,7 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 			}
 			return raw, e
 		}
-		s.UpgradeTLS = func(raw net.Conn) (net.Conn, error) {
-			cfg := protocol.TLSConfig(p)
-			t := tls.Client(raw, cfg)
-			return t, t.HandshakeContext(ctx)
-		}
+		s.UpgradeTLS = func(raw net.Conn) (net.Conn, error) { return transport.UpgradeTLS(ctx, raw, p.Policy()) }
 
 		defer func() {
 			if stop != nil {
@@ -79,14 +75,14 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 		Endpoints:       []protocol.Endpoint{protocol.ConsoleEndpoint("Console", p.Host, port, true)},
 		Capabilities:    []string{"Video", "Keyboard", "Pointer"}}
 	protocol.Report(ctx, protocol.StageConnecting, &info)
-	c.control = &protocol.Wire{Conn: s.Conn}
+	c.control = &transport.Wire{Conn: s.Conn}
 	c.video = c.control
 	if s.KVMLoginResponse.NeedsCompanion {
 		sub, e := open(apcp.SessionTypeKVMVMSubchannel, true)
 		if e != nil {
 			return c, e
 		}
-		c.video = &protocol.Wire{Conn: sub.Conn}
+		c.video = &transport.Wire{Conn: sub.Conn}
 		if e = c.video.WritePacket(apcp.EncodeVideoSyncDC(s.KVMSessionID, s.KVMLoginResponse.SessionID)); e != nil {
 			return c, e
 		}

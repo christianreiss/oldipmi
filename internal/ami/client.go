@@ -9,6 +9,7 @@ import (
 	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/ami/vmedia"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/transport"
 	"sync"
 	"time"
 )
@@ -17,7 +18,7 @@ type Client struct {
 	p             protocol.Profile
 	launch        protocol.Launch
 	web           *protocol.Web
-	wire, hid     *protocol.Wire
+	wire, hid     *transport.Wire
 	mu            sync.Mutex
 	pressed       map[uint32]bool
 	width, height int
@@ -56,7 +57,7 @@ func (c *Client) attach(ctx context.Context) (err error) {
 	}
 	info := c.launch.ConsoleInfo(p)
 	protocol.Report(ctx, protocol.StageConnecting, &info)
-	c.wire, err = protocol.Dial(ctx, p, c.launch.Port, c.launch.Secure)
+	c.wire, err = transport.Dial(ctx, p.Policy(), c.launch.Port, c.launch.Secure)
 	if err != nil {
 		return err
 	}
@@ -71,7 +72,7 @@ func (c *Client) attach(ctx context.Context) (err error) {
 		if t != 14 || st != 0 {
 			return fmt.Errorf("AMI video prelogin refused (%d/%d)", t, st)
 		}
-		c.hid, err = protocol.Dial(ctx, p, c.launch.HIDPort, true)
+		c.hid, err = transport.Dial(ctx, p.Policy(), c.launch.HIDPort, true)
 		if err != nil {
 			return err
 		}
@@ -140,7 +141,7 @@ func (c *Client) attach(ctx context.Context) (err error) {
 	c.wire.SetDeadline(time.Time{})
 	return err
 }
-func (c *Client) read(w *protocol.Wire) (uint16, uint16, []byte, error) {
+func (c *Client) read(w *transport.Wire) (uint16, uint16, []byte, error) {
 	n := ivtpHeaderSize
 	if c.launch.Legacy {
 		n = vscHeaderSize
@@ -163,7 +164,7 @@ func (c *Client) read(w *protocol.Wire) (uint16, uint16, []byte, error) {
 	b, e = protocol.Read(w, int(size))
 	return t, st, b, e
 }
-func (c *Client) send(w *protocol.Wire, t uint16, b []byte) error {
+func (c *Client) send(w *transport.Wire, t uint16, b []byte) error {
 	n, off := ivtpHeaderSize, 2
 	if c.launch.Legacy {
 		n, off = vscHeaderSize, 1
@@ -388,7 +389,7 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 		file.Close()
 		return fmt.Errorf("ISO size must be a positive multiple of 2048 bytes")
 	}
-	wire, e := protocol.Dial(ctx, c.p, c.launch.CDPort, c.launch.MediaSecure)
+	wire, e := transport.Dial(ctx, c.p.Policy(), c.launch.CDPort, c.launch.MediaSecure)
 	if e != nil {
 		file.Close()
 		return e

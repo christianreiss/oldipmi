@@ -6,12 +6,13 @@ import (
 	"encoding/binary"
 	"fmt"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/transport"
 	"os"
 	"sync"
 )
 
 type mediaSession struct {
-	wire   *protocol.Wire
+	wire   *transport.Wire
 	file   *os.File
 	blocks uint32
 	sense  [3]byte
@@ -29,7 +30,7 @@ func newMedia(ctx context.Context, p protocol.Profile, port int, path string) (s
 		f.Close()
 		return nil, fmt.Errorf("invalid ISO image")
 	}
-	w, e := protocol.Dial(ctx, p, port, false)
+	w, e := transport.Dial(ctx, p.Policy(), port, false)
 	if e != nil {
 		f.Close()
 		return nil, e

@@ -5,7 +5,7 @@ import (
 	"context"
 	"io"
 	"net"
-	"oldipmi/internal/protocol"
+	"oldipmi/internal/transport"
 	"testing"
 	"time"
 )
@@ -15,7 +15,7 @@ import (
 func TestPowerInBand(t *testing.T) {
 	for word, code := range map[string]byte{"off": 0, "on": 1, "reset": 2, "soft": 3} {
 		a, b := net.Pipe()
-		c := Client{wire: &protocol.Wire{Conn: a}, controlling: true}
+		c := Client{wire: &transport.Wire{Conn: a}, controlling: true}
 		done := make(chan error, 1)
 		go func() { done <- c.Power(context.Background(), word) }()
 		p := make([]byte, 2)
@@ -39,7 +39,7 @@ func TestPowerInBand(t *testing.T) {
 	} {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(100 * time.Millisecond))
-		cl := Client{wire: &protocol.Wire{Conn: a}, controlling: c.controlling}
+		cl := Client{wire: &transport.Wire{Conn: a}, controlling: c.controlling}
 		if err := cl.Power(context.Background(), c.action); err == nil || err.Error() != c.err {
 			t.Errorf("%q, controlling %t: %v, want %q", c.action, c.controlling, err, c.err)
 		}

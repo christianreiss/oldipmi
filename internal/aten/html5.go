@@ -3,12 +3,11 @@ package aten
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/protocol"
-	"time"
+	"oldipmi/internal/transport"
 
 	"golang.org/x/net/websocket"
 )
@@ -49,48 +48,16 @@ func (c *wsConn) Write(p []byte) (int, error) {
 // discard drops the unread rest of the current WebSocket message.
 func (c *wsConn) discard() { c.buf = nil }
 
-func dialHTML5(ctx context.Context, p protocol.Profile, l protocol.Launch) (*protocol.Wire, error) {
-	scheme, origin := "wss", "https"
-	if !l.Secure {
-		scheme, origin = "ws", "http"
+func dialHTML5(ctx context.Context, p protocol.Profile, l protocol.Launch) (*transport.Wire, error) {
+	ws, err := transport.DialWS(ctx, p.Policy(), l.Port, l.Secure, l.Cookie)
+	var dial *websocket.DialError
+	if errors.As(err, &dial) {
+		return nil, fmt.Errorf("the HTML5 console WebSocket on port %d failed: %w; check that the BMC web port is reachable and no other viewer holds the console, then retry", l.Port, err)
 	}
-	if !l.Secure && !p.HTTP {
-		return nil, fmt.Errorf("unencrypted console not permitted")
-	}
-	host := net.JoinHostPort(p.Host, fmt.Sprint(l.Port))
-	cfg, err := websocket.NewConfig(scheme+"://"+host+"/", origin+"://"+host)
 	if err != nil {
-		return nil, fmt.Errorf("invalid console address")
+		return nil, err
 	}
-	cfg.TlsConfig = protocol.TLSConfig(p)
-	cfg.Dialer = &net.Dialer{Timeout: 10 * time.Second}
-	cfg.Header = http.Header{}
-	if l.Cookie != "" {
-		cfg.Header.Set("Cookie", l.Cookie)
-	}
-	type result struct {
-		ws  *websocket.Conn
-		err error
-	}
-	done := make(chan result, 1)
-	go func() {
-		ws, err := websocket.DialConfig(cfg)
-		done <- result{ws, err}
-	}()
-	select {
-	case <-ctx.Done():
-		go func() {
-			if r := <-done; r.ws != nil {
-				r.ws.Close()
-			}
-		}()
-		return nil, ctx.Err()
-	case r := <-done:
-		if r.err != nil {
-			return nil, fmt.Errorf("the HTML5 console WebSocket on port %d failed: %w; check that the BMC web port is reachable and no other viewer holds the console, then retry", l.Port, r.err)
-		}
-		return &protocol.Wire{Conn: &wsConn{Conn: r.ws}}, nil
-	}
+	return &transport.Wire{Conn: &wsConn{Conn: ws}}, nil
 }
 
 // skipUnknown discards the rest of an unrecognised WebSocket message.

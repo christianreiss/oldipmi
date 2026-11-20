@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
-	"oldipmi/internal/protocol"
+	"oldipmi/internal/transport"
 	"os"
 	"path/filepath"
 	"testing"
@@ -54,7 +54,7 @@ func FuzzMediaSession(f *testing.F) {
 			t.Fatal(err)
 		}
 		conn := &replay{in: bytes.NewReader(in)}
-		s := &mediaSession{wire: &protocol.Wire{Conn: conn}, file: file, blocks: 8, stop: func() bool { return true }}
+		s := &mediaSession{wire: &transport.Wire{Conn: conn}, file: file, blocks: 8, stop: func() bool { return true }}
 		s.serve()
 		for out := conn.out.Bytes(); len(out) > 0; {
 			if len(out) < 8 || out[0] != 0x22 {

@@ -108,3 +108,11 @@ func Dial(ctx context.Context, p Policy, port int, secure bool) (*Wire, error) {
 	}
 	return &Wire{Conn: c}, nil
 }
+
+// UpgradeTLS starts TLS on a connection that began in plain text, as the
+// Avocent console does after its session setup. It sends no client
+// certificate.
+func UpgradeTLS(ctx context.Context, raw net.Conn, p Policy) (net.Conn, error) {
+	t := tls.Client(raw, TLSConfig(p))
+	return t, t.HandshakeContext(ctx)
+}

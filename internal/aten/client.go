@@ -9,6 +9,7 @@ import (
 	"io"
 	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/transport"
 	"sync"
 	"time"
 )
@@ -17,7 +18,7 @@ type Client struct {
 	p           protocol.Profile
 	web         *protocol.Web
 	launch      protocol.Launch
-	wire        *protocol.Wire
+	wire        *transport.Wire
 	mu          sync.Mutex
 	pressed     map[uint32]bool
 	controlling bool
@@ -59,7 +60,7 @@ func (c *Client) attach(ctx context.Context) (err error) {
 	if c.launch.HTML5 {
 		c.wire, err = dialHTML5(ctx, p, c.launch)
 	} else {
-		c.wire, err = protocol.Dial(ctx, p, c.launch.Port, c.launch.Secure)
+		c.wire, err = transport.Dial(ctx, p.Policy(), c.launch.Port, c.launch.Secure)
 	}
 	if err == nil {
 		err = c.negotiate(ctx)
