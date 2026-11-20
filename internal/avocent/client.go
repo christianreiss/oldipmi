@@ -116,25 +116,12 @@ func (c *Client) Run(ctx context.Context, emit func(protocol.Frame)) error {
 	defer cancel()
 	stop := context.AfterFunc(ctx, func() { c.control.Close(); c.video.Close() })
 	defer stop()
-	go func() {
-		tick := time.NewTicker(5 * time.Second)
-		defer tick.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-tick.C:
-				if c.control.WritePacket(apcp.KVMHeartbeat()) != nil {
-					cancel()
-					return
-				}
-				if c.video != c.control && c.video.WritePacket(apcp.KVMHeartbeat()) != nil {
-					cancel()
-					return
-				}
-			}
+	go transport.Keepalive(ctx, 5*time.Second, func() error {
+		if e := c.control.WritePacket(apcp.KVMHeartbeat()); e != nil || c.video == c.control {
+			return e
 		}
-	}()
+		return c.video.WritePacket(apcp.KVMHeartbeat())
+	}, func(error) { cancel() })
 	if c.video != c.control {
 		go func() {
 			for {

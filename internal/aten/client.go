@@ -187,21 +187,9 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if !c.launch.HTML5 { // the HTML5 console sends no keepalive
-		go func() {
-			tick := time.NewTicker(3 * time.Second)
-			defer tick.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-tick.C:
-					if c.wire.WritePacket([]byte{0x15, 0, 0, 0, 1, 0, 0, 0, 0}) != nil {
-						c.wire.Close()
-						return
-					}
-				}
-			}
-		}()
+		go transport.Keepalive(ctx, 3*time.Second, func() error {
+			return c.wire.WritePacket([]byte{0x15, 0, 0, 0, 1, 0, 0, 0, 0})
+		}, func(error) { c.wire.Close() })
 	}
 
 	stop := context.AfterFunc(ctx, func() { c.wire.Close() })
