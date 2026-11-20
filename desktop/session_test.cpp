@@ -152,6 +152,19 @@ private slots:
     delete s;
   }
 
+  // A command's error is the command's: before the first picture it does not
+  // mark the console as failed while connecting, which the connection list
+  // kept showing after a normal end (C-06).
+  void commandErrorIsNotAStage() {
+    auto *s = start({expect("connect"), send(event(3)), expect("power"), reply(event(7)), QJsonObject{{"exit", 0}}});
+    QTRY_VERIFY(s->connected());
+    s->command({{"op", "power"}, {"action", "soft"}});
+    QTRY_COMPARE(s->state, QString("disconnected"));
+    QCOMPARE(s->message, QString("power control requires account credentials"));
+    QCOMPARE(s->errorStage, QString());
+    delete s;
+  }
+
   // Broken framing from the core ends the session with its own message.
   void brokenFraming_data() {
     QTest::addColumn<QJsonObject>("step");

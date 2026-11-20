@@ -28,6 +28,10 @@
   stay as they are.
 
 ### Fixed
+* **A refused command no longer marks a server as failed.** When a console
+  refused a command, such as a power action, before it showed its first picture,
+  the connection list kept showing that server as "Console connection failed",
+  even after it was disconnected normally.
 * **The agent instructions name the right path to `oldipmi-mcp`.** Started by
   name from the PATH, `oldipmi-mcp` told the agent to run it from the agent's
   working directory instead of from where it is installed.

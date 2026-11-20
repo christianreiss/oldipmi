@@ -174,10 +174,12 @@ void Session::readControl() {
       m_process->terminate();
       return;
     }
-    if (o["type"] == "error" && state != "connected" && state != "disconnected")
+    // A reply carries its command's id; only an event's error is the console's.
+    const bool consoleError = o["type"] == "error" && o.value("id").toInt() == 0;
+    if (consoleError && state != "connected" && state != "disconnected")
       errorStage = state;
     // A console that never delivered a picture failed while connecting.
-    if (o["type"] == "error" && state == "connected" && lastFrame.isNull())
+    if (consoleError && state == "connected" && lastFrame.isNull())
       errorStage = "connecting";
     if (o.contains("state"))
       state = o["state"].toString();
