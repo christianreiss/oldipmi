@@ -28,6 +28,9 @@
   stay as they are.
 
 ### Fixed
+* **An ISO goes to the console it was chosen for.** If an agent brought another
+  console to the front while the file dialog was open, the ISO was attached to
+  that console instead.
 * **Changing the Right Ctrl setting no longer brings back the full-screen
   note.** The note on taking or giving back the keyboard appeared again,
   although the capture had not changed.

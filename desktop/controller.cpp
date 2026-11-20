@@ -398,10 +398,14 @@ void Controller::releaseInput() {
 }
 void Controller::mountISO() {
   releaseInput();
+  // The console in front now gets the ISO. The dialog runs its own event loop,
+  // in which an agent may bring another console to the front (C-09).
+  const bool any = m_shown;
+  const QString target = any ? m_shown->id : QString();
   auto f = QFileDialog::getOpenFileName(nullptr, "Mount read-only ISO", {},
                                         "ISO images (*.iso)");
-  if (!f.isEmpty() && m_shown)
-    m_shown->command({{"op", "mount"}, {"path", f}});
+  if (auto *s = any ? m_sessions.value(target) : nullptr; s && !f.isEmpty())
+    s->command({{"op", "mount"}, {"path", f}});
 }
 void Controller::ejectISO() {
   if (m_shown)

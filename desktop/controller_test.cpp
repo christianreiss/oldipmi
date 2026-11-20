@@ -1,5 +1,7 @@
 #include "controller.h"
+#include <QApplication>
 #include <QClipboard>
+#include <QFileDialog>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -307,6 +309,55 @@ private slots:
     QCOMPARE(copied.size(), QSize(800, 600));
     QVERIFY(!copied.hasAlphaChannel());
     QCOMPARE(copied.pixelColor(400, 300), QColor("#223548"));
+  }
+  // The ISO goes to the console that was in front when the file dialog
+  // opened. The dialog runs its own event loop, in which an agent may bring
+  // another console to the front (C-09).
+  void isoGoesToTheConsoleItWasChosenFor() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    const QString iso = dir.filePath("install.iso");
+    QFile isoFile(iso);
+    QVERIFY(isoFile.open(QIODevice::WriteOnly));
+    isoFile.close();
+    const QByteArray binDir = qgetenv("OLDIPMI_BIN_DIR");
+    auto restore = qScopeGuard([&binDir] {
+      if (binDir.isNull()) qunsetenv("OLDIPMI_BIN_DIR"); else qputenv("OLDIPMI_BIN_DIR", binDir);
+      qunsetenv("OLDIPMI_FAKE_SCRIPT"); qunsetenv("OLDIPMI_FAKE_LOG");
+    });
+    qputenv("OLDIPMI_BIN_DIR", FAKECORE_DIR);
+    QFile script(dir.filePath("script.json"));
+    QVERIFY(script.open(QIODevice::WriteOnly));
+    script.write(R"([{"expect": "connect"}, {"send": {"version": 1, "type": "state", "state": "connected"}}, {"expect": "mount"}])");
+    script.close();
+    qputenv("OLDIPMI_FAKE_SCRIPT", script.fileName().toLocal8Bit());
+    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    for (const char *id : {"a", "b"}) { // one stand-in core each, with its own log
+      qputenv("OLDIPMI_FAKE_LOG", dir.filePath(QString(id) + ".jsonl").toLocal8Bit());
+      c.connectHost({{"id", id}, {"name", id}, {"host", QString(id) + ".example.net"}, {"family", "demo"}}, "");
+      QTRY_VERIFY(c.session(id) && c.session(id)->connected());
+    }
+    auto received = [&dir](const char *id) {
+      QFile f(dir.filePath(QString(id) + ".jsonl"));
+      return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+    };
+    c.show("a");
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+    QTimer agent;
+    connect(&agent, &QTimer::timeout, &c, [&] {
+      auto *dialog = qobject_cast<QFileDialog *>(QApplication::activeModalWidget());
+      if (!dialog)
+        return;
+      agent.stop();
+      c.show("b"); // what an agent's connect does
+      dialog->selectFile(iso);
+      static_cast<QDialog *>(dialog)->accept(); // QFileDialog::accept() is protected
+    });
+    agent.start(20);
+    c.mountISO();
+    QCOMPARE(c.shownId(), QString("b"));
+    QTRY_VERIFY(received("a").contains(R"("op":"mount")"));
+    QTest::qWait(100);
+    QVERIFY(!received("b").contains(R"("op":"mount")"));
   }
 };
 QTEST_MAIN(ControllerTest)
