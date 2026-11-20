@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"net"
 	"oldipmi/internal/ami/vmedia"
 	"oldipmi/internal/hid"
 	"oldipmi/internal/power"
@@ -66,78 +65,9 @@ func (c *Client) attach(ctx context.Context) (err error) {
 	defer stop()
 	c.wire.SetDeadline(time.Now().Add(15 * time.Second))
 	if c.launch.Legacy {
-		t, st, _, e := c.read(c.wire)
-		if e != nil {
-			return e
-		}
-		if t != 14 || st != 0 {
-			return fmt.Errorf("AMI video prelogin refused (%d/%d)", t, st)
-		}
-		c.hid, err = transport.Dial(ctx, p.Policy(), c.launch.HIDPort, true)
-		if err != nil {
-			return err
-		}
-		stopHID := context.AfterFunc(ctx, func() { c.hid.Close() })
-		defer stopHID()
-		c.hid.SetDeadline(time.Now().Add(15 * time.Second))
-		t, st, _, err = c.read(c.hid)
-		if err != nil {
-			return err
-		}
-		if t != 14 || st != 0 {
-			return fmt.Errorf("AMI HID prelogin refused (%d/%d)", t, st)
-		}
-		c.hid.SetDeadline(time.Time{})
-		auth := make([]byte, 99)
-		copy(auth[1:], c.launch.Token)
-		if err = c.send(c.wire, 12, auth); err != nil {
-			return err
-		}
-		cookie := c.launch.Cookie
-		if len(c.launch.Pos) > 10 {
-			cookie = c.launch.Pos[10]
-		}
-		if cookie != "" {
-			if err = c.send(c.wire, 32, []byte(cookie)); err != nil {
-				return err
-			}
-		}
-		if err = c.send(c.wire, 11, []byte{8}); err != nil {
-			return err
-		}
-		err = c.send(c.wire, 7, nil)
+		err = c.attachVSC(ctx)
 	} else {
-		for i := 0; i < 20; i++ {
-			t, _, b, e := c.read(c.wire)
-			if e != nil {
-				return e
-			}
-			switch t {
-			case opSessionAccepted:
-				if err = c.send(c.wire, opConnectionComplete, nil); err != nil {
-					return err
-				}
-				b := make([]byte, validateVideoSize)
-				copy(b[1:130], c.launch.Token)
-				host, _, _ := net.SplitHostPort(c.wire.LocalAddr().String())
-				copy(b[130:195], host)
-				copy(b[195:324], p.Username)
-				if err = c.send(c.wire, opValidateVideo, b); err != nil {
-					return err
-				}
-			case opValidateVideoResp:
-				if len(b) == 0 || b[0] != 1 {
-					return fmt.Errorf("AMI rejected native session")
-				}
-				err = c.send(c.wire, opResumeRedirection, nil)
-				i = 20
-			case opStopSession:
-				return fmt.Errorf("AMI stopped native session")
-			}
-			if i == 19 {
-				return fmt.Errorf("AMI authentication response missing")
-			}
-		}
+		err = c.attachIVTP()
 	}
 	c.wire.SetDeadline(time.Time{})
 	return err
@@ -240,13 +170,13 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 		}
 		video := opVideoFragment
 		if c.launch.Legacy {
-			video = 3
-			if t == 33 {
-				if e = c.send(c.wire, 34, nil); e != nil {
+			video = vscVideo
+			if t == vscPing {
+				if e = c.send(c.wire, vscPong, nil); e != nil {
 					return e
 				}
 			}
-			if t == 9 {
+			if t == vscEnd {
 				return fmt.Errorf("BMC ended session (%d)", st)
 			}
 		} else if t == opStopSession {
@@ -312,7 +242,7 @@ func (c *Client) hidPacket(device, proto, iface byte, report []byte) error {
 	p[11] = -sum
 	w, t := c.wire, opHIDPkt
 	if c.hid != nil {
-		w, t = c.hid, 4
+		w, t = c.hid, vscHID
 	}
 	return c.send(w, t, p)
 }

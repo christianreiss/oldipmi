@@ -274,6 +274,52 @@ func TestVSCSessionTranscript(t *testing.T) {
 	}
 }
 
+// In a VSC session the client answers the console's 33 with an empty 34,
+// sends input as packet 4 (an IUSB packet) on the input connection and ends
+// when the console sends 9, with the status in the message.
+func TestVSCSessionPingInputAndEnd(t *testing.T) {
+	cert := selfSigned(t)
+	video, videoPort := listen(t, nil)
+	input, inputPort := listen(t, &cert)
+	prelogin := func(e end) error { return e.send(14, 0, nil) }
+	videoDone := accept(video, true, prelogin, func(e end, typ uint16) error {
+		switch typ {
+		case 7: // the last packet of the setup
+			return e.send(33, 0, nil)
+		case 34:
+			return e.send(9, 5, nil)
+		}
+		return nil
+	})
+	inputDone := accept(input, true, prelogin, nil)
+	c := client(protocol.Profile{Host: "127.0.0.1", LegacyTLS: true, AllowPlainConsole: true},
+		Launch{Legacy: true, Token: "vsc-token", Port: videoPort, HIDPort: inputPort})
+	defer c.Close()
+	var stages []string
+	if err := c.attach(stagesOf(t, &stages)); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Key(protocol.Input{Usage: 4, Down: true}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := c.Run(ctx, func(protocol.Frame) {}); err == nil || err.Error() != "BMC ended session (5)" {
+		t.Fatalf("Run ended with %v", err)
+	}
+	c.Close()
+	v, in := <-videoDone, <-inputDone
+	if v.err != nil || in.err != nil {
+		t.Fatal(v.err, in.err)
+	}
+	if want := []uint16{12, 11, 7, 34}; !reflect.DeepEqual(v.packets, want) || len(v.payload[34]) != 0 {
+		t.Fatalf("video packets %v (34: % x), want %v with an empty 34", v.packets, v.payload[34], want)
+	}
+	if want := []uint16{4}; !reflect.DeepEqual(in.packets, want) || !bytes.HasPrefix(in.payload[4], []byte("IUSB    ")) {
+		t.Fatalf("input packets %v (% x), want one IUSB packet of type 4", in.packets, in.payload[4])
+	}
+}
+
 func TestVSCPreloginRefused(t *testing.T) {
 	cert := selfSigned(t)
 	for _, c := range []struct {
