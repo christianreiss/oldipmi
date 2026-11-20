@@ -1,6 +1,7 @@
 // Package hid names USB HID keyboard usages (usage page 0x07) and maps US-layout
 // ASCII characters to them. It is shared by the MCP server (key names typed by an
-// agent) and the demo console (echoing what it received).
+// agent), the console drivers (the keys they hold down, pressed.go) and the demo
+// console (echoing what it received).
 package hid
 
 import (

@@ -97,7 +97,7 @@ func TestHTML5ConsoleSession(t *testing.T) {
 	l := Launch{HTML5: true, Token: "tok-123", Cookie: "SID=abc", Port: port, Secure: true}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	c := &Client{p: p, launch: l, pressed: map[uint32]bool{}, controlling: true}
+	c := &Client{p: p, launch: l, controlling: true}
 	var err error
 	if c.wire, err = dialHTML5(ctx, p, l); err != nil {
 		t.Fatal(err)

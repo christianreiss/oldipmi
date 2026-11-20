@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"oldipmi/internal/ami/codec"
+	"oldipmi/internal/hid"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
 	"sync"
@@ -20,7 +21,7 @@ type Client struct {
 	launch      Launch
 	wire        *transport.Wire
 	mu          sync.Mutex
-	pressed     map[uint32]bool
+	pressed     hid.Pressed
 	controlling bool
 	dec         decoder
 	media       *mediaSession
@@ -32,7 +33,7 @@ type Client struct {
 }
 
 func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
-	c = &Client{p: p, pressed: map[uint32]bool{}, controlling: true}
+	c = &Client{p: p, controlling: true}
 	defer func() {
 		if err != nil {
 			c.Close()
@@ -373,14 +374,10 @@ func (c *Client) Key(i protocol.Input) error {
 	if !c.controlling {
 		return fmt.Errorf("BMC granted view-only access")
 	}
-	if i.Usage < 4 || i.Usage > 231 {
-		return fmt.Errorf("invalid HID usage")
+	if !hid.ValidKey(i.Usage) {
+		return hid.ErrInvalidUsage
 	}
-	if i.Down {
-		c.pressed[i.Usage] = true
-	} else {
-		delete(c.pressed, i.Usage)
-	}
+	c.pressed.Set(i.Usage, i.Down)
 	return c.key(i.Usage, i.Down)
 }
 func (c *Client) Pointer(i protocol.Input) error {
@@ -407,12 +404,12 @@ func (c *Client) pointer(i protocol.Input) error {
 func (c *Client) Release() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for u := range c.pressed {
+	for _, u := range c.pressed.Keys() {
 		if e := c.key(u, false); e != nil {
 			return e
 		}
 	}
-	clear(c.pressed)
+	c.pressed.Clear()
 	return c.pointer(protocol.Input{})
 }
 func (c *Client) Power(ctx context.Context, action string) error {

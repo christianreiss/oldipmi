@@ -8,6 +8,7 @@ import (
 	"net"
 	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/ami/vmedia"
+	"oldipmi/internal/hid"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
 	"sync"
@@ -20,7 +21,7 @@ type Client struct {
 	web           *web
 	wire, hid     *transport.Wire
 	mu            sync.Mutex
-	pressed       map[uint32]bool
+	pressed       hid.Pressed
 	width, height int
 	seq           uint32
 	media         *vmedia.Session
@@ -30,7 +31,7 @@ type Client struct {
 }
 
 func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
-	c = &Client{p: p, pressed: map[uint32]bool{}, width: 1024, height: 768, password: password}
+	c = &Client{p: p, width: 1024, height: 768, password: password}
 	defer func() {
 		if err != nil {
 			c.Close()
@@ -307,31 +308,15 @@ func (c *Client) hidPacket(device, proto, iface byte, report []byte) error {
 func (c *Client) Key(i protocol.Input) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if i.Usage < 4 || i.Usage > 231 {
-		return fmt.Errorf("invalid HID usage")
+	if !hid.ValidKey(i.Usage) {
+		return hid.ErrInvalidUsage
 	}
-	if i.Down {
-		c.pressed[i.Usage] = true
-	} else {
-		delete(c.pressed, i.Usage)
-	}
+	c.pressed.Set(i.Usage, i.Down)
 	return c.keyboard()
 }
 func (c *Client) keyboard() error {
-	r := make([]byte, 8)
-	n := 2
-	for u := uint32(4); u <= 231; u++ {
-		if !c.pressed[u] {
-			continue
-		}
-		if u >= 224 {
-			r[0] |= 1 << uint(u-224)
-		} else if n < 8 {
-			r[n] = byte(u)
-			n++
-		}
-	}
-	return c.hidPacket(48, 16, 0, r)
+	r := c.pressed.BootReport()
+	return c.hidPacket(48, 16, 0, r[:])
 }
 func (c *Client) Pointer(i protocol.Input) error {
 	c.mu.Lock()
@@ -346,7 +331,7 @@ func (c *Client) Pointer(i protocol.Input) error {
 func (c *Client) Release() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	clear(c.pressed)
+	c.pressed.Clear()
 	e := c.keyboard()
 	if e != nil {
 		return e

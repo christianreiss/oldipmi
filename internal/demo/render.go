@@ -145,10 +145,8 @@ func (s *Session) render() protocol.Frame {
 	}
 	y += maxEvents*line + 8
 	var held []string
-	for u := 4; u <= 231; u++ {
-		if s.held[u] {
-			held = append(held, hid.Name(u))
-		}
+	for _, u := range s.held.Keys() {
+		held = append(held, hid.Name(int(u)))
 	}
 	if len(held) == 0 {
 		held = []string{"-"}

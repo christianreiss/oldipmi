@@ -142,7 +142,7 @@ func accept(ln net.Listener, legacy bool, first func(end) error, answer func(end
 }
 
 func client(p protocol.Profile, l Launch) *Client {
-	return &Client{p: p, launch: l, pressed: map[uint32]bool{}, width: 1024, height: 768}
+	return &Client{p: p, launch: l, width: 1024, height: 768}
 }
 
 func stagesOf(t *testing.T, stages *[]string) context.Context {

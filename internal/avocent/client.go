@@ -8,6 +8,7 @@ import (
 	"net"
 	"oldipmi/internal/avocent/apcp"
 	"oldipmi/internal/avocent/video"
+	"oldipmi/internal/hid"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/transport"
 	"os"
@@ -20,12 +21,12 @@ type Client struct {
 	password       string
 	control, video *transport.Wire
 	mu             sync.Mutex
-	pressed        map[uint32]bool
+	pressed        hid.Pressed
 	once           sync.Once
 }
 
 func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
-	c = &Client{p: p, password: password, pressed: map[uint32]bool{}}
+	c = &Client{p: p, password: password}
 	defer func() {
 		if err != nil {
 			c.Close()
@@ -254,14 +255,10 @@ func (c *Client) key(u uint32, down bool) error {
 func (c *Client) Key(i protocol.Input) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if i.Usage < 4 || i.Usage > 231 {
-		return fmt.Errorf("invalid HID usage")
+	if !hid.ValidKey(i.Usage) {
+		return hid.ErrInvalidUsage
 	}
-	if i.Down {
-		c.pressed[i.Usage] = true
-	} else {
-		delete(c.pressed, i.Usage)
-	}
+	c.pressed.Set(i.Usage, i.Down)
 	return c.key(i.Usage, i.Down)
 }
 func (c *Client) Pointer(i protocol.Input) error {
@@ -275,12 +272,12 @@ func (c *Client) Pointer(i protocol.Input) error {
 func (c *Client) Release() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for u := range c.pressed {
+	for _, u := range c.pressed.Keys() {
 		if e := c.key(u, false); e != nil {
 			return e
 		}
 	}
-	clear(c.pressed)
+	c.pressed.Clear()
 	return c.Pointer(protocol.Input{})
 }
 func (c *Client) Mount(context.Context, string) error {

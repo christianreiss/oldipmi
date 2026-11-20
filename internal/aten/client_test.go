@@ -72,7 +72,7 @@ func TestNativeSessionHandshakeFrameAndCancellation(t *testing.T) {
 		t.Fatal(e)
 	}
 	// Past the web login: the same path Connect takes once the BMC has handed out the launch file.
-	c := &Client{p: protocol.Profile{Host: "127.0.0.1", AllowPlainConsole: true}, pressed: map[uint32]bool{}, controlling: true, launch: launch}
+	c := &Client{p: protocol.Profile{Host: "127.0.0.1", AllowPlainConsole: true}, controlling: true, launch: launch}
 	defer c.Close()
 	if e := c.attach(ctx); e != nil {
 		t.Fatal(e)
@@ -164,7 +164,7 @@ func TestJavaMouseStatusLength(t *testing.T) {
 			defer srv.Close()
 			go io.Copy(io.Discard, srv)
 			go srv.Write(c.stream)
-			cl := &Client{wire: &transport.Wire{Conn: cli}, pressed: map[uint32]bool{}, controlling: true}
+			cl := &Client{wire: &transport.Wire{Conn: cli}, controlling: true}
 			cl.dec.Resize(16, 16)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
@@ -184,5 +184,42 @@ func TestJavaMouseStatusLength(t *testing.T) {
 				t.Fatalf("mouseLen=%d", cl.mouseLen)
 			}
 		})
+	}
+}
+
+// Release lets go of every held key, lowest usage first, then of the buttons.
+func TestReleaseLetsGoOfEachKey(t *testing.T) {
+	srv, cli := net.Pipe()
+	defer srv.Close()
+	srv.SetDeadline(time.Now().Add(5 * time.Second)) // a missing packet fails, not hangs
+	c := &Client{wire: &transport.Wire{Conn: cli}, controlling: true}
+	done := make(chan error, 1)
+	go func() {
+		for _, u := range []uint32{30, 225, 4} {
+			if err := c.Key(protocol.Input{Usage: u, Down: true}); err != nil {
+				done <- err
+				return
+			}
+		}
+		done <- c.Release()
+	}()
+	var got []string
+	p := make([]byte, 18)
+	for i := 0; i < 7; i++ {
+		if _, err := io.ReadFull(srv, p); err != nil {
+			t.Fatal(err)
+		}
+		if p[0] == 4 {
+			got = append(got, fmt.Sprintf("key %d down=%d", binary.BigEndian.Uint32(p[5:]), p[2]))
+		} else {
+			got = append(got, fmt.Sprintf("packet %d", p[0]))
+		}
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"key 30 down=1", "key 225 down=1", "key 4 down=1", "key 4 down=0", "key 30 down=0", "key 225 down=0", "packet 5"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("sent %q\nwant %q", got, want)
 	}
 }

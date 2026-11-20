@@ -97,7 +97,7 @@ type Session struct {
 	typed               []rune
 	events              []string
 	eventNo             int
-	held                map[int]bool
+	held                hid.Pressed
 	tap                 map[int]bool
 	caps, num, scroll   bool
 	px, py, wheel       int
@@ -113,7 +113,7 @@ type Session struct {
 
 // New returns a powered-on demo session with the given framebuffer size.
 func New(w, h int) *Session {
-	return &Session{w: w, h: h, held: map[int]bool{}, tap: map[int]bool{}, power: "on", num: true,
+	return &Session{w: w, h: h, tap: map[int]bool{}, power: "on", num: true,
 		px: w / 2, py: h / 2, message: "Ready. Everything you send is echoed on this screen.",
 		dirty: make(chan struct{}, 1), closed: make(chan struct{})}
 }
@@ -157,7 +157,7 @@ func (s *Session) heldMods(except ...int) []string {
 		for _, e := range except {
 			skip = skip || e == u
 		}
-		if s.held[u] && !skip {
+		if s.held.Has(uint32(u)) && !skip {
 			names = append(names, hid.Name(u))
 		}
 	}
@@ -165,8 +165,8 @@ func (s *Session) heldMods(except ...int) []string {
 }
 
 func (s *Session) Key(i protocol.Input) error {
-	if i.Usage < 4 || i.Usage > 231 {
-		return fmt.Errorf("invalid HID usage")
+	if !hid.ValidKey(i.Usage) {
+		return hid.ErrInvalidUsage
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -174,14 +174,14 @@ func (s *Session) Key(i protocol.Input) error {
 	u := int(i.Usage)
 	s.keyEvents++
 	if !i.Down {
-		delete(s.held, u)
+		s.held.Set(i.Usage, false)
 		if s.tap[u] {
 			delete(s.tap, u)
 			s.event("<" + hid.Name(u) + ">")
 		}
 		return nil
 	}
-	s.held[u] = true
+	s.held.Set(i.Usage, true)
 	if hid.IsModifier(u) {
 		s.tap[u] = true
 		return nil
@@ -195,7 +195,7 @@ func (s *Session) Key(i protocol.Input) error {
 	case 71:
 		s.scroll = !s.scroll
 	}
-	shift := s.held[hid.LeftShift] || s.held[hid.RightShift]
+	shift := s.held.Has(hid.LeftShift) || s.held.Has(hid.RightShift)
 	chord := s.heldMods(hid.LeftShift, hid.RightShift)
 	if len(chord) > 0 { // Ctrl/Alt/Super chords are commands, not text.
 		s.event("<" + s.chord(u) + ">")
@@ -254,7 +254,7 @@ func (s *Session) Pointer(i protocol.Input) error {
 func (s *Session) Release() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	clear(s.held)
+	s.held.Clear()
 	clear(s.tap)
 	s.buttons = 0
 	s.changed()
@@ -320,9 +320,9 @@ func (s *Session) Events() []string {
 // chord names the held modifiers, then other held keys, then u, e.g. "Alt+PrintScreen+X".
 func (s *Session) chord(u int) string {
 	names := s.heldMods()
-	for k := 4; k < hid.LeftCtrl; k++ {
-		if s.held[k] && k != u {
-			names = append(names, hid.Name(k))
+	for _, k := range s.held.Keys() {
+		if k < hid.LeftCtrl && int(k) != u {
+			names = append(names, hid.Name(int(k)))
 		}
 	}
 	return strings.Join(append(names, hid.Name(u)), "+")
