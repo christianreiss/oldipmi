@@ -84,18 +84,6 @@ func TestDecoderPalette7(t *testing.T) {
 	}
 }
 
-func TestDecoderRGB777(t *testing.T) {
-	dec := NewDecoder(Depth21)
-	fb := NewFramebuffer(1, 1)
-	// value 0x7F 0xFF 0xFF: r=7F<<1=FE g=FF<<1=FE b=FF<<1=FE
-	stream := []byte{0xFF, 0xFF, 0xFF}
-	dec.Decode(fb, stream)
-	// r = 0x7F8000>>15 = 0xFF, g = 0x7F80>>7 = 0xFF, b = 0x7F<<1 = 0xFE
-	if fb.Pixels[0] != 0xFFFFFFFE {
-		t.Errorf("RGB777 max = 0x%08x, want 0xFFFFFFFE", fb.Pixels[0])
-	}
-}
-
 func TestFramebufferRepeat(t *testing.T) {
 	fb := NewFramebuffer(4, 1)
 	fb.Pixels[0] = 0xFF112233

@@ -27,6 +27,11 @@ const (
 	KVMLoginBodyLen  = 208
 	KVMLoginTotalLen = KVMLoginBodyLen + AVPTHeaderLen
 
+	// The login answer: KVMLoginStatusIDExtended carries the extended
+	// layout (DecodeKVMLoginResponse).
+	KVMLoginStatusID         = 33536
+	KVMLoginStatusIDExtended = 33541
+
 	// KVM heartbeat packet, id=1024 (0x0400), 8-byte zero body.
 	// See com.avocent.kvm.b.a.q. Client should send every 10s.
 	KVMHeartbeatID uint16 = 1024
@@ -125,13 +130,13 @@ type KVMLoginResponse struct {
 }
 
 // DecodeKVMLoginResponse parses a login-status AVPT frame. It tolerates
-// both the extended (id 33541) and non-extended (33536) shapes.
+// both the extended (KVMLoginStatusIDExtended) and the plain shape.
 func DecodeKVMLoginResponse(f AVPTFrame) KVMLoginResponse {
 	r := KVMLoginResponse{}
 	if len(f.Payload) < 10 {
 		return r
 	}
-	extended := f.ID == 33541
+	extended := f.ID == KVMLoginStatusIDExtended
 	r.Status = f.Payload[0]
 	if extended {
 		if len(f.Payload) >= 8 {

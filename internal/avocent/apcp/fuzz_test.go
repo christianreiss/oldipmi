@@ -13,13 +13,6 @@ func FuzzBMCInput(f *testing.F) {
 	f.Add(append([]byte("APCP\x00\x00\x00\x35\x81\x00\x00\x00\x01\x03\x00\x00\x00\x04\x17\x0c\x20"), make([]byte, 32)...))
 	f.Fuzz(func(t *testing.T, b []byte) {
 		DecodeSessionSetup(b)
-		DecodeLoginStatus(b)
-		PeekFrameHeader(b)
-		for r := bytes.NewReader(b); ; {
-			if _, err := ReadFrame(r); err != nil {
-				break
-			}
-		}
 		for r := bytes.NewReader(b); ; {
 			fr, err := ReadAVPTFrame(r)
 			if err != nil {

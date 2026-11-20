@@ -1,5 +1,5 @@
 // Package video decodes Avocent KVM video frames into a linear ARGB
-// framebuffer that a browser can render.
+// framebuffer.
 //
 // The wire format is a stream of variable-length opcodes operating on a
 // linear pixel cursor. Each opcode carries a run length encoded as a
@@ -148,26 +148,6 @@ type Decoder struct {
 	depth Depth
 	// palette lookup for depths that pre-compute RGB → ARGB tables
 	lut []uint32
-	// palette is the active palette for Depth7Palette. When nil, the
-	// default paletteC7 is used. Overridden by frame 138 (VGA palette
-	// update) via SetPalette.
-	palette []uint32
-}
-
-// SetPalette overrides the decoder's palette for Depth7Palette mode.
-// Called on frame 138 (VGA palette change) with 128 ARGB entries; entries
-// beyond the input length preserve the previous value. Only meaningful for
-// Depth7Palette decoders.
-func (d *Decoder) SetPalette(entries []uint32) {
-	if d.palette == nil {
-		d.palette = make([]uint32, 128)
-		copy(d.palette, paletteC7[:])
-	}
-	n := len(entries)
-	if n > 128 {
-		n = 128
-	}
-	copy(d.palette[:n], entries[:n])
 }
 
 // Depth selects which BMC video encoding this decoder handles. Values
@@ -176,7 +156,6 @@ func (d *Decoder) SetPalette(entries []uint32) {
 //	Depth7Gray    → c.e — 7-bit grayscale (1 byte per COLOR opcode)
 //	Depth7Palette → c.f — 128-entry palette (1 byte, LUT via com.avocent.kvm.c.i)
 //	Depth15       → c.c — 15-bit RGB555 (2 bytes)
-//	Depth21       → c.d — 21-bit RGB777 (3 bytes)
 //
 // The BMC advertises the current depth in the video-tile packet header;
 // the client must dispatch on that. See s.java tile handler dispatch.
@@ -186,7 +165,6 @@ const (
 	Depth7Gray    Depth = 7
 	Depth7Palette Depth = 8
 	Depth15       Depth = 15
-	Depth21       Depth = 21
 )
 
 // Palette used by Depth7Palette. Matches com.avocent.kvm.c.i.a[] after
@@ -227,7 +205,7 @@ func NewDecoder(d Depth) *Decoder {
 			b := (i & 0x001F) << 3
 			dec.lut[i] = 0xFF000000 | uint32(r)<<16 | uint32(g)<<8 | uint32(b)
 		}
-	case Depth7Gray, Depth7Palette, Depth21:
+	case Depth7Gray, Depth7Palette:
 		// no LUT needed / uses paletteC7 for palette variant
 	default:
 		panic(fmt.Sprintf("video: depth %d not supported", d))
@@ -353,11 +331,8 @@ func (d *Decoder) readColor(op byte, tail []byte) (uint32, int, error) {
 		g := uint32(op&0x7F) << 1
 		return 0xFF000000 | g<<16 | g<<8 | g, 0, nil
 	case Depth7Palette:
-		// c.f: 7-bit palette index. Prefer per-decoder palette (set by
-		// frame 138) over the shared default paletteC7.
-		if d.palette != nil {
-			return d.palette[op&0x7F], 0, nil
-		}
+		// c.f: 7-bit palette index into paletteC7. A VGA palette update
+		// (packet 138) ends the session instead.
 		return paletteC7[op&0x7F], 0, nil
 	case Depth15:
 		// c.c: 15-bit index (7 high bits + next byte)
@@ -366,16 +341,6 @@ func (d *Decoder) readColor(op byte, tail []byte) (uint32, int, error) {
 		}
 		idx := (int(op&0x7F) << 8) | int(tail[0])
 		return d.lut[idx&0x7FFF], 1, nil
-	case Depth21:
-		// c.d: 21-bit RGB777 packed into 3 bytes; each 7-bit channel expanded to 8-bit via <<1
-		if len(tail) < 2 {
-			return 0, 0, fmt.Errorf("video: truncated RGB777 color")
-		}
-		v := uint32(op&0x7F)<<16 | uint32(tail[0])<<8 | uint32(tail[1])
-		r := (v & 0x7F8000) >> 15
-		g := (v & 0x007F80) >> 7
-		b := (v & 0x00007F) << 1
-		return 0xFF000000 | r<<16 | g<<8 | (b & 0xFF), 2, nil
 	}
 	return 0, 0, fmt.Errorf("video: depth %d not supported", d.depth)
 }

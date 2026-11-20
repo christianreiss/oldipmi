@@ -60,10 +60,6 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 		if e := s.Open(); e != nil {
 			return nil, e
 		}
-		if !s.Setup.SupportsSSL() {
-			s.Conn.Close()
-			return nil, fmt.Errorf("Avocent console requires TLS")
-		}
 		if !skip && s.KVMLoginResponse.Status != 0 {
 			s.Conn.Close()
 			return nil, fmt.Errorf("Avocent login: %s", apcp.LoginStatusName(s.KVMLoginResponse.Status))
