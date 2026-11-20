@@ -198,6 +198,24 @@ private slots:
     QCOMPARE(mcp.exitCode(), 0);
     QTRY_COMPARE(api.clientCount(), 0);
   }
+  // A client that stops reading is dropped once 64 MiB of replies wait for it.
+  void clientThatStopsReadingIsDropped() {
+    QTemporaryDir dir; NoCredentials w;
+    Controller c(nullptr, &w, dir.filePath("hosts.json"));
+    AgentApi api(&c, dir.filePath("s"));
+    QVERIFY(api.start());
+    QLocalSocket s;
+    s.connectToServer(api.socketPath());
+    QTRY_COMPARE(api.clientCount(), 1);
+    // Each unparsable line gets a 52-byte answer, which this client never reads.
+    const QByteArray lines = QByteArray("x\n").repeated(1 << 16);
+    for (int i = 0; i < 24 && s.state() == QLocalSocket::ConnectedState; ++i) {
+      s.write(lines);
+      s.waitForBytesWritten(1000);
+      QCoreApplication::processEvents();
+    }
+    QTRY_COMPARE_WITH_TIMEOUT(api.clientCount(), 0, 30000);
+  }
   void profilesNeverExposeSecrets() {
     QTemporaryDir dir; NoCredentials w;
     Controller c(nullptr, &w, writeProfiles(dir));

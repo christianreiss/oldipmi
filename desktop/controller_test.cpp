@@ -216,6 +216,59 @@ private slots:
     QCOMPARE(QJsonDocument::fromJson(commands.readLine()).object(), want);
     QCOMPARE(c.host(profile["id"].toString()).keys(), want["profile"].toObject().keys());
   }
+  // The signals each action sends, which QML binds to. Phase 4 splits the
+  // Controller behind its API and keeps them; how often changed() fires is
+  // not pinned, only that it does.
+  void signalsPerAction() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    QSignalSpy changed(&c, &Controller::changed), hosts(&c, &Controller::hostsChanged),
+        activated(&c, &Controller::profileActivated), prompt(&c, &Controller::passwordRequired),
+        fallback(&c, &Controller::walletUnavailable), frames(&c, &Controller::frameReady);
+    // hostsChanged, profileActivated, passwordRequired, walletUnavailable, frameReady
+    auto counts = [&] {
+      return QList<int>{int(hosts.count()), int(activated.count()), int(prompt.count()), int(fallback.count()), int(frames.count())};
+    };
+    auto reset = [&] {
+      for (auto *spy : {&changed, &hosts, &activated, &prompt, &fallback, &frames})
+        spy->clear();
+    };
+    auto p = c.saveHost({{"host", "bmc.example.invalid"}, {"username", "admin"}, {"family", "ami"}}, {}, false);
+    QCOMPARE(counts(), (QList<int>{1, 0, 0, 0, 0}));
+    QVERIFY(changed.count() > 0);
+    reset();
+    c.connectHost(p, {}); // no password: the prompt
+    QCOMPARE(counts(), (QList<int>{0, 0, 1, 0, 0}));
+    QVERIFY(changed.count() > 0);
+    reset();
+    wallet.available = false; // a password to remember, and no wallet
+    auto remembered = p;
+    remembered["remember"] = true;
+    c.connectHost(remembered, "fixture-secret");
+    QCOMPARE(counts(), (QList<int>{0, 0, 0, 1, 0}));
+    c.cancelCredentials();
+    wallet.available = true;
+    auto demo = c.saveHost({{"host", "demo"}, {"family", "demo"}, {"name", "Demo"}}, {}, false);
+    reset();
+    // Saved again, then stamped "last connected"; the new console is shown,
+    // without a picture yet.
+    c.connectHost(demo, {});
+    QCOMPARE(counts(), (QList<int>{2, 1, 0, 0, 1}));
+    QCOMPARE(activated.first().first().toMap().value("id"), demo.value("id"));
+    QVERIFY(frames.first().first().value<QImage>().isNull());
+    QTRY_COMPARE_WITH_TIMEOUT(c.state(), QString("connected"), 10000);
+    QTRY_VERIFY(!frames.last().first().value<QImage>().isNull());
+    QVERIFY(changed.count() > 0);
+    reset();
+    c.disconnectHost(); // the picture goes
+    QTRY_COMPARE(c.state(), QString("disconnected"));
+    QCOMPARE(counts().mid(0, 4), (QList<int>{0, 0, 0, 0}));
+    QVERIFY(!frames.isEmpty() && frames.last().first().value<QImage>().isNull());
+    QVERIFY(changed.count() > 0);
+    reset();
+    QVERIFY(c.removeHost(p["id"].toString()));
+    QCOMPARE(counts(), (QList<int>{1, 0, 0, 0, 0}));
+  }
   void failedStageAndActiveProfile() {
     QTemporaryDir dir; FakeCredentials wallet;
     Controller c(nullptr, &wallet, writeProfiles(dir, {savedProfile()}));
