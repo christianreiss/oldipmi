@@ -178,6 +178,7 @@ Kirigami.ApplicationWindow {
 
         ConsolePane {
             id: consolePane
+            objectName: "consolePane"
             Layout.fillWidth: true
             Layout.fillHeight: true
             selected: window.selectedProfile

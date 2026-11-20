@@ -35,10 +35,10 @@
 // visits is also checked for them.
 static QStringList s_qmlWarnings;
 static QtMessageHandler s_previousHandler = nullptr;
+static QString s_qmlRoot; // the directory of Main.qml; empty until the engine loads it
 static void recordQmlWarning(QtMsgType type, const QMessageLogContext &context, const QString &message) {
-  const char *qml = "qrc:/desktop/qml/";
-  if (type != QtDebugMsg && type != QtInfoMsg &&
-      (message.contains(QLatin1String(qml)) || (context.file && !strncmp(context.file, qml, strlen(qml)))))
+  if (type != QtDebugMsg && type != QtInfoMsg && !s_qmlRoot.isEmpty() &&
+      (message.contains(s_qmlRoot) || (context.file && QString::fromUtf8(context.file).startsWith(s_qmlRoot))))
     s_qmlWarnings << message;
   if (s_previousHandler)
     s_previousHandler(type, context, message);
@@ -55,9 +55,9 @@ static int qmlWarningsResult() {
 // Developer aid (--screenshots DIR, with --self-test): walks through the UI
 // states and saves one PNG per state and window. Never touches the network: the
 // connecting and error states use the demo console's "hang" and "unreachable".
-static void call0(QObject *root, const char *method, const QVariant &arg) {
-  QMetaObject::invokeMethod(root, method, Q_ARG(QVariant, arg));
-}
+// It fails loudly, with exit 5: a step that never becomes ready, a named object
+// that is missing, a QML method, signal or property that does not exist, or a
+// PNG that cannot be saved. QML warnings make it exit 6.
 // The tour's connections, written to the test-mode profiles file before the
 // controller reads it: every run starts from the same list, whatever an earlier
 // run left (the tour removes them at its end). Returns the file, or "" on failure.
@@ -81,13 +81,63 @@ static QString writeTourProfiles() {
 static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
                              Controller &controller, const QString &dir, QSize size) {
   auto *root = engine.rootObjects().first();
+  auto *window = qobject_cast<QQuickWindow *>(root);
+  // Every failed check is reported when it happens; the tour then exits 5.
+  auto problems = std::make_shared<QStringList>();
+  auto problem = [problems](const QString &why) {
+    fprintf(stderr, "Screenshot tour: %s\n", qPrintable(why));
+    *problems << why;
+  };
+  auto label = [](QObject *o) {
+    return o->objectName().isEmpty() ? QString(o->metaObject()->className()) : o->objectName();
+  };
+  // A named object a step needs: when it is missing the step fails instead of
+  // being skipped.
+  auto find = [root, problem](const char *name) -> QObject * {
+    auto *o = root->findChild<QObject *>(name);
+    if (!o)
+      problem(QString("no object named \"%1\"").arg(name));
+    return o;
+  };
+  // QML functions (var arguments): a name that does not exist, or arguments that
+  // do not match, fail the step.
+  auto invoke = [problem, label](QObject *o, const char *method, const QVariant &arg = {}) {
+    if (!o)
+      return; // find() reported it
+    const bool ok = arg.isValid() ? QMetaObject::invokeMethod(o, method, Q_ARG(QVariant, arg))
+                                  : QMetaObject::invokeMethod(o, method);
+    if (!ok)
+      problem(QString("%1.%2() cannot be called").arg(label(o), method));
+  };
+  auto emitWith = [problem, label](QObject *o, const char *signal, const QString &arg) {
+    if (o && !QMetaObject::invokeMethod(o, signal, Q_ARG(QString, arg)))
+      problem(QString("%1.%2(\"%3\") cannot be emitted").arg(label(o), signal, arg));
+  };
+  // setProperty() adds a dynamic property, and returns false, for a name the
+  // object does not declare.
+  auto set = [problem, label](QObject *o, const char *property, const QVariant &value) {
+    if (o && !o->setProperty(property, value))
+      problem(QString("%1 has no property %2").arg(label(o), property));
+  };
+  auto call = [=](const char *method, const QVariant &arg = {}) { invoke(root, method, arg); };
+  auto visibleWindows = [] {
+    QList<QQuickWindow *> out;
+    for (auto *w : QGuiApplication::topLevelWindows())
+      if (auto *qw = qobject_cast<QQuickWindow *>(w); qw && qw->isVisible())
+        out << qw;
+    return out;
+  };
   // Optional --size WxH: every grabbed window (main, dialogs' host, settings)
   // gets the same logical size, so review tools can compare a fixed matrix.
-  auto fit = [size] {
-    if (size.isEmpty())
-      return;
-    for (auto *w : QGuiApplication::topLevelWindows())
-      if (w->isVisible() && w->size() != size) w->resize(size);
+  // Resizes the windows that differ; true when none did.
+  auto fit = [size, visibleWindows] {
+    bool fitted = true;
+    for (auto *w : visibleWindows())
+      if (!size.isEmpty() && w->size() != size) {
+        w->resize(size);
+        fitted = false;
+      }
+    return fitted;
   };
   fit();
   // Offscreen Qt puts the pointer at the window origin, which renders false
@@ -98,27 +148,27 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
     fprintf(stderr, "Screenshot tour: the tour's connections or %s are missing\n", qPrintable(dir));
     return 5;
   }
-  call0(root, "loadHost", controller.hosts().first());
-  // `wait` ms after `act`, the step is grabbed as soon as `ready` (if given) holds,
-  // or 6 s later at the latest: a busy machine must not change what is captured.
+  call("loadHost", controller.hosts().first());
+  // `wait` ms after `act`, the step is grabbed as soon as `ready` (if given) holds
+  // and every window has its size, with no limit a busy machine would reach.
   struct Step { QString name; std::function<void()> act; int wait; std::function<bool()> ready = {}; };
-  auto call = [root](const char *method, QVariant arg = {}) {
-    if (arg.isValid())
-      QMetaObject::invokeMethod(root, method, Q_ARG(QVariant, arg));
-    else
-      QMetaObject::invokeMethod(root, method);
-  };
-  auto closePopups = [root] {
+  auto closePopups = [root, invoke] {
     for (auto *o : root->findChildren<QObject *>())
       if (o->inherits("QQuickPopup") && o->property("opened").toBool())
-        QMetaObject::invokeMethod(o, "close");
+        invoke(o, "close");
   };
-  auto *window = qobject_cast<QQuickWindow *>(root);
+  // Silent lookups for the ready checks, which run many times; acts use find().
   auto console = [root] { return root->findChild<Console *>("console"); };
   auto popup = [root](const char *name) { return root->findChild<QObject *>(name); };
   auto popupOpen = [popup](const char *name) {
     auto *p = popup(name);
     return p && p->property("opened").toBool();
+  };
+  auto consoleView = [console, problem] {
+    auto *c = console();
+    if (!c)
+      problem("no console view");
+    return c;
   };
   // Fails at the login as an unreachable BMC does, so the error page shows its hint.
   QVariantMap demo{{"name", "Demo BMC"}, {"host", "demo-unreachable"}, {"family", "demo"},
@@ -126,22 +176,24 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   // The login stays pending until it is cancelled, however long the step takes.
   QVariantMap pending{{"name", "Lab server"}, {"host", "demo-hang"}, {"family", "demo"},
                       {"remember", false}};
-  auto failed = std::make_shared<bool>(false); // a check along the tour failed: exit 5
+  auto recaptured = std::make_shared<bool>(false); // 10b: control taken again in full screen
+  auto revealed = std::make_shared<bool>(false);   // 10e: scrolled to the advanced options
   auto steps = std::make_shared<QList<Step>>(QList<Step>{
       {"01-selected", [] {}, 600},
       {"02-new-connection", [=] { call("newConnection"); }, 700, [=] { return popupOpen("connectionDialog"); }},
       {"03-edit-connection", [=, &controller] {
          closePopups();
-         auto p = controller.hosts().first().toMap();
-         call("editConnection", p);
+         call("editConnection", controller.hosts().first());
        }, 700, [=] { return popupOpen("connectionDialog"); }},
-      {"04-settings-general", [=] { closePopups(); call("openSettings", QString("general")); }, 900},
-      {"05-settings-agents", [=] { call("openSettings", QString("agents")); }, 900},
+      {"04-settings-general", [=] { closePopups(); call("openSettings", QString("general")); }, 900,
+       [=] { return visibleWindows().size() == 2; }},
+      {"05-settings-agents", [=] { call("openSettings", QString("agents")); }, 900,
+       [=] { return visibleWindows().size() == 2; }},
       {"06-connecting", [=, &controller] {
          for (auto *w : QGuiApplication::topLevelWindows())
            if (w != qobject_cast<QWindow *>(root)) w->close();
          controller.connectHost(pending, {});
-       }, 800, [&controller] { return controller.state() == "logging_in"; }},
+       }, 800, [=, &controller] { return controller.state() == "logging_in" && visibleWindows().size() == 1; }},
       {"07-error", [=, &controller] {
          controller.disconnectHost();
          controller.connectHost(demo, {});
@@ -149,10 +201,10 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
       {"08-console", [=, &controller] {
          controller.disconnectHost();
          controller.connectHost(QVariantMap{{"name", "Demo console"}, {"host", "demo"}, {"family", "demo"}}, {});
-         if (auto *d = root->findChild<QObject *>("consoleDetails")) d->setProperty("checked", true);
+         set(find("consoleDetails"), "checked", true);
        }, 900, [&controller] { return controller.hasFrame(); }},
-      {"09-power-confirm", [=] { root->setProperty("pendingPower", "reset");
-         if (auto *d = root->findChild<QObject *>("powerDialog")) QMetaObject::invokeMethod(d, "open"); },
+      // Through the console's own request, as its power menu sends it.
+      {"09-power-confirm", [=] { emitWith(find("consolePane"), "powerRequested", "reset"); },
        700, [=] { return popupOpen("powerDialog"); }},
       {"10-switch", [=] {
          // Connecting another profile opens it next to the first; both stay connected.
@@ -162,78 +214,88 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
       // Keyboard and mouse go to the server: the accent ring and the status strip.
       {"10a-captured", [=] {
          window->requestActivate();
-         if (auto *c = console()) c->capture();
+         if (auto *c = consoleView()) c->capture();
        }, 500, [=] { auto *c = console(); return c && c->captured(); }},
       // Full screen: the floating bar (shown for a moment after entering) and the
-      // note that keyboard and mouse go to the server.
-      {"10b-fullscreen", [=, &app] {
-         call("toggleFullscreen");
-         QTimer::singleShot(250, &app, [=] {
-           if (auto *c = console()) { c->release(); window->requestActivate(); c->capture(); }
-         });
-       }, 800, [=] { auto *c = console(); return window->visibility() == QWindow::FullScreen && c && c->captured(); }},
+      // note that keyboard and mouse go to the server, taken again once full screen.
+      {"10b-fullscreen", [=] { call("toggleFullscreen"); }, 800, [=] {
+         auto *c = console();
+         if (window->visibility() != QWindow::FullScreen || !c)
+           return false;
+         if (!*recaptured) {
+           c->release();
+           window->requestActivate();
+           c->capture();
+           *recaptured = true;
+         }
+         return c->captured();
+       }},
       // Released in full screen: the note says how to take control again.
-      {"10b1-fullscreen-released", [=] { if (auto *c = console()) c->release(); },
+      {"10b1-fullscreen-released", [=] { if (auto *c = consoleView()) c->release(); },
        700, [=] { auto *c = console(); return window->visibility() == QWindow::FullScreen && c && !c->captured(); }},
       // Full screen without a console (a closed connection selected, as after
       // losing one): the header with Quit and the connection list stay.
       {"10b2-fullscreen-idle", [=, &controller] { call("loadHost", controller.hosts().first()); },
        700, [=, &controller] { return window->visibility() == QWindow::FullScreen && !controller.hasFrame(); }},
       {"10c-delete-confirm", [=, &controller] {
-         if (auto *c = console()) c->release();
+         if (auto *c = consoleView()) c->release();
          if (window->visibility() == QWindow::FullScreen)
            call("toggleFullscreen");
          call("deleteConnection", controller.hosts().first());
        }, 700, [=] { return popupOpen("deleteDialog") && window->visibility() != QWindow::FullScreen; }},
+      // Connecting a profile without a saved password asks for it.
       {"10d-password", [=, &controller] {
          closePopups();
-         if (auto *d = popup("credentialsDialog")) {
-           d->setProperty("profile", controller.hosts().first());
-           QMetaObject::invokeMethod(d, "open");
-         }
+         controller.connectHost(controller.hosts().first().toMap(), {});
        }, 700, [=] { return popupOpen("credentialsDialog"); }},
       // Editing a profile with security exceptions opens the advanced options;
       // scrolled to them, so a small window shows the controls themselves.
       {"10e-advanced", [=, &controller] {
+         invoke(find("credentialsDialog"), "reject"); // Cancel, as the user would
          closePopups();
-         for (const auto &h : controller.hosts())
-           if (h.toMap().value("legacyTLS").toBool()) { call("editConnection", h); break; }
-         QTimer::singleShot(300, popup("connectionDialog"), [=] {
-           QMetaObject::invokeMethod(popup("connectionDialog"), "revealAdvanced");
-         });
-       }, 700, [=] { return popupOpen("connectionDialog"); }},
+         const auto hosts = controller.hosts();
+         auto legacy = std::find_if(hosts.cbegin(), hosts.cend(),
+                                    [](const QVariant &h) { return h.toMap().value("legacyTLS").toBool(); });
+         if (legacy == hosts.cend())
+           problem("no connection with legacy TLS");
+         else
+           call("editConnection", *legacy);
+       }, 700, [=] {
+         auto *d = popup("connectionDialog");
+         if (!d || !d->property("opened").toBool())
+           return false;
+         if (!*revealed) {
+           invoke(d, "revealAdvanced");
+           *revealed = true;
+         }
+         return !d->property("revealPending").toBool();
+       }},
       // Two consoles are open, so quitting asks first and names them, also when the
       // window is closed (its close button, Alt+F4).
       {"10e1-quit-confirm", [=, &app, &controller] {
          closePopups();
-         // Both consoles of 10-switch must still be open (on a busy machine the demo
-         // backend can lose one); with only one, closing the window rightly quits.
+         // Both consoles of 10-switch must still be open; with only one, closing
+         // the window rightly quits, so the tour stops here.
          if (controller.openCount() != 2) {
-           fprintf(stderr, "Screenshot tour: %d console(s) open before 10e1-quit-confirm, expected 2\n",
-                   controller.openCount());
+           problem(QString("%1 console(s) open before 10e1-quit-confirm, expected 2").arg(controller.openCount()));
            app.exit(5);
          } else if (window->close()) {
-           fprintf(stderr, "Screenshot tour: closing the window with two consoles open did not ask first\n");
+           problem("closing the window with two consoles open did not ask first");
            app.exit(5);
          }
        }, 700, [=] { return popupOpen("disconnectAllDialog") && popup("disconnectAllDialog")->property("quitting").toBool(); }},
       // Two consoles are open, so Disconnect all asks first and names them.
       {"10f-disconnect-all", [=, &controller] {
          closePopups(); // Cancel on the quit question keeps both consoles
-         if (controller.openCount() != 2 || !window->isVisible()) {
-           fprintf(stderr, "Screenshot tour: cancelling Quit left %d console(s) open\n", controller.openCount());
-           *failed = true;
-         }
+         if (controller.openCount() != 2 || !window->isVisible())
+           problem(QString("cancelling Quit left %1 console(s) open").arg(controller.openCount()));
          call("disconnectAll");
        }, 700, [=] { return popupOpen("disconnectAllDialog") && !popup("disconnectAllDialog")->property("quitting").toBool(); }},
       // Confirms the Disconnect all dialog: it closes exactly the consoles it names.
       {"11-empty", [=, &controller] {
-         if (auto *confirm = popup("disconnectAllConfirm"))
-           QMetaObject::invokeMethod(confirm, "clicked");
-         if (controller.openCount()) {
-           fprintf(stderr, "Screenshot tour: Disconnect all left %d console(s) open\n", controller.openCount());
-           *failed = true;
-         }
+         invoke(find("disconnectAllConfirm"), "clicked");
+         if (controller.openCount())
+           problem(QString("Disconnect all left %1 console(s) open").arg(controller.openCount()));
          closePopups();
          controller.disconnectAll();
          for (const auto &h : controller.hosts()) controller.removeHost(h.toMap().value("id").toString());
@@ -243,31 +305,39 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   auto index = std::make_shared<int>(0);
   auto next = std::make_shared<std::function<void()>>();
   auto settle = std::make_shared<std::function<void(int)>>();
+  constexpr int readyLimit = 60000; // CTest's timeout bounds the whole tour
   *settle = [=, &app, &controller](int waited) {
     const auto &step = (*steps)[*index - 1];
-    if (step.ready && !step.ready() && waited < 6000) {
+    const bool ready = fit() && (!step.ready || step.ready());
+    if (!ready && waited < readyLimit) {
       QTimer::singleShot(100, &app, [=] { (*settle)(waited + 100); });
       return;
     }
-    if (step.ready && !step.ready())
-      fprintf(stderr, "Screenshot tour: %s did not become ready (state %s, error stage \"%s\", "
-              "%d console(s) open, frame %s, message \"%s\")\n", qPrintable(step.name),
-              qPrintable(controller.state()), qPrintable(controller.errorStage()), controller.openCount(),
-              controller.hasFrame() ? "shown" : "none", qPrintable(controller.message()));
+    if (!ready)
+      problem(QString("%1 did not become ready in %2 s (state %3, error stage \"%4\", %5 console(s) "
+                      "open, frame %6, message \"%7\")")
+                  .arg(step.name).arg(readyLimit / 1000).arg(controller.state(), controller.errorStage())
+                  .arg(controller.openCount())
+                  .arg(controller.hasFrame() ? "shown" : "none", controller.message()));
     (*next)();
   };
   *next = [=, &app] {
     if (*index > 0) {
       const auto &done = (*steps)[*index - 1];
       int n = 0;
-      for (auto *w : QGuiApplication::topLevelWindows())
-        if (auto *qw = qobject_cast<QQuickWindow *>(w); qw && qw->isVisible())
-          qw->grabWindow().save(dir + "/" + done.name + (n++ ? "-" + QString::number(n) : "") + ".png");
+      for (auto *w : visibleWindows()) {
+        const QString file = dir + "/" + done.name + (n++ ? "-" + QString::number(n) : "") + ".png";
+        if (!w->grabWindow().save(file))
+          problem("cannot save " + file);
+      }
     }
-    if (*index >= steps->size()) { app.exit(*failed ? 5 : qmlWarningsResult()); return; }
+    if (*index >= steps->size()) {
+      const int warnings = qmlWarningsResult(); // listed either way
+      app.exit(problems->isEmpty() ? warnings : 5);
+      return;
+    }
     auto &step = (*steps)[(*index)++];
     step.act();
-    QTimer::singleShot(qMin(300, step.wait / 2), &app, fit);
     QTimer::singleShot(step.wait, &app, [=] { (*settle)(0); });
   };
   QTimer::singleShot(300, &app, *next);
@@ -578,7 +648,9 @@ int main(int argc, char **argv) {
   engine.rootContext()->setContextProperty("agentAllowed", agentAllowed);
   engine.rootContext()->setContextProperty("agent", &agent);
   engine.rootContext()->setContextProperty("settings", &settings);
-  engine.load(QUrl("qrc:/desktop/qml/Main.qml"));
+  const QUrl mainQml("qrc:/desktop/qml/Main.qml");
+  s_qmlRoot = mainQml.adjusted(QUrl::RemoveFilename).toString();
+  engine.load(mainQml);
   if (engine.rootObjects().isEmpty())
     return 1;
   engine.rootContext()->setContextProperty("mainWindow", engine.rootObjects().first());
