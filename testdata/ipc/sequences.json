@@ -1,0 +1,46 @@
+{
+  "about": "Whole dialogues of the desktop-core IPC, in order: each step is a command the desktop sends or an event the core sends. internal/backend/sequences_test.go runs the core against a scripted console and checks that it sends exactly these events and then ends; desktop/session_test.cpp plays the events to a Session and checks that it sends exactly these commands, with the ids it gives them. The picture, on the video socket, is not part of a dialogue.",
+  "consoleInUse": [
+    {"desktop": {"version": 1, "id": 1, "op": "connect", "profile": {"host": "bmc1.example.net"}, "password": "pw-1"}},
+    {"core": {"version": 1, "type": "state", "state": "logging_in"}},
+    {"core": {"version": 1, "type": "state", "state": "discovering"}},
+    {"core": {"version": 1, "type": "state", "state": "connecting", "info": {
+      "protocol": "AMI IVTP",
+      "endpoints": [{"role": "Video / input", "address": "bmc1.example.net:7578", "transport": "TLS"}],
+      "capabilities": ["Video", "Keyboard", "Pointer"],
+      "legacyTLS": false
+    }}},
+    {"core": {"version": 1, "type": "state", "state": "connected"}},
+    {"desktop": {"version": 1, "id": 2, "op": "key", "input": {"usage": 4, "down": true}}},
+    {"core": {"version": 1, "id": 2, "type": "ok"}},
+    {"desktop": {"version": 1, "id": 3, "op": "mount", "path": "/srv/iso/install.iso"}},
+    {"core": {"version": 1, "id": 3, "type": "ok", "mounted": true}},
+    {"core": {"version": 1, "type": "media", "mounted": false}},
+    {"desktop": {"version": 1, "id": 4, "op": "power", "action": "soft"}},
+    {"core": {"version": 1, "id": 4, "type": "error", "message": "power control requires account credentials"}},
+    {"core": {"version": 1, "type": "error", "state": "disconnected", "message": "EOF"}}
+  ],
+  "loginFails": [
+    {"desktop": {"version": 1, "id": 1, "op": "connect", "profile": {"host": "bmc1.example.net"}, "password": "pw-1"}},
+    {"core": {"version": 1, "type": "state", "state": "logging_in"}},
+    {"core": {"version": 1, "type": "error", "state": "disconnected", "message": "Login failed: the BMC rejected the login"}}
+  ],
+  "discoveryFails": [
+    {"desktop": {"version": 1, "id": 1, "op": "connect", "profile": {"host": "bmc1.example.net"}, "password": "pw-1"}},
+    {"core": {"version": 1, "type": "state", "state": "logging_in"}},
+    {"core": {"version": 1, "type": "state", "state": "discovering"}},
+    {"core": {"version": 1, "type": "error", "state": "disconnected", "message": "Console discovery failed: no console found"}}
+  ],
+  "connectionFails": [
+    {"desktop": {"version": 1, "id": 1, "op": "connect", "profile": {"host": "bmc1.example.net"}, "password": "pw-1"}},
+    {"core": {"version": 1, "type": "state", "state": "logging_in"}},
+    {"core": {"version": 1, "type": "state", "state": "discovering"}},
+    {"core": {"version": 1, "type": "state", "state": "connecting", "info": {
+      "protocol": "AMI IVTP",
+      "endpoints": [{"role": "Video / input", "address": "bmc1.example.net:7578", "transport": "TLS"}],
+      "capabilities": ["Video", "Keyboard", "Pointer"],
+      "legacyTLS": false
+    }}},
+    {"core": {"version": 1, "type": "error", "state": "disconnected", "message": "Console connection failed: EOF"}}
+  ]
+}

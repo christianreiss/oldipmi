@@ -194,6 +194,65 @@ private slots:
     delete s;
   }
 
+  // sequences.json: whole dialogues, which internal/backend checks the core
+  // sends exactly so. Played to a Session, each ends as it should: the core
+  // receives exactly the fixture's commands, ids included, every reply settles
+  // its callback, the last message stays, and a stage that fails names itself.
+  void dialoguesPlayToASession_data() {
+    QTest::addColumn<QString>("name");
+    QTest::addColumn<QString>("errorStage");
+    QTest::addColumn<QStringList>("results");
+    QTest::newRow("console in use") << "consoleInUse" << QString()
+                                    << QStringList{"1", "1", "0 power control requires account credentials"};
+    QTest::newRow("login fails") << "loginFails" << QString(ipc::StageLoggingIn) << QStringList();
+    QTest::newRow("discovery fails") << "discoveryFails" << QString(ipc::StageDiscovering) << QStringList();
+    QTest::newRow("connection fails") << "connectionFails" << QString(ipc::StageConnecting) << QStringList();
+  }
+  void dialoguesPlayToASession() {
+    QFETCH(QString, name);
+    QFETCH(QString, errorStage);
+    QFETCH(QStringList, results);
+    const QJsonArray dialogue = fixture("sequences.json")[name].toArray();
+    QVERIFY(!dialogue.isEmpty());
+    QJsonArray steps;
+    QList<QJsonObject> desktop;
+    QJsonObject last;
+    for (const auto &v : dialogue) {
+      const QJsonObject step = v.toObject();
+      if (step.contains("desktop")) {
+        desktop << step["desktop"].toObject();
+        steps << QJsonObject{{"expect", desktop.last()["op"]}};
+        continue;
+      }
+      last = step["core"].toObject();
+      steps << send(last);
+      if (last["state"] == ipc::StateConnected) // a picture, on the video socket
+        steps << QJsonObject{{"frame", QJsonArray{64, 48}}};
+    }
+    auto *s = start(steps, desktop.value(0)["profile"].toObject().toVariantMap());
+    QStringList got;
+    auto record = [&got](bool ok, QString m) { got << (QString::number(ok) + " " + m).trimmed(); };
+    for (int i = 1; i < desktop.size(); ++i) {
+      if (i == 1) {
+        QTRY_VERIFY(s->connected());
+        QTRY_VERIFY(!s->lastFrame.isNull());
+      }
+      QJsonObject c = desktop[i];
+      c.remove("version"); // Session numbers its commands itself
+      c.remove("id");
+      s->command(c, this, record);
+      QTRY_COMPARE(got.size(), i);
+    }
+    QTRY_COMPARE(s->state, QString(ipc::StateDisconnected));
+    QTRY_COMPARE(commands().size(), desktop.size());
+    QCOMPARE(commands(), desktop);
+    QCOMPARE(got, results);
+    QCOMPARE(s->message, last["message"].toString());
+    QCOMPARE(s->errorStage, errorStage);
+    QVERIFY(!s->mounted);
+    delete s;
+  }
+
   // Broken framing from the core ends the session with its own message.
   void brokenFraming_data() {
     QTest::addColumn<QJsonObject>("step");
