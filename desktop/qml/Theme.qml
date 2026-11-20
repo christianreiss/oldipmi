@@ -141,7 +141,7 @@ Item {
         return out;
     }
     // A state colour as text on a tint of itself (chips): moved towards the text
-    // colour until it reaches 4.5:1 on the surface.
+    // colour until it reaches 4.8:1 on the surface.
     function toneText(c, surface) {
         const bg = surface === undefined ? (dark ? card : view) : surface;
         let out = c;

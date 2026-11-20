@@ -39,14 +39,17 @@ no window; everything else is derived from them:
   a colour keeps its hue when it is darkened or lightened.
 * **Accent:** `accentStrong` (filled buttons; darkened until white text reaches
   4.6:1), `accentTint` (selection, tiles), `accentEdge`. `toneText()` moves a state
-  colour towards the text colour until it reaches 4.5:1 on its surface (chips,
+  colour towards the text colour until it reaches 4.8:1 on its surface (chips,
   warnings); `dangerStrong` is the filled red of destructive confirmations.
 * **Stage:** constant dark colours for the stage, its strip, text and controls on it.
 * **Sizes:** `gu` is the height of a line of text (the larger of Kirigami's grid unit
   and the font's line height), so a larger system font grows the chrome with it.
-  Control and header heights, margins and panel widths are multiples of `gu`; corner
-  radii are fixed (6/9/14/16 px).
-* **Type:** factors of the system font (small, tiny, title, heading, display).
+  Control and header heights, margins and panel widths are multiples of `gu`. Corner
+  radii are fixed: the tokens are 6/9/14/16 px (`radiusSmall`, `radius`,
+  `radiusLarge`, `radiusHuge`); grouped panels and menus use `radius + 3` (12 px),
+  focus outlines their item's radius plus 2 or 3, round items half their size, and
+  a few small marks fixed values of 2 to 10 px.
+* **Type:** factors of the system font (small, tiny, title, heading, display, hero).
 
 ## Layout
 
@@ -214,11 +217,11 @@ there does not capture. The console unit tests (`console_tests`) cover the
 capture rules, the Right Ctrl tap and the margin around the picture included.
 `slop scan desktop`
 checks the QML/C++ sources; `slop native --config tools/slop/native.json`
-captures the state matrix in light and dark, two window sizes, scale 1 and 2 and
-text scale 1 and 1.5, and `slop measure` checks text contrast on those PNGs. The
-console states legitimately contain a large dark area (the stage and the
-letterbox around the remote screen), so `renderChecks.maxBlack` is 0.25 instead
-of 0.10.
+captures the state matrix in light and dark, two window sizes (1200x800 and
+720x480), scale 1 and 2 and text scale 1 and 1.5, and `slop measure` checks text
+contrast on those PNGs. The console states legitimately contain a large dark area
+(the stage and the letterbox around the remote screen), so
+`renderChecks.maxBlack` is 0.25 instead of 0.10.
 
 Secondary text (addresses, captions, group headings, key hints) uses `Theme.muted`,
 the text colour mixed 28% (dark: 30%) towards the window colour, not

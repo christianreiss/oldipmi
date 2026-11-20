@@ -213,11 +213,11 @@ python3 packaging/bundle.py
 Packaging additionally uses `mksquashfs`, `patchelf`, `qmake6` and
 Python 3. It bundles the native executables, Qt/KDE QML modules, platform plugins,
 fonts and shared-library dependencies, including a private glibc and loader.
-GPU drivers remain host-provided. The 0.1 bundle passed an offscreen rendering
-check in a clean Ubuntu 24.04 userspace; the 0.2.0 bundle (with Kirigami
-Addons) has been checked offscreen on the Fedora build host only, and a full
-Ubuntu desktop session has not been tested. The private loader avoids Fedora Qt libraries requiring a newer
-host glibc. The release checksum is in `dist/SHA256SUMS`.
+GPU drivers remain host-provided. The private loader avoids Fedora Qt libraries
+requiring a newer host glibc. The last bundle, of 0.2.0 (with Kirigami Addons),
+was checked offscreen on the Fedora build host only; the 0.1 bundle also passed an
+offscreen check in a clean Ubuntu 24.04 userspace. A full Ubuntu desktop
+session has not been tested. The checksum of a bundle is in `dist/SHA256SUMS`.
 
 Without FUSE, use `--appimage-extract-and-run`, or `--appimage-extract` and run
 `squashfs-root/AppRun`. `dist/OldIPMI.AppDir/AppRun` is the unpacked equivalent.
