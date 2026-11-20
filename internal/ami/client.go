@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"oldipmi/internal/ami/iusb"
 	"oldipmi/internal/ami/vmedia"
 	"oldipmi/internal/hid"
 	"oldipmi/internal/power"
@@ -221,25 +222,13 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 	}
 }
 func (c *Client) hidPacket(device, proto, iface byte, report []byte) error {
-	p := make([]byte, 33+len(report))
-	copy(p, []byte("IUSB    "))
-	p[8] = 1
-	p[10] = 32
-	binary.LittleEndian.PutUint32(p[12:], uint32(len(report)+1))
-	p[17] = device
-	p[18] = proto
-	p[19] = 128
-	p[20] = 2
-	p[21] = iface
 	c.seq++
-	binary.LittleEndian.PutUint32(p[24:], c.seq)
-	p[32] = byte(len(report))
-	copy(p[33:], report)
-	var sum byte
-	for _, v := range p[:32] {
-		sum += v
-	}
-	p[11] = -sum
+	h := iusb.Header{Major: iusb.Major, Minor: iusb.Minor, DataPacketLen: uint32(len(report) + 1), DeviceType: device,
+		Protocol: proto, Direction: 128, DeviceNumber: 2, InterfaceNumber: iface, SequenceNumber: c.seq}
+	p := make([]byte, iusb.HeaderLen+1+len(report))
+	h.Marshal(p)
+	p[iusb.HeaderLen] = byte(len(report))
+	copy(p[iusb.HeaderLen+1:], report)
 	w, t := c.wire, opHIDPkt
 	if c.hid != nil {
 		w, t = c.hid, vscHID

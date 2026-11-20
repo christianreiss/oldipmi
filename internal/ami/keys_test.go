@@ -2,6 +2,7 @@ package ami
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"net"
 	"oldipmi/internal/hid"
@@ -12,7 +13,10 @@ import (
 
 // AMI sends the keyboard as a USB boot report in an IUSB packet after every
 // key event (hid.Pressed builds it); Release sends an empty report, then a
-// pointer report without buttons.
+// pointer report without buttons. Each IUSB header carries version 1.0, its
+// length, the payload length, the device (keyboard 48 with protocol 16 on
+// interface 0, pointer 49 with 32 on 1), direction 128, device number 2, a
+// sequence number from 1 and the checksum that makes its bytes sum to zero.
 func TestKeyboardReports(t *testing.T) {
 	srv, cli := net.Pipe()
 	defer srv.Close()
@@ -24,11 +28,30 @@ func TestKeyboardReports(t *testing.T) {
 		go func() { done <- f() }()
 		return done
 	}
+	seq := uint32(0)
 	report := func() []byte {
 		t.Helper()
 		typ, b, err := bmc.read()
 		if err != nil || typ != opHIDPkt || len(b) < 33 || string(b[:8]) != "IUSB    " || int(b[32]) != len(b)-33 {
 			t.Fatalf("packet %d % x: %v", typ, b, err)
+		}
+		hdr := make([]byte, 32)
+		copy(hdr, "IUSB    ")
+		hdr[8], hdr[10] = 1, 32
+		binary.LittleEndian.PutUint32(hdr[12:], uint32(len(b)-32))
+		hdr[17], hdr[18], hdr[19], hdr[20], hdr[21] = 48, 16, 128, 2, 0
+		if len(b)-33 == 6 {
+			hdr[17], hdr[18], hdr[21] = 49, 32, 1
+		}
+		seq++
+		binary.LittleEndian.PutUint32(hdr[24:], seq)
+		var sum byte
+		for _, v := range hdr {
+			sum += v
+		}
+		hdr[11] = -sum
+		if !bytes.Equal(b[:32], hdr) {
+			t.Fatalf("IUSB header\n% x\nwant\n% x", b[:32], hdr)
 		}
 		return b[33:]
 	}

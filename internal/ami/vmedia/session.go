@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"oldipmi/internal/ami/iusb"
 
 	"time"
 )
@@ -107,11 +108,11 @@ func (s *Session) Close() error { return s.conn.Close() }
 // readPacket reads one IUSB packet: the 32-byte header, then DataPacketLen
 // payload bytes (the framing length lives at header offset 12, little-endian).
 func (s *Session) readPacket() (*Packet, error) {
-	hdr := make([]byte, HeaderLen)
+	hdr := make([]byte, iusb.HeaderLen)
 	if _, err := io.ReadFull(s.conn, hdr); err != nil {
 		return nil, err
 	}
-	h, err := parseHeader(hdr)
+	h, err := iusb.ParseHeader(hdr)
 	if err != nil {
 		return nil, err
 	}
@@ -129,10 +130,10 @@ func (s *Session) readPacket() (*Packet, error) {
 // and sequence number, deviceType, direction=128, DataPacketLen=len(payload))
 // followed by the payload.
 func (s *Session) writeResponse(req *Packet, payload []byte) error {
-	out := make([]byte, HeaderLen+len(payload))
-	h := Header{
-		Major:          iusbMajor,
-		Minor:          iusbMinor,
+	out := make([]byte, iusb.HeaderLen+len(payload))
+	h := iusb.Header{
+		Major:          iusb.Major,
+		Minor:          iusb.Minor,
 		DataPacketLen:  uint32(len(payload)),
 		DeviceType:     s.deviceType,
 		Protocol:       1,
@@ -140,8 +141,8 @@ func (s *Session) writeResponse(req *Packet, payload []byte) error {
 		Instance:       req.Header.Instance,
 		SequenceNumber: req.Header.SequenceNumber,
 	}
-	h.marshal(out)
-	copy(out[HeaderLen:], payload)
+	h.Marshal(out)
+	copy(out[iusb.HeaderLen:], payload)
 	if s.Debug {
 		log.Printf("vmedia: → resp seq=%d (%d payload bytes)\n%s",
 			h.SequenceNumber, len(payload), hex.Dump(payload[:min(len(payload), 48)]))

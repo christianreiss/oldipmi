@@ -6,8 +6,9 @@ Apache-2.0, BSD-3-Clause), all compatible with it.
 
 The native application contains no vendor Java code, JARs or shared libraries.
 
-* `internal/video/ast` (formerly `internal/ami/codec`), `internal/ami/vmedia`
-  and `internal/ami/ivtp.go` originate in Anton Musin's MIT-licensed
+* `internal/video/ast` (formerly `internal/ami/codec`), `internal/ami/vmedia`,
+  `internal/ami/iusb` (split from it) and `internal/ami/ivtp.go` originate in
+  Anton Musin's MIT-licensed
   [rd450x-console](https://github.com/BadCoder1337/rd450x-console), revision
   `8a24282cf6411d8cbd72138c3cf5c49a367cd05b`.
   Local changes remove trust-all dialing and add bounded, cancellable transport.

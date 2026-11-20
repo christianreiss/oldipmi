@@ -2,6 +2,7 @@ package vmedia
 
 import (
 	"fmt"
+	"oldipmi/internal/ami/iusb"
 	"strings"
 )
 
@@ -16,19 +17,19 @@ import (
 //
 // token is the STOKEN minted by the web login (ami.Launch.Token).
 func buildAuth(deviceType, instance uint8, token string) []byte {
-	pkt := make([]byte, HeaderLen+authPayloadLen)
-	h := Header{
-		Major:         iusbMajor,
-		Minor:         iusbMinor,
+	pkt := make([]byte, iusb.HeaderLen+authPayloadLen)
+	h := iusb.Header{
+		Major:         iusb.Major,
+		Minor:         iusb.Minor,
 		DataPacketLen: authPayloadLen,
 		DeviceType:    deviceType,
 		Protocol:      1,
 		Direction:     128,
 		Instance:      instance,
 	}
-	h.marshal(pkt)
+	h.Marshal(pkt)
 
-	payload := pkt[HeaderLen:]
+	payload := pkt[iusb.HeaderLen:]
 	payload[opcodeOffset] = OpAuth
 	payload[connStatusOffset] = 0
 	copy(payload[authTokenOffset:], token)
