@@ -648,7 +648,7 @@ ColumnLayout {
                     // Full screen has no status strip: taking or giving back the keyboard
                     // shows a short note instead, how to release or how to take control
                     // again. It covers nothing for long and moves nothing.
-                    Timer { id: toastTimer; interval: 2600 }
+                    Timer { id: toastTimer; objectName: "fullscreenNoteTimer"; interval: 2600 }
                     Connections {
                         target: view
                         function onCapturedChanged() { if (root.fullscreen) toastTimer.restart() }

@@ -11,6 +11,7 @@
 #include <cstring>
 #include <QApplication>
 #include <QClipboard>
+#include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -26,6 +27,7 @@
 #include <QQmlContext>
 #include <QQuickWindow>
 #include <QStandardPaths>
+#include <QStyleHints>
 #include <QTimer>
 #include <QWindow>
 #include <functional>
@@ -58,6 +60,9 @@ static int qmlWarningsResult() {
 // It fails loudly, with exit 5: a step that never becomes ready, a named object
 // that is missing, a QML method, signal or property that does not exist, or a
 // PNG that cannot be saved. QML warnings make it exit 6.
+// The self-test's clock: every "elapsed" and "last connected" label reads the
+// same in every run (the QML gets it as testClock; 0 is the real time).
+static const QDateTime s_testNow = QDateTime::fromString("2026-01-15T09:41:00Z", Qt::ISODate);
 // The tour's connections, written to the test-mode profiles file before the
 // controller reads it: every run starts from the same list, whatever an earlier
 // run left (the tour removes them at its end). Returns the file, or "" on failure.
@@ -66,7 +71,8 @@ static QString writeTourProfiles() {
   const QString path = QDir(dir).filePath("hosts.json");
   const QJsonArray profiles{
       QJsonObject{{"id", "tour-ami"}, {"name", "Lab-AMI"}, {"host", "lab-ami.example.net"},
-                  {"username", "ADMIN"}, {"family", "ami"}, {"remember", false}},
+                  {"username", "ADMIN"}, {"family", "ami"}, {"remember", false},
+                  {"lastConnected", s_testNow.addSecs(-2 * 3600).toString(Qt::ISODate)}},
       QJsonObject{{"id", "tour-aten"}, {"name", "Lab-ATEN"}, {"host", "lab-aten.example.net"},
                   {"username", "ADMIN"}, {"family", "aten"}, {"remember", false}},
       QJsonObject{{"id", "tour-avocent"}, {"name", "Lab-Avocent"}, {"host", "lab-avocent.example.net"},
@@ -176,7 +182,31 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   // The login stays pending until it is cancelled, however long the step takes.
   QVariantMap pending{{"name", "Lab server"}, {"host", "demo-hang"}, {"family", "demo"},
                       {"remember", false}};
-  auto recaptured = std::make_shared<bool>(false); // 10b: control taken again in full screen
+  // The full-screen bar shows for a moment after entering full screen, and the
+  // note after taking or giving back control: both are set before the grab
+  // instead of hoping that it comes in time. True once both have settled.
+  const QList<QObject *> transient{find("fullscreenPeek"), find("fullscreenNoteTimer"),
+                                   find("fullscreenBar"), find("fullscreenNote")};
+  auto transients = [=](bool shown) {
+    if (transient.contains(nullptr))
+      return true; // find() reported it
+    for (auto *timer : transient.mid(0, 2))
+      if (timer->property("running").toBool() != shown)
+        invoke(timer, shown ? "restart" : "stop");
+    const double settled = shown ? 1 : 0;
+    return transient[2]->property("opacity").toDouble() == settled &&
+           transient[3]->property("opacity").toDouble() == settled;
+  };
+  // Keyboard and mouse to the server, once the window is active.
+  auto takeControl = [=] {
+    auto *c = console();
+    if (!c || !window->isActive())
+      return false;
+    if (!c->captured())
+      c->capture();
+    return c->captured();
+  };
+  auto recaptured = std::make_shared<bool>(false); // 10b: control given back and taken again in full screen
   auto revealed = std::make_shared<bool>(false);   // 10e: scrolled to the advanced options
   auto steps = std::make_shared<QList<Step>>(QList<Step>{
       {"01-selected", [] {}, 600},
@@ -212,10 +242,12 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
          call("connectProfile", QVariantMap{{"name", "Demo wide"}, {"host", "demo-1920x1080"}, {"family", "demo"}});
        }, 900, [&controller] { return controller.hasFrame() && controller.openCount() == 2; }},
       // Keyboard and mouse go to the server: the accent ring and the status strip.
+      // The window is activated first: activation arrives later than the request and
+      // resets the focus, so control is taken once the window is active.
       {"10a-captured", [=] {
          window->requestActivate();
-         if (auto *c = consoleView()) c->capture();
-       }, 500, [=] { auto *c = console(); return c && c->captured(); }},
+         consoleView();
+       }, 500, [=] { return takeControl(); }},
       // Full screen: the floating bar (shown for a moment after entering) and the
       // note that keyboard and mouse go to the server, taken again once full screen.
       {"10b-fullscreen", [=] { call("toggleFullscreen"); }, 800, [=] {
@@ -225,18 +257,22 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
          if (!*recaptured) {
            c->release();
            window->requestActivate();
-           c->capture();
            *recaptured = true;
          }
-         return c->captured();
+         return takeControl() && transients(true);
        }},
       // Released in full screen: the note says how to take control again.
       {"10b1-fullscreen-released", [=] { if (auto *c = consoleView()) c->release(); },
-       700, [=] { auto *c = console(); return window->visibility() == QWindow::FullScreen && c && !c->captured(); }},
+       700, [=] {
+         auto *c = console();
+         return window->visibility() == QWindow::FullScreen && c && !c->captured() && transients(true);
+       }},
       // Full screen without a console (a closed connection selected, as after
       // losing one): the header with Quit and the connection list stay.
       {"10b2-fullscreen-idle", [=, &controller] { call("loadHost", controller.hosts().first()); },
-       700, [=, &controller] { return window->visibility() == QWindow::FullScreen && !controller.hasFrame(); }},
+       700, [=, &controller] {
+         return window->visibility() == QWindow::FullScreen && !controller.hasFrame() && transients(false);
+       }},
       {"10c-delete-confirm", [=, &controller] {
          if (auto *c = consoleView()) c->release();
          if (window->visibility() == QWindow::FullScreen)
@@ -313,12 +349,15 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
       QTimer::singleShot(100, &app, [=] { (*settle)(waited + 100); });
       return;
     }
-    if (!ready)
+    if (!ready) {
+      auto *focus = window->activeFocusItem();
       problem(QString("%1 did not become ready in %2 s (state %3, error stage \"%4\", %5 console(s) "
-                      "open, frame %6, message \"%7\")")
+                      "open, frame %6, message \"%7\", window %8, focus on %9)")
                   .arg(step.name).arg(readyLimit / 1000).arg(controller.state(), controller.errorStage())
                   .arg(controller.openCount())
-                  .arg(controller.hasFrame() ? "shown" : "none", controller.message()));
+                  .arg(controller.hasFrame() ? "shown" : "none", controller.message(),
+                       window->isActive() ? "active" : "not active", focus ? label(focus) : "nothing"));
+    }
     (*next)();
   };
   *next = [=, &app] {
@@ -594,8 +633,10 @@ int main(int argc, char **argv) {
   if (test)
     QStandardPaths::setTestModeEnabled(true);
   QApplication app(argc, argv);
-  if (test)
+  if (test) {
     s_previousHandler = qInstallMessageHandler(recordQmlWarning);
+    QGuiApplication::styleHints()->setCursorFlashTime(0); // a steady cursor in every screenshot
+  }
   app.setApplicationName("OldIPMI");
   app.setOrganizationName("OldIPMI");
   app.setApplicationVersion(OLDIPMI_VERSION);
@@ -648,6 +689,7 @@ int main(int argc, char **argv) {
   engine.rootContext()->setContextProperty("agentAllowed", agentAllowed);
   engine.rootContext()->setContextProperty("agent", &agent);
   engine.rootContext()->setContextProperty("settings", &settings);
+  engine.rootContext()->setContextProperty("testClock", test ? double(s_testNow.toMSecsSinceEpoch()) : 0.0);
   const QUrl mainQml("qrc:/desktop/qml/Main.qml");
   s_qmlRoot = mainQml.adjusted(QUrl::RemoveFilename).toString();
   engine.load(mainQml);

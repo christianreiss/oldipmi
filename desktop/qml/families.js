@@ -91,9 +91,10 @@ function exceptions(p) {
     if (p.allowPlainConsole) out.push("Unencrypted console");
     return out.join(", ");
 }
-function relativeTime(iso) {
+// `now` (ms) defaults to the current time.
+function relativeTime(iso, now) {
     if (!iso) return "never";
-    var d = new Date(iso), s = (Date.now() - d.getTime()) / 1000;
+    var d = new Date(iso), s = ((now === undefined ? Date.now() : now) - d.getTime()) / 1000;
     if (isNaN(s)) return "never";
     if (s < 60) return "just now";
     if (s < 3600) return Math.round(s / 60) + " min ago";

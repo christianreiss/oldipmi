@@ -88,13 +88,15 @@ Item {
     readonly property real display: fontBase * 2.05
     readonly property real hero: fontBase * 2.3
 
-    // One clock for every elapsed-time label ("Logging in · 0:04").
-    property double now: Date.now()
+    // One clock for every elapsed-time label ("Logging in · 0:04"). The self-test
+    // stops it at a fixed time (testClock), so its screenshots do not change.
+    function clock() { return testClock > 0 ? testClock : Date.now() }
+    property double now: clock()
     Timer {
         interval: 1000
         repeat: true
-        running: true
-        onTriggered: theme.now = Date.now()
+        running: testClock === 0
+        onTriggered: theme.now = theme.clock()
     }
 
     // Clipboard without another import: a hidden text editor copies its selection.
