@@ -84,8 +84,8 @@ Rectangle {
                         duration: 1400
                         loops: Animation.Infinite
                         // Still when the system turns animations off (Kirigami's durations
-                        // follow it); the stages and the elapsed time show the progress.
-                        running: page.visible && !page.waiting && Kirigami.Units.longDuration > 0
+                        // are then 1 ms, never 0); the stages and the elapsed time show the progress.
+                        running: page.visible && !page.waiting && Kirigami.Units.longDuration > 1
                     }
                 }
                 Image {

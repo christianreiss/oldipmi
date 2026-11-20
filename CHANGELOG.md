@@ -33,6 +33,11 @@
   or while the window was busy closing another console, open consoles ended with
   "Connection ended". It now waits up to 30 seconds, and still ends a session
   whose window stopped responding altogether.
+* **The connecting animation stands still when animations are turned off.** With
+  animations turned off in the system settings, the ring around the server picture
+  kept turning while a console opened: KDE then reports animations as 1 ms long, not
+  0. It now stands still as intended; the stages and the elapsed time show the
+  progress.
 
 ## 0.3.0 (2026-11-19)
 
