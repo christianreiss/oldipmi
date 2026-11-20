@@ -305,6 +305,10 @@ side sends them. The Go tests check that the core reads every key the desktop
 sends and sends its events in exactly that form; the C++ tests check the desktop
 against the same files, with a stand-in core (`desktop/fakecore_test.cpp`) that
 plays a script. A change to either side's messages changes these files.
+`testdata/agent` does the same for the agent socket: requests as `oldipmi-mcp`
+sends them and the replies the app gave on its demo console. The `agent_api`
+test replays them (`UPDATE_GOLDEN=1` records the replies anew), and the MCP
+tools are tested on those replies.
 
 CTest runs every test with a fresh, private home and runtime directory
 (`tools/isolated.sh`), so it never touches your settings, wallet, `~/.qttest` or

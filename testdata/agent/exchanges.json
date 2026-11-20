@@ -1,0 +1,707 @@
+{
+    "exchanges": [
+        {
+            "args": {
+                "name": "fixture-agent",
+                "protocol": "2025-06-18",
+                "version": "1.0"
+            },
+            "ok": true,
+            "op": "hello",
+            "result": {
+                "app": "OldIPMI",
+                "version": ""
+            },
+            "vary": [
+                "version"
+            ]
+        },
+        {
+            "args": {
+            },
+            "ok": true,
+            "op": "list_profiles",
+            "result": {
+                "profiles": [
+                    {
+                        "family": "demo",
+                        "host": "demo",
+                        "id": "demo-1",
+                        "name": "Demo",
+                        "passwordSaved": false,
+                        "username": ""
+                    },
+                    {
+                        "family": "demo",
+                        "host": "demo-fail",
+                        "id": "demo-2",
+                        "name": "Demo Fail",
+                        "passwordSaved": false,
+                        "username": ""
+                    },
+                    {
+                        "family": "demo",
+                        "host": "demo-1920x1080",
+                        "id": "demo-3",
+                        "name": "Wide",
+                        "passwordSaved": false,
+                        "username": ""
+                    },
+                    {
+                        "family": "ami",
+                        "host": "bmc.invalid",
+                        "id": "fake-1",
+                        "name": "Fake",
+                        "passwordSaved": false,
+                        "username": "x"
+                    }
+                ]
+            }
+        },
+        {
+            "args": {
+            },
+            "ok": true,
+            "op": "status",
+            "result": {
+                "changeSeq": 0,
+                "consoleInfo": {
+                },
+                "frameSeq": 0,
+                "height": 0,
+                "message": "",
+                "mounted": false,
+                "msSinceChange": 0,
+                "passwordRequired": false,
+                "sessions": [
+                ],
+                "state": "disconnected",
+                "width": 0
+            }
+        },
+        {
+            "args": {
+            },
+            "error": "No frame yet (state: disconnected). Connect first, or wait_for_change after connecting.",
+            "ok": false,
+            "op": "screenshot"
+        },
+        {
+            "args": {
+                "down": true,
+                "usage": 4
+            },
+            "error": "Not connected (state: disconnected). Use connect first.",
+            "ok": false,
+            "op": "key"
+        },
+        {
+            "args": {
+                "profile": "nope"
+            },
+            "error": "No profile named 'nope'. Available: Demo, Demo Fail, Wide, Fake.",
+            "ok": false,
+            "op": "connect"
+        },
+        {
+            "args": {
+                "profile": "demo"
+            },
+            "ok": true,
+            "op": "connect",
+            "result": {
+                "profile": {
+                    "family": "demo",
+                    "host": "demo",
+                    "id": "demo-1",
+                    "name": "Demo"
+                },
+                "state": "logging_in"
+            }
+        },
+        {
+            "profile": "demo-1",
+            "wait": "connected"
+        },
+        {
+            "args": {
+                "profile": "Demo"
+            },
+            "ok": true,
+            "op": "connect",
+            "result": {
+                "already": true,
+                "profile": {
+                    "family": "demo",
+                    "host": "demo",
+                    "id": "demo-1",
+                    "name": "Demo"
+                },
+                "state": "connected"
+            }
+        },
+        {
+            "args": {
+            },
+            "ok": true,
+            "op": "status",
+            "result": {
+                "changeSeq": 1,
+                "consoleInfo": {
+                    "capabilities": [
+                        "Video",
+                        "Keyboard",
+                        "Pointer",
+                        "Power",
+                        "Read-only ISO"
+                    ],
+                    "endpoints": [
+                        {
+                            "address": "in-process",
+                            "role": "Video / input",
+                            "transport": "none"
+                        }
+                    ],
+                    "legacyTLS": false,
+                    "protocol": "OldIPMI demo (synthetic, no network)",
+                    "resolution": "1024 × 768"
+                },
+                "frameSeq": 1,
+                "height": 768,
+                "message": "Connected — click the console to control it.",
+                "mounted": false,
+                "msSinceChange": 1,
+                "passwordRequired": false,
+                "profile": {
+                    "family": "demo",
+                    "host": "demo",
+                    "id": "demo-1",
+                    "name": "Demo"
+                },
+                "sessions": [
+                    {
+                        "family": "demo",
+                        "host": "demo",
+                        "id": "demo-1",
+                        "name": "Demo",
+                        "state": "connected"
+                    }
+                ],
+                "state": "connected",
+                "width": 1024
+            },
+            "vary": [
+                "frameSeq",
+                "changeSeq",
+                "msSinceChange"
+            ]
+        },
+        {
+            "args": {
+                "height": 6,
+                "width": 8,
+                "x": 0,
+                "y": 0
+            },
+            "ok": true,
+            "op": "screenshot",
+            "result": {
+                "fullHeight": 768,
+                "fullWidth": 1024,
+                "height": 6,
+                "png": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAFElEQVQImWPU989nwAaYsIrSSQIAjN4A+XCzEOkAAAAASUVORK5CYII=",
+                "regionH": 6,
+                "regionW": 8,
+                "width": 8,
+                "x": 0,
+                "y": 0
+            },
+            "vary": [
+                "png"
+            ]
+        },
+        {
+            "args": {
+                "width": 10,
+                "x": 1020
+            },
+            "error": "Region outside the 1024x768 framebuffer.",
+            "ok": false,
+            "op": "screenshot"
+        },
+        {
+            "args": {
+                "scale": 2
+            },
+            "error": "scale must be between 0.1 and 1.0.",
+            "ok": false,
+            "op": "screenshot"
+        },
+        {
+            "args": {
+                "down": true,
+                "usage": 4
+            },
+            "ok": true,
+            "op": "key",
+            "result": {
+            }
+        },
+        {
+            "args": {
+                "down": false,
+                "usage": 4
+            },
+            "ok": true,
+            "op": "key",
+            "result": {
+            }
+        },
+        {
+            "args": {
+                "down": true,
+                "usage": 3
+            },
+            "error": "Invalid key usage.",
+            "ok": false,
+            "op": "key"
+        },
+        {
+            "args": {
+                "buttons": 1,
+                "wheel": 0,
+                "x": 10,
+                "y": 10
+            },
+            "ok": true,
+            "op": "pointer",
+            "result": {
+            }
+        },
+        {
+            "args": {
+                "buttons": 0,
+                "wheel": 0,
+                "x": 10,
+                "y": 10
+            },
+            "ok": true,
+            "op": "pointer",
+            "result": {
+            }
+        },
+        {
+            "args": {
+                "buttons": 0,
+                "wheel": 0,
+                "x": 2000,
+                "y": 10
+            },
+            "error": "Point 2000,10 is outside the 1024x768 framebuffer.",
+            "ok": false,
+            "op": "pointer"
+        },
+        {
+            "args": {
+            },
+            "ok": true,
+            "op": "release",
+            "result": {
+            }
+        },
+        {
+            "args": {
+                "action": "soft"
+            },
+            "ok": true,
+            "op": "power",
+            "result": {
+                "message": "Power action 'soft' accepted."
+            }
+        },
+        {
+            "args": {
+                "action": "boot"
+            },
+            "error": "Unknown power action.",
+            "ok": false,
+            "op": "power"
+        },
+        {
+            "args": {
+                "path": "relative.iso"
+            },
+            "error": "path must be an absolute, readable .iso file.",
+            "ok": false,
+            "op": "mount"
+        },
+        {
+            "args": {
+                "path": "$ISO"
+            },
+            "ok": true,
+            "op": "mount",
+            "result": {
+                "message": ""
+            }
+        },
+        {
+            "args": {
+            },
+            "ok": true,
+            "op": "status",
+            "result": {
+                "changeSeq": 4,
+                "consoleInfo": {
+                    "capabilities": [
+                        "Video",
+                        "Keyboard",
+                        "Pointer",
+                        "Power",
+                        "Read-only ISO"
+                    ],
+                    "endpoints": [
+                        {
+                            "address": "in-process",
+                            "role": "Video / input",
+                            "transport": "none"
+                        }
+                    ],
+                    "legacyTLS": false,
+                    "protocol": "OldIPMI demo (synthetic, no network)",
+                    "resolution": "1024 × 768"
+                },
+                "frameSeq": 4,
+                "height": 768,
+                "message": "Connected — click the console to control it.",
+                "mounted": true,
+                "msSinceChange": 22,
+                "passwordRequired": false,
+                "profile": {
+                    "family": "demo",
+                    "host": "demo",
+                    "id": "demo-1",
+                    "name": "Demo"
+                },
+                "sessions": [
+                    {
+                        "family": "demo",
+                        "host": "demo",
+                        "id": "demo-1",
+                        "name": "Demo",
+                        "state": "connected"
+                    }
+                ],
+                "state": "connected",
+                "width": 1024
+            },
+            "vary": [
+                "frameSeq",
+                "changeSeq",
+                "msSinceChange"
+            ]
+        },
+        {
+            "args": {
+            },
+            "ok": true,
+            "op": "eject",
+            "result": {
+                "message": ""
+            }
+        },
+        {
+            "args": {
+                "profile": "Wide"
+            },
+            "ok": true,
+            "op": "connect",
+            "result": {
+                "profile": {
+                    "family": "demo",
+                    "host": "demo-1920x1080",
+                    "id": "demo-3",
+                    "name": "Wide"
+                },
+                "state": "logging_in"
+            }
+        },
+        {
+            "profile": "demo-3",
+            "wait": "connected"
+        },
+        {
+            "args": {
+                "down": true,
+                "usage": 4
+            },
+            "error": "Several consoles are open ('Demo', 'Wide'). Say which one with the profile argument.",
+            "ok": false,
+            "op": "key"
+        },
+        {
+            "args": {
+                "profile": "Wide"
+            },
+            "ok": true,
+            "op": "status",
+            "result": {
+                "changeSeq": 1,
+                "consoleInfo": {
+                    "capabilities": [
+                        "Video",
+                        "Keyboard",
+                        "Pointer",
+                        "Power",
+                        "Read-only ISO"
+                    ],
+                    "endpoints": [
+                        {
+                            "address": "in-process",
+                            "role": "Video / input",
+                            "transport": "none"
+                        }
+                    ],
+                    "legacyTLS": false,
+                    "protocol": "OldIPMI demo (synthetic, no network)",
+                    "resolution": "1920 × 1080"
+                },
+                "frameSeq": 1,
+                "height": 1080,
+                "message": "Connected — click the console to control it.",
+                "mounted": false,
+                "msSinceChange": 43,
+                "passwordRequired": false,
+                "profile": {
+                    "family": "demo",
+                    "host": "demo-1920x1080",
+                    "id": "demo-3",
+                    "name": "Wide"
+                },
+                "sessions": [
+                    {
+                        "family": "demo",
+                        "host": "demo",
+                        "id": "demo-1",
+                        "name": "Demo",
+                        "state": "connected"
+                    },
+                    {
+                        "family": "demo",
+                        "host": "demo-1920x1080",
+                        "id": "demo-3",
+                        "name": "Wide",
+                        "state": "connected"
+                    }
+                ],
+                "state": "connected",
+                "width": 1920
+            },
+            "vary": [
+                "frameSeq",
+                "changeSeq",
+                "msSinceChange"
+            ]
+        },
+        {
+            "args": {
+                "profile": "Wide"
+            },
+            "ok": true,
+            "op": "disconnect",
+            "result": {
+                "previous": "connected",
+                "profile": {
+                    "family": "demo",
+                    "host": "demo-1920x1080",
+                    "id": "demo-3",
+                    "name": "Wide"
+                },
+                "promptDismissed": false,
+                "state": "disconnected",
+                "stillOpen": [
+                    {
+                        "family": "demo",
+                        "host": "demo",
+                        "id": "demo-1",
+                        "name": "Demo"
+                    }
+                ]
+            }
+        },
+        {
+            "args": {
+            },
+            "ok": true,
+            "op": "disconnect",
+            "result": {
+                "previous": "connected",
+                "profile": {
+                    "family": "demo",
+                    "host": "demo",
+                    "id": "demo-1",
+                    "name": "Demo"
+                },
+                "promptDismissed": false,
+                "state": "disconnected",
+                "stillOpen": [
+                ]
+            }
+        },
+        {
+            "args": {
+                "profile": "Demo Fail"
+            },
+            "ok": true,
+            "op": "connect",
+            "result": {
+                "profile": {
+                    "family": "demo",
+                    "host": "demo-fail",
+                    "id": "demo-2",
+                    "name": "Demo Fail"
+                },
+                "state": "logging_in"
+            }
+        },
+        {
+            "profile": "demo-2",
+            "wait": "disconnected"
+        },
+        {
+            "args": {
+                "profile": "Demo Fail"
+            },
+            "ok": true,
+            "op": "status",
+            "result": {
+                "changeSeq": 0,
+                "consoleInfo": {
+                },
+                "frameSeq": 0,
+                "height": 0,
+                "message": "Login failed: demo login rejected (the host name contains \"fail\")",
+                "mounted": false,
+                "msSinceChange": 0,
+                "passwordRequired": false,
+                "sessions": [
+                    {
+                        "family": "demo",
+                        "host": "demo-fail",
+                        "id": "demo-2",
+                        "name": "Demo Fail",
+                        "state": "disconnected"
+                    }
+                ],
+                "state": "disconnected",
+                "width": 0
+            },
+            "vary": [
+                "msSinceChange"
+            ]
+        },
+        {
+            "args": {
+                "profile": "Fake"
+            },
+            "ok": true,
+            "op": "connect",
+            "result": {
+                "passwordRequired": true,
+                "profile": {
+                    "family": "ami",
+                    "host": "bmc.invalid",
+                    "id": "fake-1",
+                    "name": "Fake"
+                },
+                "state": "disconnected"
+            }
+        },
+        {
+            "args": {
+                "profile": "Fake"
+            },
+            "ok": true,
+            "op": "status",
+            "result": {
+                "changeSeq": 0,
+                "consoleInfo": {
+                },
+                "frameSeq": 0,
+                "height": 0,
+                "message": "Enter the password for x@bmc.invalid to open its console.",
+                "mounted": false,
+                "msSinceChange": 0,
+                "passwordProfile": "Fake",
+                "passwordRequired": true,
+                "sessions": [
+                    {
+                        "family": "demo",
+                        "host": "demo-fail",
+                        "id": "demo-2",
+                        "name": "Demo Fail",
+                        "state": "disconnected"
+                    }
+                ],
+                "state": "disconnected",
+                "width": 0
+            }
+        },
+        {
+            "args": {
+                "all": true
+            },
+            "ok": true,
+            "op": "disconnect",
+            "result": {
+                "closed": [
+                ],
+                "promptDismissed": true,
+                "state": "disconnected",
+                "stillOpen": [
+                ]
+            }
+        },
+        {
+            "args": {
+            },
+            "error": "Unknown operation 'nope'.",
+            "ok": false,
+            "op": "nope"
+        }
+    ],
+    "profiles": [
+        {
+            "family": "demo",
+            "host": "demo",
+            "id": "demo-1",
+            "name": "Demo",
+            "remember": false,
+            "username": ""
+        },
+        {
+            "family": "demo",
+            "host": "demo-fail",
+            "id": "demo-2",
+            "name": "Demo Fail",
+            "remember": false,
+            "username": ""
+        },
+        {
+            "family": "demo",
+            "host": "demo-1920x1080",
+            "id": "demo-3",
+            "name": "Wide",
+            "remember": false,
+            "username": ""
+        },
+        {
+            "family": "ami",
+            "host": "bmc.invalid",
+            "id": "fake-1",
+            "name": "Fake",
+            "remember": false,
+            "username": "x"
+        }
+    ]
+}

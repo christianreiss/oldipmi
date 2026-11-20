@@ -3,6 +3,7 @@
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QLocalSocket>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -29,6 +30,23 @@ static QString writeProfiles(const QTemporaryDir &dir) {
   return path;
 }
 
+// The first difference between a reply and the recorded one, or nothing. Keys
+// listed in vary must be there with a value of the same type.
+static QString differs(const QJsonValue &got, const QJsonValue &want, const QJsonArray &vary = {}) {
+  if (got.isObject() && want.isObject()) {
+    const QJsonObject g = got.toObject(), w = want.toObject();
+    if (g.keys() != w.keys())
+      return "keys " + g.keys().join(",") + ", recorded " + w.keys().join(",");
+    for (const auto &k : w.keys()) {
+      if (vary.contains(k) ? g[k].type() != w[k].type() : g[k] != w[k])
+        return k + ": " + QJsonDocument(QJsonArray{g[k]}).toJson(QJsonDocument::Compact) +
+               ", recorded " + QJsonDocument(QJsonArray{w[k]}).toJson(QJsonDocument::Compact);
+    }
+    return {};
+  }
+  return got == want ? QString() : "got " + QJsonDocument(QJsonArray{got}).toJson(QJsonDocument::Compact);
+}
+
 class AgentApiTest : public QObject {
   Q_OBJECT
   struct R { bool ok = false; QJsonValue value; bool called = false; };
@@ -50,6 +68,62 @@ class AgentApiTest : public QObject {
     return QJsonDocument::fromJson(s.readLine()).object();
   }
 private slots:
+  // testdata/agent/exchanges.json holds requests as oldipmi-mcp sends them and
+  // the replies AgentApi gave, replayed here against the demo console;
+  // internal/mcp checks that its tools read those replies. UPDATE_GOLDEN=1
+  // records the replies anew.
+  void repliesMatchTheRecordedExchanges() {
+    QFile f(QStringLiteral(AGENT_FIXTURES "/exchanges.json"));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    QJsonObject fixture = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();
+    QTemporaryDir dir; NoCredentials w;
+    const QString hosts = dir.filePath("hosts.json"), iso = dir.filePath("fixture.iso");
+    QFile h(hosts), i(iso);
+    QVERIFY(h.open(QIODevice::WriteOnly) && i.open(QIODevice::WriteOnly));
+    h.write(QJsonDocument(QJsonObject{{"version", 1}, {"profiles", fixture["profiles"]}}).toJson());
+    i.write(QByteArray(8 * 2048, 0));
+    h.close();
+    i.close();
+    Controller c(nullptr, &w, hosts);
+    AgentApi api(&c, dir.filePath("s"));
+    const bool record = qEnvironmentVariableIsSet("UPDATE_GOLDEN");
+    QJsonArray steps = fixture["exchanges"].toArray();
+    for (int n = 0; n < steps.size(); ++n) {
+      QJsonObject e = steps[n].toObject();
+      if (e.contains("wait")) {
+        Session *s = nullptr;
+        if (e["wait"] == "connected")
+          QTRY_VERIFY_WITH_TIMEOUT((s = c.session(e["profile"].toString())) && s->connected() && !s->lastFrame.isNull(), 10000);
+        else
+          QTRY_VERIFY_WITH_TIMEOUT((s = c.session(e["profile"].toString())) && s->state == "disconnected", 10000);
+        continue;
+      }
+      QJsonObject args = e["args"].toObject();
+      if (args["path"] == "$ISO")
+        args["path"] = iso;
+      auto r = runAsync(api, e["op"].toString(), args);
+      QTRY_VERIFY_WITH_TIMEOUT(r->called, 10000);
+      if (record) {
+        e.remove("result");
+        e.remove("error");
+        e["ok"] = r->ok;
+        e[r->ok ? "result" : "error"] = r->value;
+        steps[n] = e;
+        continue;
+      }
+      const QString at = QString("exchange %1, %2: ").arg(n).arg(e["op"].toString());
+      QVERIFY2(r->ok == e["ok"].toBool(), qPrintable(at + "ok is " + (r->ok ? "true" : "false")));
+      const QString diff = differs(r->value, e[r->ok ? "result" : "error"], e["vary"].toArray());
+      QVERIFY2(diff.isEmpty(), qPrintable(at + diff));
+    }
+    if (record) {
+      fixture["exchanges"] = steps;
+      QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+      f.write(QJsonDocument(fixture).toJson());
+      qInfo("recorded %s", qPrintable(f.fileName()));
+    }
+  }
   void profilesNeverExposeSecrets() {
     QTemporaryDir dir; NoCredentials w;
     Controller c(nullptr, &w, writeProfiles(dir));
