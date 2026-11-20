@@ -28,6 +28,9 @@
   stay as they are.
 
 ### Fixed
+* **The agent instructions name the right path to `oldipmi-mcp`.** Started by
+  name from the PATH, `oldipmi-mcp` told the agent to run it from the agent's
+  working directory instead of from where it is installed.
 * **Agents are told in words that an ISO was attached or detached.** The
   `mount_iso` and `eject_iso` tools showed the app's raw reply, `{"message": ""}`,
   instead of their sentence ("ISO attached read-only; …", "Virtual media
