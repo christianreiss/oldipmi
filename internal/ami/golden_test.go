@@ -61,7 +61,7 @@ func TestIVTPGoldenFrames(t *testing.T) {
 		return nil
 	})
 	c := client(protocol.Profile{Host: "127.0.0.1", Username: "admin", LegacyTLS: true},
-		protocol.Launch{Family: "ami", Token: "ivtp-token", Port: port, Secure: true})
+		Launch{Token: "ivtp-token", Port: port, Secure: true})
 	defer c.Close()
 	var stages []string
 	if err := c.attach(stagesOf(t, &stages)); err != nil {
@@ -216,7 +216,7 @@ func TestVSCGoldenFrames(t *testing.T) {
 	})
 	inputDone := accept(input, true, prelogin, nil)
 	c := client(protocol.Profile{Host: "127.0.0.1", Username: "admin", LegacyTLS: true, AllowPlainConsole: true},
-		protocol.Launch{Family: "ami", Legacy: true, Token: "vsc-token", Cookie: "cookie-1", Port: videoPort, HIDPort: inputPort})
+		Launch{Legacy: true, Token: "vsc-token", Cookie: "cookie-1", Port: videoPort, HIDPort: inputPort})
 	defer c.Close()
 	var stages []string
 	if err := c.attach(stagesOf(t, &stages)); err != nil {

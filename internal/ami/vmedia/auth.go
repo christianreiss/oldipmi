@@ -14,7 +14,7 @@ import (
 //   - payload[connStatusOffset] = 0
 //   - payload[authTokenOffset..] = the web session token (STOKEN)
 //
-// token is the STOKEN minted by the web login (protocol.Launch.Token).
+// token is the STOKEN minted by the web login (ami.Launch.Token).
 func buildAuth(deviceType, instance uint8, token string) []byte {
 	pkt := make([]byte, HeaderLen+authPayloadLen)
 	h := Header{

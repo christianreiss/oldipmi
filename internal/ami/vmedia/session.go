@@ -23,7 +23,7 @@ type Session struct {
 
 // ConnectWire redirects the first CD-ROM over conn, a connection to the vmedia
 // port: it sends the web-token auth packet and waits for the BMC's redirection
-// ACK. token is the web session STOKEN (protocol.Launch.Token). On success the
+// ACK. token is the web session STOKEN (ami.Launch.Token). On success the
 // returned Session is ready for Serve.
 func ConnectWire(ctx context.Context, conn net.Conn, token string) (*Session, error) {
 	conn.SetDeadline(time.Now().Add(15 * time.Second))

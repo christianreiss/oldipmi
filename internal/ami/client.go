@@ -16,8 +16,8 @@ import (
 
 type Client struct {
 	p             protocol.Profile
-	launch        protocol.Launch
-	web           *protocol.Web
+	launch        Launch
+	web           *web
 	wire, hid     *transport.Wire
 	mu            sync.Mutex
 	pressed       map[uint32]bool
@@ -36,9 +36,9 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 			c.Close()
 		}
 	}()
-	c.web, err = protocol.NewWeb(p)
+	c.web, err = newWeb(p)
 	if err == nil {
-		c.launch, err = c.web.Login(ctx, password)
+		c.launch, err = c.web.login(ctx, password)
 	}
 	if err != nil {
 		return c, err
@@ -49,9 +49,6 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 // attach opens the console that the BMC's launch file describes.
 func (c *Client) attach(ctx context.Context) (err error) {
 	p := c.p
-	if c.launch.Family != "ami" {
-		return fmt.Errorf("this BMC needs the ATEN family; select it for this profile")
-	}
 	if c.launch.Args["singleportenabled"] == "1" {
 		return fmt.Errorf("AMI single-port tunneling is not supported by this firmware adapter")
 	}

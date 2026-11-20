@@ -6,8 +6,9 @@ import (
 	"strconv"
 )
 
-// ConsoleInfo is deliberately separate from Launch: session tokens, cookies,
-// argument lists and credentials must never cross into display metadata.
+// ConsoleInfo is deliberately separate from a driver's Launch: session tokens,
+// cookies, argument lists and credentials must never cross into display
+// metadata.
 type ConsoleInfo struct {
 	Protocol     string     `json:"protocol"`
 	Endpoints    []Endpoint `json:"endpoints"`
@@ -54,22 +55,4 @@ func ConsoleEndpoint(role, host string, port int, secure bool) Endpoint {
 		transport = "TLS"
 	}
 	return Endpoint{Role: role, Address: net.JoinHostPort(host, strconv.Itoa(port)), Transport: transport}
-}
-func (l Launch) ConsoleInfo(p Profile) ConsoleInfo {
-	name := "AMI IVTP"
-	if l.Legacy {
-		name = "AMI MegaRAC VSC"
-	}
-	info := ConsoleInfo{Protocol: name, LegacyTLS: p.LegacyTLS,
-		Endpoints:    []Endpoint{ConsoleEndpoint("Video / input", p.Host, l.Port, l.Secure)},
-		Capabilities: []string{"Video", "Keyboard", "Pointer"}}
-	if l.Legacy {
-		info.Endpoints[0].Role = "Video"
-		info.Endpoints = append(info.Endpoints, ConsoleEndpoint("Input", p.Host, l.HIDPort, true))
-	}
-	if l.CDPort > 0 && l.CDPort <= 65535 {
-		info.Endpoints = append(info.Endpoints, ConsoleEndpoint("Media (advertised)", p.Host, l.CDPort, l.MediaSecure))
-		info.Capabilities = append(info.Capabilities, "Read-only ISO")
-	}
-	return info
 }

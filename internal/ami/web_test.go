@@ -1,11 +1,14 @@
-package protocol
+package ami
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"oldipmi/internal/protocol"
 	"reflect"
 	"strings"
 	"sync"
@@ -13,8 +16,8 @@ import (
 )
 
 // The AMI MegaRAC web login as the BMC sees it: what is requested in which
-// order, with which form fields and cookies, and the logout. Phase 3 moves the
-// login into internal/ami; this transcript must not change.
+// order, with which form fields and cookies, and the logout. This transcript
+// must not change.
 
 const amiJNLP = `<jnlp><application-desc><argument>-kvmtoken</argument><argument>tok-1</argument><argument>-kvmport</argument><argument>7578</argument><argument>-kvmsecure</argument><argument>1</argument><argument>-cdport</argument><argument>5120</argument><argument>-vmsecure</argument><argument>1</argument></application-desc></jnlp>`
 
@@ -49,20 +52,20 @@ func (b *amiBMC) requests() []string {
 	return append([]string(nil), b.log...)
 }
 
-func amiLogin(t *testing.T, p Profile, answer map[string]string) (Launch, error, []string, []string) {
+func amiLogin(t *testing.T, p protocol.Profile, answer map[string]string) (Launch, error, []string, []string) {
 	t.Helper()
 	bmc := &amiBMC{answer: answer}
 	srv := httptest.NewTLSServer(bmc)
 	defer srv.Close()
 	p.Host, p.Family, p.Username, p.LegacyTLS = "127.0.0.1", "ami", "admin", true
-	w, err := NewWeb(p)
+	w, err := newWeb(p)
 	if err != nil {
 		t.Fatal(err)
 	}
 	w.Base = srv.URL
 	var stages []string
-	ctx := WithProgress(context.Background(), func(p Progress) { stages = append(stages, p.Stage) })
-	l, err := w.Login(ctx, "pw-1")
+	ctx := protocol.WithProgress(context.Background(), func(p protocol.Progress) { stages = append(stages, p.Stage) })
+	l, err := w.login(ctx, "pw-1")
 	if err == nil {
 		w.Close()
 	}
@@ -77,7 +80,7 @@ func TestAMIWebLoginTranscript(t *testing.T) {
 	const cookies = " cookie=SessionCookie=cookie-1; Username=admin"
 	ok := map[string]string{"/rpc/WEBSES/create.asp": `{'HAPI_STATUS':0,'SESSION_COOKIE':'cookie-1'}`, "/Java/jviewer.jnlp": amiJNLP, "/custom.jnlp": amiJNLP}
 
-	l, err, got, stages := amiLogin(t, Profile{}, ok)
+	l, err, got, stages := amiLogin(t, protocol.Profile{}, ok)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +90,7 @@ func TestAMIWebLoginTranscript(t *testing.T) {
 	if !reflect.DeepEqual(stages, []string{"logging_in", "discovering"}) {
 		t.Fatal("stages", stages)
 	}
-	want := Launch{Family: "ami", Token: "tok-1", Cookie: "cookie-1", Port: 7578, CDPort: 5120, Secure: true, MediaSecure: true,
+	want := Launch{Token: "tok-1", Cookie: "cookie-1", Port: 7578, CDPort: 5120, Secure: true, MediaSecure: true,
 		Args: map[string]string{"kvmtoken": "tok-1", "kvmport": "7578", "kvmsecure": "1", "cdport": "5120", "vmsecure": "1"},
 		Pos:  []string{"-kvmtoken", "tok-1", "-kvmport", "7578", "-kvmsecure", "1", "-cdport", "5120", "-vmsecure", "1"}}
 	if !reflect.DeepEqual(l, want) {
@@ -95,7 +98,7 @@ func TestAMIWebLoginTranscript(t *testing.T) {
 	}
 
 	// A profile's own JNLP path replaces the default.
-	_, err, got, _ = amiLogin(t, Profile{JNLPPath: "/custom.jnlp"}, ok)
+	_, err, got, _ = amiLogin(t, protocol.Profile{JNLPPath: "/custom.jnlp"}, ok)
 	if want := []string{create, "GET /custom.jnlp" + cookies, "GET /rpc/WEBSES/logout.asp" + cookies}; err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("custom JNLP path: %v\n %q\nwant\n %q", err, got, want)
 	}
@@ -134,7 +137,7 @@ func TestAMIWebLoginFailures(t *testing.T) {
 			[]string{create, "GET /Java/jviewer.jnlp" + cookies, "GET /rpc/WEBSES/logout.asp" + cookies}, []string{"logging_in", "discovering"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			_, err, got, stages := amiLogin(t, Profile{}, c.answer)
+			_, err, got, stages := amiLogin(t, protocol.Profile{}, c.answer)
 			if err == nil || err.Error() != c.err {
 				t.Fatalf("error %v, want %q", err, c.err)
 			}
@@ -145,5 +148,77 @@ func TestAMIWebLoginFailures(t *testing.T) {
 				t.Fatal("stages", stages)
 			}
 		})
+	}
+}
+
+func TestFreshLoginDiscoveryAndSafeInfo(t *testing.T) {
+	p := protocol.Profile{Host: "bmc.example", Family: "ami", LegacyTLS: true}
+	var tokens []string
+	for attempt := 1; attempt <= 2; attempt++ {
+		w, _ := newWeb(p)
+		var stages []string
+		ctx := protocol.WithProgress(context.Background(), func(p protocol.Progress) { stages = append(stages, p.Stage) })
+		w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
+			body := ""
+			switch r.URL.Path {
+			case "/rpc/WEBSES/create.asp":
+				body = fmt.Sprintf(`{'HAPI_STATUS':0,'SESSION_COOKIE':'cookie-%d'}`, attempt)
+			case "/Java/jviewer.jnlp":
+				cookie, e := r.Cookie("SessionCookie")
+				if e != nil || cookie.Value != fmt.Sprintf("cookie-%d", attempt) {
+					t.Error("stale session cookie")
+				}
+				body = fmt.Sprintf(`<jnlp><application-desc><argument>bmc</argument><argument>5901</argument><argument>secret-token-%d</argument><argument>0</argument><argument>0</argument><argument>5120</argument><argument>5123</argument><argument>511</argument><argument>5900</argument><argument>1</argument></application-desc></jnlp>`, attempt)
+			}
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+		})
+		launch, err := w.login(ctx, "private-password")
+		if err != nil {
+			t.Fatal(err)
+		}
+		tokens = append(tokens, launch.Token)
+		if !reflect.DeepEqual(stages, []string{"logging_in", "discovering"}) {
+			t.Fatal(stages)
+		}
+		info := launch.ConsoleInfo(p)
+		b, _ := json.Marshal(info)
+		for _, secret := range []string{launch.Token, launch.Cookie, "private-password"} {
+			if strings.Contains(string(b), secret) {
+				t.Fatal("secret leaked into console info")
+			}
+		}
+		if len(info.Endpoints) != 3 || info.Endpoints[0].Transport != "Plain TCP" || info.Endpoints[1].Transport != "TLS" {
+			t.Fatal(info)
+		}
+		w.Close()
+	}
+	if tokens[0] == tokens[1] {
+		t.Fatal("reused session token")
+	}
+}
+
+type roundTripper func(*http.Request) (*http.Response, error)
+
+func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestLoginFailureDoesNotFetchToken(t *testing.T) {
+	w, _ := newWeb(protocol.Profile{Host: "bmc", Family: "ami"})
+	count := 0
+	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
+		count++
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{'HAPI_STATUS':-6,'SESSION_COOKIE':'Failure_Login'}`)), Header: make(http.Header)}, nil
+	})
+	_, e := w.login(context.Background(), "do-not-log")
+	if e == nil || count != 1 || strings.Contains(e.Error(), "do-not-log") {
+		t.Fatal(count, e)
+	}
+}
+
+// The HTML5 console mode is ATEN's; it fails before anything is sent.
+func TestConsoleModeValidation(t *testing.T) {
+	w, _ := newWeb(protocol.Profile{Host: "bmc", Family: "ami", ConsoleMode: "html5"})
+	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) { t.Fatal("network used"); return nil, nil })
+	if _, err := w.login(context.Background(), "x"); err == nil || !strings.Contains(err.Error(), "only implemented for the ATEN") {
+		t.Fatal(err)
 	}
 }

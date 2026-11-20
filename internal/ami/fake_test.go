@@ -19,9 +19,9 @@ import (
 	"time"
 )
 
-// A fake AMI console after the web login (internal/protocol tests the login and
-// its transcript): the IVTP handshake of the native client and the legacy
-// MegaRAC VSC one, with what the client sends, in order. Phase 3 splits the
+// A fake AMI console after the web login (web_test.go tests the login and its
+// transcript): the IVTP handshake of the native client and the legacy MegaRAC
+// VSC one, with what the client sends, in order. Phase 3 splits the
 // client into a VSC and an IVTP session; these transcripts must not change.
 
 // end is the BMC's end of a console connection, framed like the client's: an
@@ -141,7 +141,7 @@ func accept(ln net.Listener, legacy bool, first func(end) error, answer func(end
 	return done
 }
 
-func client(p protocol.Profile, l protocol.Launch) *Client {
+func client(p protocol.Profile, l Launch) *Client {
 	return &Client{p: p, launch: l, pressed: map[uint32]bool{}, width: 1024, height: 768}
 }
 
@@ -165,7 +165,7 @@ func TestIVTPSessionTranscript(t *testing.T) {
 	})
 	var stages []string
 	c := client(protocol.Profile{Host: "127.0.0.1", Username: "admin", LegacyTLS: true},
-		protocol.Launch{Family: "ami", Token: "ivtp-token", Port: port, Secure: true})
+		Launch{Token: "ivtp-token", Port: port, Secure: true})
 	if err := c.attach(stagesOf(t, &stages)); err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestIVTPSessionRefused(t *testing.T) {
 			})
 			var stages []string
 			cl := client(protocol.Profile{Host: "127.0.0.1", Username: "admin", LegacyTLS: true},
-				protocol.Launch{Family: "ami", Token: "ivtp-token", Port: port, Secure: true})
+				Launch{Token: "ivtp-token", Port: port, Secure: true})
 			err := cl.attach(stagesOf(t, &stages))
 			cl.Close()
 			if err == nil || err.Error() != c.err {
@@ -246,7 +246,7 @@ func TestVSCSessionTranscript(t *testing.T) {
 			inputDone := accept(input, true, prelogin, nil)
 			var stages []string
 			cl := client(protocol.Profile{Host: "127.0.0.1", Username: "admin", LegacyTLS: true, AllowPlainConsole: true},
-				protocol.Launch{Family: "ami", Legacy: true, Token: "vsc-token", Cookie: "cookie-1", Pos: c.pos, Port: videoPort, HIDPort: inputPort})
+				Launch{Legacy: true, Token: "vsc-token", Cookie: "cookie-1", Pos: c.pos, Port: videoPort, HIDPort: inputPort})
 			if err := cl.attach(stagesOf(t, &stages)); err != nil {
 				t.Fatal(err)
 			}
@@ -293,7 +293,7 @@ func TestVSCPreloginRefused(t *testing.T) {
 			}
 			var stages []string
 			cl := client(protocol.Profile{Host: "127.0.0.1", LegacyTLS: true, AllowPlainConsole: true},
-				protocol.Launch{Family: "ami", Legacy: true, Token: "vsc-token", Port: videoPort, HIDPort: inputPort})
+				Launch{Legacy: true, Token: "vsc-token", Port: videoPort, HIDPort: inputPort})
 			err := cl.attach(stagesOf(t, &stages))
 			cl.Close()
 			if err == nil || err.Error() != c.err {
@@ -311,13 +311,12 @@ func TestAttachRefusesBeforeConnecting(t *testing.T) {
 	ln, port := listen(t, nil)
 	for _, c := range []struct {
 		name   string
-		launch protocol.Launch
+		launch Launch
 		err    string
 	}{
-		{"an ATEN launch file", protocol.Launch{Family: "aten", Token: "t", Port: port}, "this BMC needs the ATEN family; select it for this profile"},
-		{"single-port tunneling", protocol.Launch{Family: "ami", Token: "t", Port: port, Args: map[string]string{"singleportenabled": "1"}},
+		{"single-port tunneling", Launch{Token: "t", Port: port, Args: map[string]string{"singleportenabled": "1"}},
 			"AMI single-port tunneling is not supported by this firmware adapter"},
-		{"plain console not allowed", protocol.Launch{Family: "ami", Token: "t", Port: port},
+		{"plain console not allowed", Launch{Token: "t", Port: port},
 			"BMC requests an unencrypted console; enable this host's plain-console option explicitly"},
 	} {
 		var stages []string
