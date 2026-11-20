@@ -31,6 +31,10 @@ type Client struct {
 	media         *vmedia.Session
 	mediaCancel   context.CancelFunc
 	once          sync.Once
+	// mediaMu keeps Mount and Eject in order. Mount holds it while it sets
+	// the virtual media up, and c.mu only to install it, so that input and
+	// video go on meanwhile.
+	mediaMu sync.Mutex
 }
 
 func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
@@ -284,10 +288,13 @@ func (c *Client) Close() error {
 	})
 	return nil
 }
+
+// Mount serves the ISO at path on the virtual CD-ROM. ctx bounds the setup
+// only: the ISO stays mounted until Eject or Close.
 func (c *Client) Mount(ctx context.Context, path string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.media != nil {
+	c.mediaMu.Lock()
+	defer c.mediaMu.Unlock()
+	if c.Mounted() {
 		return fmt.Errorf("eject the mounted ISO first")
 	}
 	file, e := vmedia.OpenFile(path)
@@ -309,9 +316,11 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 		file.Close()
 		return e
 	}
-	mctx, cancel := context.WithCancel(ctx)
+	mctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	c.mu.Lock()
 	c.media = s
 	c.mediaCancel = cancel
+	c.mu.Unlock()
 	go func() {
 		defer file.Close()
 		defer s.Close()
@@ -329,6 +338,8 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 	return nil
 }
 func (c *Client) Eject() error {
+	c.mediaMu.Lock()
+	defer c.mediaMu.Unlock()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.mediaCancel != nil {

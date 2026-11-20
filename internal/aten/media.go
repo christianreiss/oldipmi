@@ -17,9 +17,10 @@ type mediaSession struct {
 	blocks uint32
 	sense  [3]byte
 	once   sync.Once
-	stop   func() bool
 }
 
+// newMedia opens the ISO and connects the media channel; ctx bounds the
+// connection only, the session lasts until close.
 func newMedia(ctx context.Context, p protocol.Profile, port int, path string) (s *mediaSession, err error) {
 	f, e := os.Open(path)
 	if e != nil {
@@ -35,11 +36,9 @@ func newMedia(ctx context.Context, p protocol.Profile, port int, path string) (s
 		f.Close()
 		return nil, e
 	}
-	s = &mediaSession{wire: w, file: f, blocks: uint32(st.Size() / 2048)}
-	s.stop = context.AfterFunc(ctx, func() { w.Close() })
-	return s, nil
+	return &mediaSession{wire: w, file: f, blocks: uint32(st.Size() / 2048)}, nil
 }
-func (s *mediaSession) close() { s.once.Do(func() { s.stop(); s.wire.Close() }) }
+func (s *mediaSession) close() { s.once.Do(func() { s.wire.Close() }) }
 func mediaHeader(lun, flag byte, n int) []byte {
 	b := []byte{0x22, 0, lun, flag, 0, 0, 0, 0}
 	binary.LittleEndian.PutUint32(b[4:], uint32(n))

@@ -73,7 +73,8 @@ type Console interface {
 }
 
 // Media is a console's virtual media: a local ISO that the host sees as a
-// read-only CD/DVD until Eject.
+// read-only CD/DVD until Eject. Mount's context bounds the setup only: the ISO
+// stays mounted until Eject or the console's Close.
 type Media interface {
 	Mount(context.Context, string) error
 	Eject() error

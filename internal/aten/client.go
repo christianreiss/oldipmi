@@ -31,6 +31,10 @@ type Client struct {
 	reqW, reqH  int          // HTML5 mode update-request size
 	lastPix     []byte       // last emitted HTML5 frame, to drop unchanged ones
 	mouseLen    int          // mouse-status (0x37) body length, 0 until known
+	// mediaMu keeps Mount and Eject in order. Mount holds it while it
+	// connects the virtual media, and c.mu only to install it, so that input
+	// goes on meanwhile.
+	mediaMu sync.Mutex
 }
 
 func Connect(ctx context.Context, p protocol.Profile, password string) (c *Client, err error) {
@@ -452,10 +456,13 @@ func (c *Client) Close() error {
 	})
 	return nil
 }
+
+// Mount serves the ISO at path on the virtual CD-ROM. ctx bounds the setup
+// only: the ISO stays mounted until Eject or Close.
 func (c *Client) Mount(ctx context.Context, path string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.media != nil {
+	c.mediaMu.Lock()
+	defer c.mediaMu.Unlock()
+	if c.Mounted() {
 		return fmt.Errorf("eject the mounted ISO first")
 	}
 	if c.launch.HTML5 {
@@ -465,7 +472,9 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 	if e != nil {
 		return e
 	}
+	c.mu.Lock()
 	c.media = s
+	c.mu.Unlock()
 	go func() {
 		s.serve()
 		s.close()
@@ -478,6 +487,8 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 	return nil
 }
 func (c *Client) Eject() error {
+	c.mediaMu.Lock()
+	defer c.mediaMu.Unlock()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.media != nil {
