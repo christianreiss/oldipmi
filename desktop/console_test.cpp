@@ -174,6 +174,19 @@ private slots:
     key(QEvent::KeyRelease, Qt::Key_Control, 97 + 8);
     QVERIFY(!view->captured());              // and does not take control either
   }
+  // Changing the setting is not a change of capture: in full screen, the
+  // capture note listens to capturedChanged and came back for it (C-17).
+  void releaseKeySettingIsNotACapture() {
+    view->capture();
+    QSignalSpy captured(view, &Console::capturedChanged);
+    QSignalSpy setting(view, SIGNAL(rightCtrlReleasesChanged()));
+    QVERIFY(setting.isValid());
+    view->setProperty("rightCtrlReleases", false);
+    view->setProperty("rightCtrlReleases", false);
+    QCOMPARE(setting.count(), 1);
+    QCOMPARE(captured.count(), 0);
+    QVERIFY(view->captured());
+  }
   void loneRightCtrlTakesControlAgain() {
     QSignalSpy keys(view, &Console::keyInput);
     view->capture();

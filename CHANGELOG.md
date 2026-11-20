@@ -28,6 +28,9 @@
   stay as they are.
 
 ### Fixed
+* **Changing the Right Ctrl setting no longer brings back the full-screen
+  note.** The note on taking or giving back the keyboard appeared again,
+  although the capture had not changed.
 * **A refused command no longer marks a server as failed.** When a console
   refused a command, such as a power action, before it showed its first picture,
   the connection list kept showing that server as "Console connection failed",

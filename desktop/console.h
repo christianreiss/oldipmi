@@ -10,7 +10,7 @@ class Console : public QQuickPaintedItem {
   Q_PROPERTY(bool captured READ captured NOTIFY capturedChanged)
   // A lone tap of Right Ctrl releases the capture (the tap is still forwarded);
   // released, the next tap takes control again (see eventFilter()).
-  Q_PROPERTY(bool rightCtrlReleases MEMBER m_rightCtrlReleases NOTIFY capturedChanged)
+  Q_PROPERTY(bool rightCtrlReleases MEMBER m_rightCtrlReleases NOTIFY rightCtrlReleasesChanged)
   Q_PROPERTY(QSize frameSize READ frameSize NOTIFY frameSizeChanged)
   // Where the remote screen is drawn, in item coordinates. The letterbox around it
   // stays transparent; QML draws the stage, the border and the capture ring there.
@@ -37,6 +37,7 @@ public slots:
 signals:
   void fitChanged();
   void capturedChanged();
+  void rightCtrlReleasesChanged();
   void frameSizeChanged();
   void imageRectChanged();
   void keyInput(int usage, bool down);
