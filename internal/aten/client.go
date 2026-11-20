@@ -146,24 +146,38 @@ func (c *Client) negotiate(ctx context.Context) (err error) {
 	c.wire.SetDeadline(time.Time{})
 	if c.launch.HTML5 {
 		c.reqW, c.reqH = int(binary.BigEndian.Uint16(init)), int(binary.BigEndian.Uint16(init[2:]))
-		return c.htmlRequest(false)
+		return c.updateRequest(false)
 	}
 	c.dec.Resize(1024, 768)
-	err = c.wire.WritePacket([]byte{0x37, 7, 0x07, 0x80})
+	err = c.syncPointer()
 	if err == nil {
-		err = c.request(false)
+		err = c.updateRequest(false)
 	}
 	return err
 }
-func (c *Client) request(incremental bool) error {
+
+// updateRequest asks for the next framebuffer update of the whole screen, an
+// incremental one for what changed only: the HTML5 console for the size of its
+// last frame (at first the size the server announced), the Java one for the
+// size of the decoder's frame.
+func (c *Client) updateRequest(incremental bool) error {
+	w, h := c.dec.frame.Width, c.dec.frame.Height
+	if c.launch.HTML5 {
+		w, h = c.reqW, c.reqH
+	}
 	p := make([]byte, 10)
 	p[0] = 3
 	if incremental {
 		p[1] = 1
 	}
-	binary.BigEndian.PutUint16(p[6:], uint16(c.dec.frame.Width))
-	binary.BigEndian.PutUint16(p[8:], uint16(c.dec.frame.Height))
+	binary.BigEndian.PutUint16(p[6:], uint16(w))
+	binary.BigEndian.PutUint16(p[8:], uint16(h))
 	return c.wire.WritePacket(p)
+}
+
+// syncPointer sends the mouse sync message (0x37) of the web UI.
+func (c *Client) syncPointer() error {
+	return c.wire.WritePacket([]byte{0x37, 7, 0x07, 0x80})
 }
 func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -241,7 +255,7 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 						continue
 					}
 					if c.lastPix == nil { // like the web UI: sync the pointer once the size is known
-						if e = c.wire.WritePacket([]byte{0x37, 7, 0x07, 0x80}); e != nil {
+						if e = c.syncPointer(); e != nil {
 							return e
 						}
 					}
@@ -262,13 +276,7 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 			if changed {
 				frame(c.dec.frame)
 			}
-			if c.launch.HTML5 {
-				if e = c.htmlRequest(true); e != nil {
-					return e
-				}
-				continue
-			}
-			if e = c.request(true); e != nil {
+			if e = c.updateRequest(true); e != nil {
 				return e
 			}
 		case 4:
@@ -294,8 +302,7 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 				return e
 			}
 		case 0x16, 0x35, 0x3c:
-			size := map[byte]int{0x16: 1, 0x35: 5, 0x3c: 8}[t[0]]
-			if _, e = protocol.Read(rd, size); e != nil {
+			if _, e = protocol.Read(rd, bodySizes[t[0]]); e != nil {
 				return e
 			}
 		case 0x39:
@@ -314,6 +321,10 @@ func (c *Client) Run(ctx context.Context, frame func(protocol.Frame)) error {
 		}
 	}
 }
+
+// bodySizes are the fixed body lengths of the messages 0x16, 0x35 and 0x3c,
+// which this client reads past.
+var bodySizes = map[byte]int{0x16: 1, 0x35: 5, 0x3c: 8}
 
 // lookahead returns peeked bytes before reading on.
 type lookahead struct {

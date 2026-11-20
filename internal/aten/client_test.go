@@ -111,6 +111,45 @@ func TestPointerButtonTranslation(t *testing.T) {
 	}
 }
 
+// A framebuffer update request covers the whole screen: for the HTML5 console
+// the size of its last frame, for the Java one the size of the decoder's frame.
+func TestUpdateRequestSize(t *testing.T) {
+	for _, c := range []struct {
+		name        string
+		html5       bool
+		incremental bool
+		want        []byte
+	}{
+		{"java", false, false, []byte{3, 0, 0, 0, 0, 0, 0x04, 0x00, 0x03, 0x00}},
+		{"java incremental", false, true, []byte{3, 1, 0, 0, 0, 0, 0x04, 0x00, 0x03, 0x00}},
+		{"html5", true, false, []byte{3, 0, 0, 0, 0, 0, 0x05, 0x00, 0x02, 0xd0}},
+		{"html5 incremental", true, true, []byte{3, 1, 0, 0, 0, 0, 0x05, 0x00, 0x02, 0xd0}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			a, b := net.Pipe()
+			defer a.Close()
+			defer b.Close()
+			cl := &Client{wire: &transport.Wire{Conn: a}, reqW: 1280, reqH: 720}
+			cl.launch.HTML5 = c.html5
+			if err := cl.dec.Resize(1024, 768); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() { done <- cl.updateRequest(c.incremental) }()
+			got := make([]byte, len(c.want))
+			if _, err := io.ReadFull(b, got); err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, c.want) {
+				t.Fatalf("request % x, want % x", got, c.want)
+			}
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestJavaTokenAuthUsesDistinctPasswordField(t *testing.T) {
 	c := &Client{launch: Launch{Token: "user1", PasswordToken: "pass2"}}
 	a := c.tokenAuth()

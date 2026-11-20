@@ -121,15 +121,3 @@ func (c *Client) tokenAuth() []byte {
 	}
 	return auth
 }
-
-func (c *Client) htmlRequest(incremental bool) error {
-	w, h := c.reqW, c.reqH
-	p := make([]byte, 10)
-	p[0] = 3
-	if incremental {
-		p[1] = 1
-	}
-	binary.BigEndian.PutUint16(p[6:], uint16(w))
-	binary.BigEndian.PutUint16(p[8:], uint16(h))
-	return c.wire.WritePacket(p)
-}
