@@ -165,6 +165,21 @@ func (c *Client) read(w *transport.Wire) (uint16, uint16, []byte, error) {
 	b, e = protocol.Read(w, int(size))
 	return t, st, b, e
 }
+
+// decodeModern decodes an AST2100 frame, which starts with the 86-byte ASPEED
+// video header.
+func decodeModern(d *ast.Decoder, frame []byte) (protocol.Frame, error) {
+	p, stream, err := ast.ParseHeader(frame)
+	if err != nil {
+		return protocol.Frame{}, err
+	}
+	f, err := d.Decode(p, stream)
+	if err != nil {
+		return protocol.Frame{}, err
+	}
+	return protocol.Frame{Width: f.W, Height: f.H, Pixels: f.Pix}, nil
+}
+
 func (c *Client) send(w *transport.Wire, t uint16, b []byte) error {
 	n, off := ivtpHeaderSize, 2
 	if c.launch.Legacy {
@@ -262,14 +277,7 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 			if c.launch.Legacy {
 				f, e = legacy.Decode(fragments)
 			} else {
-				var cf *ast.Frame
-				cf, e = modern.Decode(fragments)
-				if e == nil {
-					f = protocol.Frame{Width: cf.W, Height: cf.H, Pixels: cf.Pix}
-					for i := 3; i < len(f.Pixels); i += 4 {
-						f.Pixels[i] = 255
-					}
-				}
+				f, e = decodeModern(modern, fragments)
 			}
 			if e != nil {
 				return e

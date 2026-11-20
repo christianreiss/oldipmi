@@ -20,8 +20,8 @@ import (
 // virtAdd ports SOCIVTPPktHdr.VIRTADD (0 on this build).
 const virtAdd = 0
 
-// Frame is a decoded video frame, 32-bpp RGBX (little-endian), len(Pix)=W*H*4:
-// red byte first, as protocol.Frame carries it.
+// Frame is a decoded video frame, 32-bpp RGBA with opaque alpha,
+// len(Pix)=W*H*4: red byte first, as protocol.Frame carries it.
 type Frame struct {
 	W, H int
 	Pix  []byte
@@ -132,16 +132,15 @@ func New() *Decoder {
 // Size reports the last decoded frame resolution (0,0 until the first frame).
 func (d *Decoder) Size() (w, h int) { return d.realWidth, d.realH }
 
-// Decode turns one reassembled, fragment-stripped frame buffer into a Frame.
-// The buffer begins with the 86-byte VideoHeader followed by the compressed
-// tile data. This wraps the Java pipeline:
+// Decode turns the tile data of one frame, which p describes, into a Frame.
+// An AMI frame carries p in its 86-byte VideoHeader (ParseHeader). This wraps
+// the Java pipeline after the header:
 //
-//	VideoHeader.set()      -> parseFrameHeader (header + compressed payload)
 //	SOCJVVideo.MakeIntArray -> makeIntArray (pack bytes LE into uint32[])
 //	Decoder.decode()       -> (*Decoder).decode
 //
-// and then packs the 24-bit BGR decodeBuf into 32-bpp BGRX.
-func (d *Decoder) Decode(frame []byte) (result *Frame, err error) {
+// and then expands the 24-bit BGR decodeBuf to opaque RGBA.
+func (d *Decoder) Decode(p Params, stream []byte) (result *Frame, err error) {
 	// A malformed frame must end the session, never the backend. The checks
 	// below, and those in decode that call fail, reject every one; any other
 	// panic is a check that is missing, and FuzzFrameDecode fails on it.
@@ -154,24 +153,20 @@ func (d *Decoder) Decode(frame []byte) (result *Frame, err error) {
 		}
 	}()
 
-	h, compressed, err := parseFrameHeader(frame)
-	if err != nil {
-		return nil, err
-	}
-	if h.destX <= 0 || h.destY <= 0 || h.destX > maxResolution || h.destY > maxResolution {
-		return nil, fmt.Errorf("kvm/codec: bad resolution %dx%d", h.destX, h.destY)
+	if p.Width <= 0 || p.Height <= 0 || p.Width > maxResolution || p.Height > maxResolution {
+		return nil, fmt.Errorf("kvm/codec: bad resolution %dx%d", p.Width, p.Height)
 	}
 
-	if h.jpegTableSelector >= len(tblY) || h.advanceTableSelector >= len(tblY) || h.mode420 > 1 || h.jpegYUVTableMapping > 1 || h.compressSize < 8 || h.compressSize > len(compressed) {
+	if p.TableSelector < 0 || p.TableSelector >= len(tblY) || p.AdvanceTableSelector < 0 || p.AdvanceTableSelector >= len(tblY) ||
+		p.Mode420 < 0 || p.Mode420 > 1 || p.YUVTableMapping < 0 || p.YUVTableMapping > 1 || p.CompressSize < 8 || p.CompressSize > len(stream) {
 		return nil, fmt.Errorf("invalid AMI frame parameters")
 	}
-	compressed = compressed[:h.compressSize]
-	recv := makeIntArray(compressed)
-	d.decode(&h, recv)
+	recv := makeIntArray(stream[:p.CompressSize])
+	d.decode(&p, recv)
 
 	out := &Frame{W: d.realWidth, H: d.realH}
 	out.Pix = make([]byte, d.realWidth*d.realH*4)
-	// decodeBuf is 24-bit BGR (3 bytes/pixel, [B,G,R]); expand to RGBX (red
+	// decodeBuf is 24-bit BGR (3 bytes/pixel, [B,G,R]); expand to RGBA (red
 	// byte first).
 	src := d.decodeBuf
 	di := 0
@@ -182,7 +177,7 @@ func (d *Decoder) Decode(frame []byte) (result *Frame, err error) {
 			out.Pix[di+0] = src[si+2] // R
 			out.Pix[di+1] = src[si+1] // G
 			out.Pix[di+2] = src[si+0] // B
-			out.Pix[di+3] = 0         // X
+			out.Pix[di+3] = 255       // A
 			di += 4
 		}
 	}

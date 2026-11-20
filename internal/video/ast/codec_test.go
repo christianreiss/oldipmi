@@ -240,7 +240,7 @@ func FuzzFrameDecode(f *testing.F) {
 		if len(p) > 65536 {
 			return
 		}
-		if _, err := New().Decode(p); errors.Is(err, errFault) {
+		if _, err := decodeFrame(New(), p); errors.Is(err, errFault) {
 			t.Fatal(err)
 		}
 	})
@@ -264,7 +264,7 @@ func TestDecodeRejectsFramesThatOverrun(t *testing.T) {
 			stream = binary.LittleEndian.AppendUint32(stream, w)
 		}
 		frame := astFrame(streamSpec{w: 16, h: 16, selector: 4, mode420: c.mode420}, stream)
-		if _, err := New().Decode(frame); err != errFrame {
+		if _, err := decodeFrame(New(), frame); err != errFrame {
 			t.Errorf("%s: %v", name, err)
 		}
 	}

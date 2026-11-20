@@ -83,30 +83,25 @@ func (c *Client) decodeAST2100(width, height int, p []byte) (protocol.Frame, err
 	if pad := (4 - len(stream)%4) % 4; pad > 0 {
 		stream = append(append([]byte(nil), stream...), make([]byte, pad)...)
 	}
-	hdr := make([]byte, 86)
-	le := binary.LittleEndian
-	le.PutUint16(hdr[4:], uint16(width))
-	le.PutUint16(hdr[6:], uint16(height))
-	le.PutUint16(hdr[13:], uint16(width))
-	le.PutUint16(hdr[15:], uint16(height))
-	hdr[43] = 16
-	hdr[44] = p[0]
-	hdr[48] = 16
-	if mode == 422 {
-		hdr[55] = 1
-	}
-	le.PutUint32(hdr[69:], uint32(len(stream)))
 	if c.ast == nil {
 		c.ast = ast.New()
 	}
-	cf, err := c.ast.Decode(append(hdr, stream...))
+	f, err := c.ast.Decode(html5Params(width, height, p[0], mode, len(stream)), stream)
 	if err != nil {
 		return protocol.Frame{}, err
 	}
-	for i := 3; i < len(cf.Pix); i += 4 {
-		cf.Pix[i] = 255
+	return protocol.Frame{Width: f.W, Height: f.H, Pixels: f.Pix}, nil
+}
+
+// html5Params describe the tile data of an HTML5 rectangle to the decoder:
+// the rectangle's size, the Y selector from its payload (the UV selector goes
+// unused), the YUV mode, of which 422 is the decoder's Mode420, and no RC4.
+func html5Params(width, height int, selector byte, mode, size int) ast.Params {
+	p := ast.Params{Width: width, Height: height, TableSelector: int(selector), CompressSize: size}
+	if mode == 422 {
+		p.Mode420 = 1
 	}
-	return protocol.Frame{Width: cf.W, Height: cf.H, Pixels: cf.Pix}, nil
+	return p
 }
 
 func (c *Client) tokenAuth() []byte {

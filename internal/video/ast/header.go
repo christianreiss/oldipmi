@@ -7,42 +7,34 @@ import (
 
 // header.go — port of soc/video/VideoHeader.java (the 86-byte frame header)
 // and the subset of soc/SOCFrameHdr.java + VideoEngineInfo that the decoder
-// reads. The reassembled frame buffer is: [86-byte VideoHeader][compressed
-// tile data]. VideoHeader.set() returns the bytes after offset 86 as the
-// compressed buffer.
+// reads. An AMI frame is [86-byte VideoHeader][compressed tile data]; the
+// ATEN HTML5 console sends the same tile data behind a header of its own.
 
 // videoHeaderSize is VideoHeader.VIDEO_HDR_SIZE.
 const videoHeaderSize = 86
 
-// frameHeader carries the fields the decoder consumes, named after
-// VideoEngineInfo.FRAME_HEADER / SourceModeInfo / DestinationModeInfo.
-type frameHeader struct {
-	// Source/destination resolutions.
-	sourceX, sourceY int // SourceModeInfo.X/.Y
-	destX, destY     int // DestinationModeInfo.X/.Y (== width/height used for placement)
+// Params describe a frame's tile data: the fields of VideoEngineInfo's
+// FRAME_HEADER and DestinationModeInfo that the decoder reads.
+type Params struct {
+	Width, Height int // DestinationModeInfo.X/.Y: the picture size in pixels
 
-	// FRAME_HEADER selectors.
-	compressionMode      int
-	jpegScaleFactor      int
-	jpegTableSelector    int // selector
-	jpegYUVTableMapping  int // Mapping
-	sharpModeSelection   int
-	advanceTableSelector int // advance_selector
-	advanceScaleFactor   int
-	numberOfMB           int
-	rc4Enable            int
-	rc4Reset             int
-	mode420              int
+	TableSelector        int  // JPEGTableSelector (selector), below len(tblY)
+	AdvanceTableSelector int  // AdvanceTableSelector (advance_selector), below len(tblY)
+	YUVTableMapping      int  // JPEGYUVTableMapping (Mapping): 0 or 1
+	Mode420              int  // Mode420: 1 for YUV 4:2:0, 0 for 4:4:4
+	RC4                  bool // RC4Enable is 1: the tile data is RC4-encrypted
 
-	compressSize int // CompressData.CompressSize
+	// CompressSize is CompressData.CompressSize: the bytes of tile data at
+	// the start of the stream; the rest is ignored.
+	CompressSize int
 }
 
-// parseFrameHeader ports VideoHeader.set() (little-endian field reads) followed
-// by SOCFrameHdr.getFrameVariables(). It returns the parsed header and the
-// compressed payload (the bytes after the 86-byte header).
-func parseFrameHeader(frame []byte) (frameHeader, []byte, error) {
+// ParseHeader ports VideoHeader.set() (little-endian field reads) followed by
+// SOCFrameHdr.getFrameVariables(). It returns the Params of an AMI frame and
+// the tile data after its 86-byte header.
+func ParseHeader(frame []byte) (Params, []byte, error) {
 	if len(frame) < videoHeaderSize {
-		return frameHeader{}, nil, fmt.Errorf("kvm/codec: frame too short: %d < %d", len(frame), videoHeaderSize)
+		return Params{}, nil, fmt.Errorf("kvm/codec: frame too short: %d < %d", len(frame), videoHeaderSize)
 	}
 	le := binary.LittleEndian
 	b := frame
@@ -91,24 +83,15 @@ func parseFrameHeader(frame []byte) (frameHeader, []byte, error) {
 	// 81  InputSignal          byte
 	// 82  Cursor_XPos          short
 	// 84  Cursor_YPos          short
-	var h frameHeader
-	h.sourceX = int(le.Uint16(b[4:]))
-	h.sourceY = int(le.Uint16(b[6:]))
-	h.destX = int(le.Uint16(b[13:]))
-	h.destY = int(le.Uint16(b[15:]))
-	h.compressionMode = int(b[42])
-	h.jpegScaleFactor = int(b[43])
-	h.jpegTableSelector = int(b[44])
-	h.jpegYUVTableMapping = int(b[45])
-	h.sharpModeSelection = int(b[46])
-	h.advanceTableSelector = int(b[47])
-	h.advanceScaleFactor = int(b[48])
-	h.numberOfMB = int(int32(le.Uint32(b[49:])))
-	h.rc4Enable = int(b[53])
-	h.rc4Reset = int(b[54])
-	h.mode420 = int(b[55])
-	h.compressSize = int(int32(le.Uint32(b[69:])))
-
-	compressed := frame[videoHeaderSize:]
-	return h, compressed, nil
+	p := Params{
+		Width:                int(le.Uint16(b[13:])),
+		Height:               int(le.Uint16(b[15:])),
+		TableSelector:        int(b[44]),
+		YUVTableMapping:      int(b[45]),
+		AdvanceTableSelector: int(b[47]),
+		RC4:                  b[53] == 1,
+		Mode420:              int(b[55]),
+		CompressSize:         int(int32(le.Uint32(b[69:]))),
+	}
+	return p, frame[videoHeaderSize:], nil
 }

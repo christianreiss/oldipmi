@@ -4,9 +4,9 @@ package ast
 // its helpers decompressJPEG, decompressJPEGPass2, moveBlockIndex, plus the
 // inline VQ-header reader used by the VQ block codes.
 
-// decode ports Decoder.decode(VideoEngineInfo, int[]). h carries the parsed
-// frame header; recv is the packed compressed stream (m_RecvBuffer).
-func (d *Decoder) decode(h *frameHeader, recv []uint32) {
+// decode ports Decoder.decode(VideoEngineInfo, int[]). h carries the frame's
+// Params; recv is the packed compressed stream (m_RecvBuffer).
+func (d *Decoder) decode(h *Params, recv []uint32) {
 	// VQ defaults (Decoder.decode header).
 	for i := 0; i < 4; i++ {
 		d.vq.Index[i] = i
@@ -16,11 +16,11 @@ func (d *Decoder) decode(h *frameHeader, recv []uint32) {
 	d.vq.Color[2] = 0x00808080
 	d.vq.Color[3] = 0x00C08080
 
-	d.width = h.destX
-	d.height = h.destY
-	d.realWidth = h.destX
-	d.realH = h.destY
-	d.mode420 = h.mode420
+	d.width = h.Width
+	d.height = h.Height
+	d.realWidth = h.Width
+	d.realH = h.Height
+	d.mode420 = h.Mode420
 
 	if d.mode420 == 1 {
 		d.width = roundUp(d.width, 16)
@@ -30,8 +30,8 @@ func (d *Decoder) decode(h *frameHeader, recv []uint32) {
 		d.height = roundUp(d.height, 8)
 	}
 
-	d.tmpWidthBy16 = h.destX
-	d.tmpHeightBy16 = h.destY
+	d.tmpWidthBy16 = h.Width
+	d.tmpHeightBy16 = h.Height
 	if d.mode420 == 1 {
 		d.tmpWidthBy16 = roundUp(d.tmpWidthBy16, 16)
 		d.tmpHeightBy16 = roundUp(d.tmpHeightBy16, 16)
@@ -42,11 +42,11 @@ func (d *Decoder) decode(h *frameHeader, recv []uint32) {
 
 	d.ensureBuffers()
 
-	compressWords := h.compressSize / 4
+	compressWords := h.CompressSize / 4
 
 	// RC4 layer (Decoder.decode). The key schedule runs once per session;
 	// RC4Enable per frame drives whether the crypt is applied.
-	if h.rc4Enable == 1 {
+	if h.RC4 {
 		if !d.rc4SetupDone {
 			expanded := keysExpansion(decodeKeys)
 			d.rc4.decodeRC4Setup(expanded)
@@ -64,9 +64,9 @@ func (d *Decoder) decode(h *frameHeader, recv []uint32) {
 	d.scaleFactorUV = 16
 	d.advanceScaleFactor = 16
 	d.advanceScaleFactorUV = 16
-	d.selector = h.jpegTableSelector
-	d.advanceSelector = h.advanceTableSelector
-	d.mapping = h.jpegYUVTableMapping
+	d.selector = h.TableSelector
+	d.advanceSelector = h.AdvanceTableSelector
+	d.mapping = h.YUVTableMapping
 
 	d.loadLuminanceQuantizationTable(&d.qt[0])
 	d.loadChrominanceQuantizationTable(&d.qt[1])

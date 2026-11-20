@@ -66,13 +66,43 @@ func astFrame(s streamSpec, stream []byte) []byte {
 func decodeAll(frames [][]byte) (last *Frame, words int, clean bool) {
 	d := New()
 	for _, b := range frames {
-		f, err := d.Decode(b)
+		f, err := decodeFrame(d, b)
 		if err != nil || d.index+2 >= (len(b)-videoHeaderSize)/4 {
 			return nil, 0, false
 		}
 		last, words = f, d.index
 	}
 	return last, words, true
+}
+
+// decodeFrame decodes an AMI frame: the 86-byte header, then the tile data.
+func decodeFrame(d *Decoder, frame []byte) (*Frame, error) {
+	p, stream, err := ParseHeader(frame)
+	if err != nil {
+		return nil, err
+	}
+	return d.Decode(p, stream)
+}
+
+// The drivers pass the decoder's frames on as they are, so its pixels must
+// be opaque.
+func TestDecodeIsOpaque(t *testing.T) {
+	d := New()
+	for i := range goldenStreams["ivtp"] {
+		b, err := os.ReadFile(filepath.Join("testdata", "streams", fmt.Sprintf("ivtp-%d.bin", i+1)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		f, err := decodeFrame(d, b)
+		if err != nil {
+			t.Fatalf("frame %d: %v", i+1, err)
+		}
+		for j := 3; j < len(f.Pix); j += 4 {
+			if f.Pix[j] != 255 {
+				t.Fatalf("frame %d: alpha %d at pixel %d", i+1, f.Pix[j], j/4)
+			}
+		}
+	}
 }
 
 func TestGenerateGoldenStreams(t *testing.T) {
