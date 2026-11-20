@@ -455,7 +455,11 @@ func (s *Server) start(id json.RawMessage, t Tool, args map[string]any, reply fu
 		}
 		res := map[string]any{"content": content}
 		if err != nil {
-			res = map[string]any{"content": []Content{{Type: "text", Text: err.Error()}}, "isError": true}
+			msg := err.Error()
+			if msg == "" { // a text block must have text
+				msg = "The operation failed without an error message."
+			}
+			res = map[string]any{"content": []Content{{Type: "text", Text: msg}}, "isError": true}
 		}
 		reply(res)
 	}()

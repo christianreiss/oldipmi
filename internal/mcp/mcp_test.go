@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -780,5 +781,15 @@ func TestBatchCollectsRepliesSafely(t *testing.T) {
 	}
 	if len(replies) != 100 || len(ids) != 100 {
 		t.Fatalf("%d replies for %d ids, want 100 each", len(replies), len(ids))
+	}
+}
+
+// A failure without a message still gives the agent text, which MCP requires
+// of a text block (B-13: the block went out without its text).
+func TestToolErrorWithoutMessage(t *testing.T) {
+	res := callTool(t, &fake{err: map[string]error{"power": errors.New("")}}, "power", `{"action":"soft"}`)
+	block := res["content"].([]any)[0].(map[string]any)
+	if res["isError"] != true || block["text"] != "The operation failed without an error message." {
+		t.Fatalf("%v", res)
 	}
 }

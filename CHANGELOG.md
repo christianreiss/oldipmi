@@ -28,6 +28,10 @@
   stay as they are.
 
 ### Fixed
+* **A failure without a reason still reaches the agent as text.** When OldIPMI
+  reported a failure without a message, for example a console that did not open
+  and gave no reason, the agent got a text block without its text, which MCP does
+  not allow. It now reads "The operation failed without an error message."
 * **Agents are offered only a protocol version they can use.** When an agent
   named an MCP protocol version that `oldipmi-mcp` does not speak in a request's
   metadata, the error listed every version it knows, although such requests
