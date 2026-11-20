@@ -756,3 +756,28 @@ func TestDisconnectSaysWhatHappened(t *testing.T) {
 		}
 	}
 }
+
+// A batch whose tool calls finish while its other replies are still being
+// collected answers every request once, in one array (B-04: the quick
+// replies went into the array without the lock the tool calls took).
+func TestBatchCollectsRepliesSafely(t *testing.T) {
+	var batch []string
+	for i := range 50 {
+		batch = append(batch,
+			fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"tools/call","params":{"name":"list_keys","arguments":{}}}`, 2*i),
+			fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"ping"}`, 2*i+1))
+	}
+	var out bytes.Buffer
+	NewServer(&fake{}, "t", "").Serve(strings.NewReader("["+strings.Join(batch, ",")+"]\n"), &out)
+	var replies []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &replies); err != nil {
+		t.Fatalf("%v: %.200s", err, out.String())
+	}
+	ids := map[float64]bool{}
+	for _, r := range replies {
+		ids[r["id"].(float64)] = true
+	}
+	if len(replies) != 100 || len(ids) != 100 {
+		t.Fatalf("%d replies for %d ids, want 100 each", len(replies), len(ids))
+	}
+}

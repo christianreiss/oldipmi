@@ -213,7 +213,9 @@ func (s *Server) receive(raw []byte) {
 			pending.Done()
 		})
 		if resp != nil {
+			mu.Lock() // tool calls of earlier parts may be appending already
 			out = append(out, resp)
+			mu.Unlock()
 		}
 		if resp != nil || !s.isAsync(p) {
 			pending.Done()

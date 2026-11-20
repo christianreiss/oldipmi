@@ -28,6 +28,10 @@
   stay as they are.
 
 ### Fixed
+* **An agent's batched requests always get all their replies.** When an agent
+  sent several requests in one batch and a tool call finished while the quick
+  replies were still being collected, `oldipmi-mcp` could lose replies or send a
+  damaged answer.
 * **A hostile Avocent BMC can no longer stall a console with one picture.**
   For every two-colour pattern in a picture, the backend looked up to a screen
   row back for the second colour. A picture made only of such patterns over a
