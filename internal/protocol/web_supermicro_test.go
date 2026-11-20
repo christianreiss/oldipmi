@@ -428,12 +428,12 @@ func TestConsoleModeValidation(t *testing.T) {
 		}
 	}
 	w, _ := NewWeb(Profile{Host: "bmc", Family: "aten", ConsoleMode: "vnc"})
-	w.Client.Transport = transport(func(r *http.Request) (*http.Response, error) { t.Fatal("network used"); return nil, nil })
+	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) { t.Fatal("network used"); return nil, nil })
 	if _, err := w.Login(context.Background(), "x"); err == nil || !strings.Contains(err.Error(), "Auto, Java or HTML5") {
 		t.Fatal(err)
 	}
 	w, _ = NewWeb(Profile{Host: "bmc", Family: "ami", ConsoleMode: "html5"})
-	w.Client.Transport = transport(func(r *http.Request) (*http.Response, error) { t.Fatal("network used"); return nil, nil })
+	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) { t.Fatal("network used"); return nil, nil })
 	if _, err := w.Login(context.Background(), "x"); err == nil || !strings.Contains(err.Error(), "only implemented for the ATEN") {
 		t.Fatal(err)
 	}
@@ -500,7 +500,7 @@ func TestSameHostPath(t *testing.T) {
 		"//evil.invalid/x":                                              "",
 		"/cgi/url_redirect.cgi?url_name=man_ikvm_html5_bootstrap&x=1":   "/cgi/url_redirect.cgi?url_name=man_ikvm_html5_bootstrap&x=1",
 	} {
-		if got, ok := w.sameHostPath(ref); got != want || ok != (want != "") {
+		if got, ok := w.SameHostPath(ref); got != want || ok != (want != "") {
 			t.Errorf("%s: %q %v", ref, got, ok)
 		}
 	}

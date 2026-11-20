@@ -29,13 +29,13 @@ func TestTLSPolicy(t *testing.T) {
 	}
 }
 
-type transport func(*http.Request) (*http.Response, error)
+type roundTripper func(*http.Request) (*http.Response, error)
 
-func (f transport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 func TestLoginFailureDoesNotFetchToken(t *testing.T) {
 	w, _ := NewWeb(Profile{Host: "bmc", Family: "ami"})
 	count := 0
-	w.Client.Transport = transport(func(r *http.Request) (*http.Response, error) {
+	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
 		count++
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{'HAPI_STATUS':-6,'SESSION_COOKIE':'Failure_Login'}`)), Header: make(http.Header)}, nil
 	})
@@ -51,7 +51,7 @@ func TestNonJNLPResponseExplainsLogin(t *testing.T) {
 	w, _ := NewWeb(Profile{Host: "bmc", Family: "aten"})
 	var stages []string
 	ctx := WithProgress(context.Background(), func(p Progress) { stages = append(stages, p.Stage) })
-	w.Client.Transport = transport(func(r *http.Request) (*http.Response, error) {
+	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`<html><body onload='logout_alert()'>SessionTimeout ()</body></html>`)), Header: make(http.Header)}, nil
 	})
 	_, e := w.Login(ctx, "do-not-log")

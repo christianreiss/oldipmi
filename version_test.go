@@ -28,7 +28,7 @@ func TestVersionHasOneSource(t *testing.T) {
 		"CMakeLists.txt":                "project(OldIPMI VERSION ${OLDIPMI_VERSION}",
 		"packaging/fedora/build-rpm.sh": "< VERSION",
 		"cmd/oldipmi-mcp/main.go":       "oldipmi.Version",
-		"internal/protocol/web.go":      `"OldIPMI/"+oldipmi.Version`,
+		"internal/transport/web.go":     `"OldIPMI/"+oldipmi.Version`,
 	} {
 		if !strings.Contains(read(name), use) {
 			t.Errorf("%s does not take the version from VERSION (no %q)", name, use)

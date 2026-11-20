@@ -18,7 +18,7 @@ func TestFreshLoginDiscoveryAndSafeInfo(t *testing.T) {
 		w, _ := NewWeb(p)
 		var stages []string
 		ctx := WithProgress(context.Background(), func(p Progress) { stages = append(stages, p.Stage) })
-		w.Client.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
 			body := ""
 			switch r.URL.Path {
 			case "/rpc/WEBSES/create.asp":

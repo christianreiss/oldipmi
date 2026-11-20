@@ -5,11 +5,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"net"
-	"strconv"
+	"oldipmi/internal/transport"
 	"strings"
-	"sync"
-	"time"
 )
 
 const MaxPayload = 16 << 20
@@ -70,66 +67,20 @@ type Session interface {
 	Power(context.Context, string) error
 	Close() error
 }
-type Wire struct {
-	net.Conn
-	mu sync.Mutex
+
+// Policy is what p allows its connections.
+func (p Profile) Policy() transport.Policy {
+	return transport.Policy{Host: p.Host, HTTP: p.HTTP, LegacyTLS: p.LegacyTLS, AllowPlainConsole: p.AllowPlainConsole,
+		ClientCert: p.ClientCert, ClientKey: p.ClientKey}
 }
 
-func (w *Wire) WritePacket(b []byte) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if err := w.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return err
-	}
-	for len(b) > 0 {
-		n, e := w.Write(b)
-		if e != nil {
-			return e
-		}
-		if n == 0 {
-			return io.ErrShortWrite
-		}
-		b = b[n:]
-	}
-	return nil
-}
-func TLSConfig(p Profile) *tls.Config {
-	c := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: p.Host}
-	if p.LegacyTLS {
-		c.MinVersion = tls.VersionTLS10
-		c.InsecureSkipVerify = true
-		c.CipherSuites = []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA, tls.TLS_RSA_WITH_AES_128_CBC_SHA, tls.TLS_RSA_WITH_AES_256_CBC_SHA, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}
-	}
-	return c
-}
+// Wire, TLSConfig and Dial are package transport's, until the drivers use it
+// themselves.
+type Wire = transport.Wire
+
+func TLSConfig(p Profile) *tls.Config { return transport.TLSConfig(p.Policy()) }
 func Dial(ctx context.Context, p Profile, port int, secure bool) (*Wire, error) {
-	if port < 1 || port > 65535 {
-		return nil, fmt.Errorf("invalid console port")
-	}
-	if !secure && !p.AllowPlainConsole {
-		return nil, fmt.Errorf("BMC requests an unencrypted console; enable this host's plain-console option explicitly")
-	}
-	d := &net.Dialer{Timeout: 10 * time.Second}
-	addr := net.JoinHostPort(p.Host, strconv.Itoa(port))
-	var c net.Conn
-	var err error
-	if secure {
-		tc := TLSConfig(p)
-		if p.ClientCert != "" || p.ClientKey != "" {
-			cert, e := tls.LoadX509KeyPair(p.ClientCert, p.ClientKey)
-			if e != nil {
-				return nil, fmt.Errorf("cannot load client certificate/key")
-			}
-			tc.Certificates = []tls.Certificate{cert}
-		}
-		c, err = (&tls.Dialer{NetDialer: d, Config: tc}).DialContext(ctx, "tcp", addr)
-	} else {
-		c, err = d.DialContext(ctx, "tcp", addr)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &Wire{Conn: c}, nil
+	return transport.Dial(ctx, p.Policy(), port, secure)
 }
 func Read(r io.Reader, n int) ([]byte, error) {
 	if n < 0 || n > MaxPayload {

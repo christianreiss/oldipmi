@@ -5,19 +5,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
-	"oldipmi"
+	"oldipmi/internal/transport"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 )
 
 type Launch struct {
@@ -40,129 +35,40 @@ type Launch struct {
 	// byte; the BMC waits for it before answering.
 	ClientType bool
 }
+
+// Web is a web session with the logins of the AMI and ATEN families.
 type Web struct {
-	Client  *http.Client
-	Base    string
+	*transport.Web
 	Profile Profile
 	Cookie  string
 
 	cgi         bool   // an ATEN /cgi/login.cgi session may exist
-	authToken   string // Redfish X-Auth-Token
 	redfishPath string // Redfish session resource to DELETE on Close
-	closeOnce   sync.Once
-}
-
-// StatusError is a BMC HTTP answer other than the expected success status.
-type StatusError struct{ Code int }
-
-func (e *StatusError) Error() string { return fmt.Sprintf("BMC HTTP status %d", e.Code) }
-
-func httpStatus(err error) int {
-	var s *StatusError
-	if errors.As(err, &s) {
-		return s.Code
-	}
-	return 0
-}
-
-// cleanJar ignores empty-valued cookies. ATEN firmware "deletes" SID with an
-// unparsable expiry date; Go would keep the empty cookie (at a narrower path) and
-// send it ahead of the real session cookie.
-type cleanJar struct{ http.CookieJar }
-
-func (j cleanJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
-	keep := cookies[:0:0]
-	for _, c := range cookies {
-		if c.Value != "" {
-			keep = append(keep, c)
-		}
-	}
-	j.CookieJar.SetCookies(u, keep)
 }
 
 func NewWeb(p Profile) (*Web, error) {
-	if p.Host == "" || strings.ContainsAny(p.Host, "/\\@?#\x00\r\n ") {
-		return nil, fmt.Errorf("enter a BMC hostname or IP address without a URL")
+	tw, err := transport.NewWeb(p.Policy())
+	if err != nil {
+		return nil, err
 	}
-	scheme := "https"
-	if p.HTTP {
-		scheme = "http"
-	}
-	u := &url.URL{Scheme: scheme, Host: p.Host}
-	if strings.Contains(p.Host, ":") {
-		u.Host = "[" + p.Host + "]"
-	}
-	jar, _ := cookiejar.New(nil)
-	c := &http.Client{Timeout: 20 * time.Second, Jar: cleanJar{jar}, Transport: &http.Transport{TLSClientConfig: TLSConfig(p), DisableKeepAlives: true}}
-	c.CheckRedirect = func(r *http.Request, via []*http.Request) error {
-		if len(via) > 3 || r.URL.Hostname() != p.Host || r.URL.Scheme != scheme {
-			return fmt.Errorf("BMC redirect changes host or transport; select the correct transport")
+	w := &Web{Web: tw, Profile: p}
+	// Closing logs out of the sessions this client opened: the Redfish
+	// session first (Close runs the last added first), then the web login.
+	w.OnClose(func(ctx context.Context) {
+		if w.Profile.Family == "aten" {
+			if w.cgi {
+				w.Request(ctx, "GET", "/cgi/logout.cgi", nil, false)
+			}
+		} else if w.Cookie != "" {
+			w.Request(ctx, "GET", "/rpc/WEBSES/logout.asp", nil, false)
 		}
-		return nil
-	}
-	return &Web{Client: c, Base: u.String(), Profile: p}, nil
-}
-
-type webResponse struct {
-	status int
-	header http.Header
-	body   []byte
-}
-
-// do sends one request and returns any HTTP status; only transport, size and
-// truncation problems are errors.
-func (w *Web) do(ctx context.Context, method, path string, body []byte, contentType string, tolerant bool) (webResponse, error) {
-	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
-		return webResponse{}, fmt.Errorf("invalid BMC endpoint")
-	}
-	var rd io.Reader
-	if body != nil {
-		rd = bytes.NewReader(body)
-	}
-	r, e := http.NewRequestWithContext(ctx, method, w.Base+path, rd)
-	if e != nil {
-		return webResponse{}, fmt.Errorf("invalid BMC request")
-	}
-	// Some ATEN web servers answer 500 without a Referer.
-	r.Header.Set("Referer", w.Base+"/")
-	r.Header.Set("User-Agent", "OldIPMI/"+oldipmi.Version)
-	if contentType != "" {
-		r.Header.Set("Content-Type", contentType)
-	}
-	if w.authToken != "" && strings.HasPrefix(path, "/redfish/") {
-		r.Header.Set("X-Auth-Token", w.authToken)
-	}
-	res, e := w.Client.Do(r)
-	if e != nil {
-		return webResponse{}, fmt.Errorf("BMC HTTP transport failed: %w", e)
-	}
-	defer res.Body.Close()
-	b, e := io.ReadAll(io.LimitReader(res.Body, (1<<20)+1))
-	if len(b) > 1<<20 {
-		return webResponse{}, fmt.Errorf("BMC response too large")
-	}
-	if e != nil && !(tolerant && errors.Is(e, io.ErrUnexpectedEOF)) {
-		return webResponse{}, fmt.Errorf("incomplete BMC response")
-	}
-	return webResponse{status: res.StatusCode, header: res.Header, body: b}, nil
-}
-
-// Request performs a form or plain request that must answer HTTP 200; any
-// other status is a *StatusError.
-func (w *Web) Request(ctx context.Context, method, path string, form url.Values, tolerant bool) ([]byte, error) {
-	var body []byte
-	ctype := ""
-	if form != nil {
-		body, ctype = []byte(form.Encode()), "application/x-www-form-urlencoded"
-	}
-	res, e := w.do(ctx, method, path, body, ctype, tolerant)
-	if e != nil {
-		return nil, e
-	}
-	if res.status != 200 {
-		return nil, &StatusError{res.status}
-	}
-	return res.body, nil
+	})
+	w.OnClose(func(ctx context.Context) {
+		if w.redfishPath != "" {
+			w.Do(ctx, "DELETE", w.redfishPath, nil, "", false)
+		}
+	})
+	return w, nil
 }
 
 var cookieRE = regexp.MustCompile(`['"]?SESSION_COOKIE['"]?\s*:\s*['"]([^'"\r\n]+)['"]`)
@@ -219,26 +125,6 @@ func (w *Web) Login(ctx context.Context, password string) (Launch, error) {
 	}
 	l.Cookie = w.Cookie
 	return l, nil
-}
-
-// Close ends the web sessions this client opened. It is safe to call twice.
-func (w *Web) Close() {
-	w.closeOnce.Do(func() {
-		ctx, c := context.WithTimeout(context.Background(), 3*time.Second)
-		defer c()
-		if w.redfishPath != "" {
-			w.do(ctx, "DELETE", w.redfishPath, nil, "", false)
-		}
-		if w.Profile.Family == "aten" {
-			if w.cgi {
-				w.Request(ctx, "GET", "/cgi/logout.cgi", nil, false)
-			}
-		} else if w.Cookie != "" {
-			w.Request(ctx, "GET", "/rpc/WEBSES/logout.asp", nil, false)
-		}
-		w.authToken = ""
-		w.Client.CloseIdleConnections()
-	})
 }
 
 // ---- ATEN / Supermicro ----
@@ -321,7 +207,7 @@ func (w *Web) atenLogin(ctx context.Context, password string, mode string) (l La
 	form := w.atenLoginForm(ctx, password)
 	w.cgi = true
 	_, err = w.Request(ctx, "POST", "/cgi/login.cgi", form, false)
-	switch code := httpStatus(err); {
+	switch code := transport.HTTPStatus(err); {
 	case code == 400 || code == 404 || code == 405:
 		w.cgi = false
 		return w.redfishLaunch(ctx, password, true)
@@ -368,7 +254,7 @@ func (w *Web) atenJNLP(ctx context.Context) (Launch, error) {
 	var missing javaUnavailable
 	for _, path := range paths {
 		b, e := w.Request(ctx, "GET", path, nil, true)
-		if httpStatus(e) == 404 {
+		if transport.HTTPStatus(e) == 404 {
 			continue
 		}
 		if e != nil {
@@ -397,7 +283,7 @@ var html5TokenRE = regexp.MustCompile(`id="entry_value"\s+value="([^"]{1,24})"`)
 // without that page is tried through Redfish (X11 and later).
 func (w *Web) atenHTML5(ctx context.Context, password string) (Launch, error) {
 	b, e := w.Request(ctx, "GET", atenHTML5Path, nil, true)
-	if httpStatus(e) == 404 {
+	if transport.HTTPStatus(e) == 404 {
 		l, e2 := w.redfishLaunch(ctx, password, false)
 		if e2 != nil {
 			return l, fmt.Errorf("this firmware's web interface offers no HTML5 console page (404), and Redfish discovery failed: %w", e2)
@@ -447,26 +333,26 @@ func (w *Web) html5FromPage(b []byte) (Launch, bool) {
 // unavailable, so this is the first credential check.
 func (w *Web) redfishLaunch(ctx context.Context, password string, login bool) (Launch, error) {
 	body, _ := json.Marshal(map[string]string{"UserName": w.Profile.Username, "Password": password})
-	res, e := w.do(ctx, "POST", redfishSessions, body, "application/json", false)
+	res, e := w.Do(ctx, "POST", redfishSessions, body, "application/json", false)
 	switch {
 	case e != nil:
 		return Launch{}, fmt.Errorf("the Redfish login failed: %v; check the hostname and this profile's HTTP / legacy TLS options", e)
-	case res.status == 401 || res.status == 403:
-		return Launch{}, fmt.Errorf("the BMC rejected the account or password (Redfish HTTP %d); check the credentials and that the account may use Redfish", res.status)
-	case res.status == 404 || res.status == 405:
+	case res.Status == 401 || res.Status == 403:
+		return Launch{}, fmt.Errorf("the BMC rejected the account or password (Redfish HTTP %d); check the credentials and that the account may use Redfish", res.Status)
+	case res.Status == 404 || res.Status == 405:
 		if login {
 			return Launch{}, fmt.Errorf("the BMC offers neither the ATEN web login (/cgi/login.cgi) nor Redfish sessions; this is not a supported Supermicro firmware; check the selected BMC family")
 		}
 		return Launch{}, fmt.Errorf("this firmware has no Redfish session service; update the BMC firmware or use its web interface")
-	case res.status != 200 && res.status != 201:
-		return Launch{}, fmt.Errorf("the Redfish login answered HTTP %d; retry, or check the BMC web interface", res.status)
+	case res.Status != 200 && res.Status != 201:
+		return Launch{}, fmt.Errorf("the Redfish login answered HTTP %d; retry, or check the BMC web interface", res.Status)
 	}
-	token := res.header.Get("X-Auth-Token")
+	token := res.Header.Get("X-Auth-Token")
 	if token == "" || len(token) > 256 || strings.ContainsAny(token, "\r\n") {
 		return Launch{}, fmt.Errorf("the Redfish login returned no session token; report the BMC firmware version")
 	}
-	w.authToken = token
-	if loc, ok := w.sameHostPath(res.header.Get("Location")); ok && strings.HasPrefix(loc, redfishSessions+"/") {
+	w.RedfishToken = token
+	if loc, ok := w.SameHostPath(res.Header.Get("Location")); ok && strings.HasPrefix(loc, redfishSessions+"/") {
 		w.redfishPath = loc
 	}
 	if login {
@@ -474,18 +360,18 @@ func (w *Web) redfishLaunch(ctx context.Context, password string, login bool) (L
 	}
 	var uri, gen string
 	for _, path := range []string{redfishIKVMOem, redfishIKVMLegacy} {
-		r, e := w.do(ctx, "GET", path, nil, "", false)
+		r, e := w.Do(ctx, "GET", path, nil, "", false)
 		if e != nil {
 			return Launch{}, fmt.Errorf("the Redfish iKVM request failed: %v; retry", e)
 		}
-		if r.status == 404 {
+		if r.Status == 404 {
 			continue
 		}
-		if r.status != 200 {
-			return Launch{}, fmt.Errorf("the Redfish iKVM resource answered HTTP %d; check that the account has Remote Console rights", r.status)
+		if r.Status != 200 {
+			return Launch{}, fmt.Errorf("the Redfish iKVM resource answered HTTP %d; check that the account has Remote Console rights", r.Status)
 		}
 		var doc struct{ URI string }
-		if json.Unmarshal(r.body, &doc) != nil || doc.URI == "" {
+		if json.Unmarshal(r.Body, &doc) != nil || doc.URI == "" {
 			return Launch{}, fmt.Errorf("the Redfish iKVM resource has no console URI; report the BMC firmware version")
 		}
 		uri, gen = doc.URI, "Supermicro X12/X13 (Redfish OEM iKVM)"
@@ -497,7 +383,7 @@ func (w *Web) redfishLaunch(ctx context.Context, password string, login bool) (L
 	if uri == "" {
 		return Launch{}, fmt.Errorf("this firmware's Redfish service has no iKVM resource; open the console from the BMC web interface or update the BMC firmware")
 	}
-	path, ok := w.sameHostPath(uri)
+	path, ok := w.SameHostPath(uri)
 	if !ok || len(path) > 512 {
 		return Launch{}, fmt.Errorf("the Redfish iKVM URI points outside this BMC; refusing it")
 	}
@@ -513,40 +399,6 @@ func (w *Web) redfishLaunch(ctx context.Context, password string, login bool) (L
 	l.Redfish = true
 	l.ClientType = w.html5ClientType(ctx)
 	return l, nil
-}
-
-// sameHostPath accepts an absolute path or an absolute URL on this BMC.
-func (w *Web) sameHostPath(ref string) (string, bool) {
-	if ref == "" || strings.ContainsAny(ref, "\r\n\x00\\") {
-		return "", false
-	}
-	u, e := url.Parse(ref)
-	if e != nil {
-		return "", false
-	}
-	if u.IsAbs() || u.Host != "" {
-		base, _ := url.Parse(w.Base)
-		port := func(v *url.URL) string {
-			if p := v.Port(); p != "" {
-				return p
-			}
-			if v.Scheme == "http" {
-				return "80"
-			}
-			return "443"
-		}
-		if u.Scheme != base.Scheme || !strings.EqualFold(u.Hostname(), base.Hostname()) || port(u) != port(base) {
-			return "", false
-		}
-	}
-	p := u.EscapedPath()
-	if u.RawQuery != "" {
-		p += "?" + u.RawQuery
-	}
-	if !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") {
-		return "", false
-	}
-	return p, true
 }
 
 // atenArgOffset skips a leading codebase URL and jar/native-library names.
@@ -565,23 +417,14 @@ func atenArgOffset(a []string) int {
 }
 
 func ParseJNLP(b []byte) (Launch, error) {
-	var doc struct {
-		XMLName xml.Name `xml:"jnlp"`
-		App     struct {
-			Main string   `xml:"main-class,attr"`
-			Args []string `xml:"argument"`
-		} `xml:"application-desc"`
+	doc, e := transport.ParseJNLP(b)
+	if e != nil {
+		return Launch{}, e
 	}
-	if len(b) > 1<<20 {
-		return Launch{}, fmt.Errorf("JNLP exceeds size limit")
-	}
-	if e := xml.Unmarshal(b, &doc); e != nil {
-		return Launch{}, fmt.Errorf("invalid or incomplete JNLP XML")
-	}
-	a := doc.App.Args
+	a := doc.Args
 	l := Launch{Family: "ami", Args: map[string]string{}, Pos: a}
 	number := func(s string) int { n, _ := strconv.Atoi(strings.TrimSpace(s)); return n }
-	if strings.Contains(doc.App.Main, "aten") {
+	if strings.Contains(doc.Main, "aten") {
 		// KVMMain arguments (ATENtion; drac-kvm iKVM version table):
 		// 0 host, 1 user/token, 2 password/token, 3 host name, 4 KVM port
 		// (stunnel-local when tunnelled), 5 media port, 6 company, 7 board,
