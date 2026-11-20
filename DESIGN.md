@@ -20,8 +20,12 @@ console family in the connection list, the console type tiles and the selected
 connection, plus the first-run and error states. They share one style (flat
 Breeze/Papirus look, slate body, one accent colour each, no text or vendor logos)
 and must read on light and dark themes at 32 px; new ones are derived from
-`family-aten.png` so the set stays uniform. Copy is plain and specific ("Login
-failed", "Check the BMC address"), never marketing.
+`family-aten.png` so the set stays uniform. Apart from them there is only the app
+icon (`packaging/oldipmi.svg`, a server front with a console prompt), plain SVG in
+the same style: shapes and gradients only, no filters, so QtSvg draws it; it must
+read at 16 px. Pages show the bundled copy; launcher, task bar and window icon
+use the installed one. Copy is plain and specific ("Login failed", "Check the BMC
+address"), never marketing.
 
 ## Tokens
 

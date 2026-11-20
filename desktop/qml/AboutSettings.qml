@@ -14,8 +14,8 @@ FormCard.FormCardPage {
             contentItem: Row {
                 spacing: Kirigami.Units.largeSpacing * 2
                 Kirigami.Icon {
-                    source: "oldipmi"
-                    fallback: "network-server"
+                    // Bundled, as in the sidebar: an installed theme icon may be missing or older.
+                    source: "qrc:/oldipmi.svg"
                     width: Kirigami.Units.iconSizes.huge
                     height: width
                 }

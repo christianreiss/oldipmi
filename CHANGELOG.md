@@ -8,6 +8,12 @@
   clipboard as an image at its own resolution, without the stage around it, and
   confirms it with a short note.
 
+### Changed
+* **New app icon:** a server front with a glowing console prompt, in the style
+  of the illustrations. It is plain SVG, so it stays sharp from the title bar to
+  the welcome page. The About page now shows the bundled icon, like the sidebar,
+  instead of an installed theme icon that may be missing or older.
+
 ## 0.3.0 (2026-11-19)
 
 ### Changed
