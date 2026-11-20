@@ -3,10 +3,9 @@ package protocol
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"oldipmi/internal/transport"
 	"strings"
 	"testing"
@@ -46,55 +45,27 @@ func TestLoginFailureDoesNotFetchToken(t *testing.T) {
 	}
 }
 
-// A rejected ATEN login sets no session cookie and answers every page with a
-// "session timeout" page; it must fail in the login stage.
-func TestNonJNLPResponseExplainsLogin(t *testing.T) {
-	w, _ := NewWeb(Profile{Host: "bmc", Family: "aten"})
-	var stages []string
-	ctx := WithProgress(context.Background(), func(p Progress) { stages = append(stages, p.Stage) })
-	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`<html><body onload='logout_alert()'>SessionTimeout ()</body></html>`)), Header: make(http.Header)}, nil
-	})
-	_, e := w.Login(ctx, "do-not-log")
-	if e == nil || !strings.Contains(e.Error(), "password was rejected") || strings.Contains(e.Error(), "do-not-log") {
-		t.Fatal(e)
-	}
-	if len(stages) != 1 || stages[0] != "logging_in" {
-		t.Fatal("rejected login reported as a later stage:", stages)
-	}
-}
 func FuzzJNLP(f *testing.F) {
 	f.Add([]byte("<jnlp/>"))
 	f.Fuzz(func(t *testing.T, b []byte) { ParseJNLP(b) })
 }
 
-// ATEN firmware sends a malformed-date "delete" cookie for SID before the real one.
-func TestATENEmptyCookieDoesNotShadowSession(t *testing.T) {
-	var seen string
-	srv := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/cgi/login.cgi" {
-			h := rw.Header()
-			h.Add("Set-Cookie", "SID=; expires=Thursday,01-Jan-1970 00:00:00 GMT; ;Secure; HttpOnly")
-			h.Add("Set-Cookie", "SID=real-session; path=/ ; ;Secure; HttpOnly")
-			io.WriteString(rw, "ok")
-			return
+func TestConsoleModeValidation(t *testing.T) {
+	for in, want := range map[string]string{"": "auto", "Auto": "auto", "java": "java", " html5 ": "html5"} {
+		if got, err := (Profile{ConsoleMode: in}).ConsoleModeValue(); err != nil || got != want {
+			t.Fatal(in, got, err)
 		}
-		seen = r.Header.Get("Cookie")
-		io.WriteString(rw, "<jnlp><application-desc main-class='aten'/></jnlp>")
-	}))
-	defer srv.Close()
-	w, err := NewWeb(Profile{Host: "127.0.0.1", Family: "aten", LegacyTLS: true})
-	if err != nil {
+	}
+	w, _ := NewWeb(Profile{Host: "bmc", Family: "ami", ConsoleMode: "html5"})
+	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) { t.Fatal("network used"); return nil, nil })
+	if _, err := w.Login(context.Background(), "x"); err == nil || !strings.Contains(err.Error(), "only implemented for the ATEN") {
 		t.Fatal(err)
 	}
-	w.Base = srv.URL
-	if _, err := w.Request(context.Background(), "POST", "/cgi/login.cgi", url.Values{"name": {"u"}}, false); err != nil {
-		t.Fatal(err)
+	b, _ := json.Marshal(Profile{ConsoleMode: "html5"})
+	if !strings.Contains(string(b), `"consoleMode":"html5"`) {
+		t.Fatal(string(b))
 	}
-	if _, err := w.Request(context.Background(), "GET", "/cgi/url_redirect.cgi", nil, false); err != nil {
-		t.Fatal(err)
-	}
-	if seen != "SID=real-session" {
-		t.Fatalf("cookie header %q", seen)
+	if b, _ = json.Marshal(Profile{}); strings.Contains(string(b), "consoleMode") {
+		t.Fatal("empty console mode should be omitted")
 	}
 }

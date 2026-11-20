@@ -9,6 +9,7 @@ import (
 	"oldipmi/internal/protocol"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -17,10 +18,40 @@ import (
 )
 
 // The ATEN side of the transport policy (see internal/protocol/policy_test.go):
-// the HTML5 console's WebSocket uses TLS unless the profile logs in over plain
+// the web login checks the BMC's certificate before it sends the password, the
+// HTML5 console's WebSocket uses TLS unless the profile logs in over plain
 // HTTP, it checks the BMC's certificate unless legacy TLS is on, and the web
 // session cookie never goes over a connection that fails that policy. The ISO
 // media channel is plain TCP, so it needs the plain-console option.
+
+// Without legacy TLS the web login checks the BMC's certificate, and fails in
+// the login stage before a request (and so the password) reaches the BMC.
+func TestWebLoginChecksTheCertificateBeforeCredentials(t *testing.T) {
+	bmc := &smBMC{t: t}
+	srv := httptest.NewTLSServer(bmc)
+	defer srv.Close()
+	srv.Config.ErrorLog = log.New(io.Discard, "", 0)
+	w, _ := newWeb(protocol.Profile{Host: "127.0.0.1", Family: "aten", Username: "admin"})
+	w.Base = srv.URL
+	var stages []string
+	ctx := protocol.WithProgress(context.Background(), func(p protocol.Progress) { stages = append(stages, p.Stage) })
+	_, err := w.login(ctx, "do-not-log")
+	msg := "<nil>"
+	if err != nil {
+		msg = strings.ReplaceAll(err.Error(), srv.Listener.Addr().String(), "BMC")
+	}
+	prefix := `the BMC web login (/cgi/login.cgi) failed: BMC HTTP transport failed: Post "https://BMC/cgi/login.cgi": `
+	if !strings.HasPrefix(msg, prefix) || !strings.HasSuffix(msg, "; check the hostname and this profile's HTTP / legacy TLS options") ||
+		!strings.Contains(msg, "unknown authority") {
+		t.Fatalf("error %q", msg)
+	}
+	if len(bmc.hits) != 0 {
+		t.Fatal("requests reached the BMC:", bmc.hits)
+	}
+	if !reflect.DeepEqual(stages, []string{"logging_in"}) {
+		t.Fatal("stages", stages)
+	}
+}
 
 // noConnection fails the test if anything connected to ln.
 func noConnection(t *testing.T, ln net.Listener) {
@@ -40,7 +71,7 @@ func TestHTML5WebSocketPolicy(t *testing.T) {
 			io.Copy(io.Discard, ws)
 		}
 	}
-	launch := protocol.Launch{Family: "aten", HTML5: true, Token: "tok", Cookie: "SID=sid-1"}
+	launch := Launch{HTML5: true, Token: "tok", Cookie: "SID=sid-1"}
 	for _, c := range []struct {
 		name    string
 		tls     bool // the BMC's console port speaks TLS

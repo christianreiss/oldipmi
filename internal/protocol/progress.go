@@ -60,19 +60,6 @@ func (l Launch) ConsoleInfo(p Profile) ConsoleInfo {
 	if l.Legacy {
 		name = "AMI MegaRAC VSC"
 	}
-	if l.Family == "aten" {
-		name = "ATEN RFB"
-	}
-	if l.HTML5 {
-		info := ConsoleInfo{Protocol: "ATEN HTML5 (AST2100 over WebSocket)", LegacyTLS: p.LegacyTLS,
-			Endpoints:    []Endpoint{ConsoleEndpoint("Video / input", p.Host, l.Port, l.Secure)},
-			Capabilities: []string{"Video", "Keyboard", "Pointer", "Power"}}
-		info.Endpoints[0].Transport += " (WebSocket)"
-		if l.Redfish {
-			info.Protocol += ", discovered via Redfish"
-		}
-		return info
-	}
 	info := ConsoleInfo{Protocol: name, LegacyTLS: p.LegacyTLS,
 		Endpoints:    []Endpoint{ConsoleEndpoint("Video / input", p.Host, l.Port, l.Secure)},
 		Capabilities: []string{"Video", "Keyboard", "Pointer"}}
@@ -81,11 +68,7 @@ func (l Launch) ConsoleInfo(p Profile) ConsoleInfo {
 		info.Endpoints = append(info.Endpoints, ConsoleEndpoint("Input", p.Host, l.HIDPort, true))
 	}
 	if l.CDPort > 0 && l.CDPort <= 65535 {
-		secure := l.MediaSecure
-		if l.Family == "aten" {
-			secure = false // The native ATEN media adapter uses plain TCP.
-		}
-		info.Endpoints = append(info.Endpoints, ConsoleEndpoint("Media (advertised)", p.Host, l.CDPort, secure))
+		info.Endpoints = append(info.Endpoints, ConsoleEndpoint("Media (advertised)", p.Host, l.CDPort, l.MediaSecure))
 		info.Capabilities = append(info.Capabilities, "Read-only ISO")
 	}
 	return info

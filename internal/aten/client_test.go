@@ -67,7 +67,7 @@ func TestNativeSessionHandshakeFrameAndCancellation(t *testing.T) {
 	defer cancel()
 	port := ln.Addr().(*net.TCPAddr).Port
 	j := fmt.Sprintf(`<jnlp><application-desc main-class="com.aten.ikvm"><argument>localhost</argument><argument>fixture-token</argument><argument>x</argument><argument>x</argument><argument>%d</argument><argument>623</argument><argument>x</argument><argument>x</argument><argument>0</argument><argument>0</argument></application-desc></jnlp>`, port)
-	launch, e := protocol.ParseJNLP([]byte(j))
+	launch, e := parseJNLP([]byte(j))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -112,7 +112,7 @@ func TestPointerButtonTranslation(t *testing.T) {
 }
 
 func TestJavaTokenAuthUsesDistinctPasswordField(t *testing.T) {
-	c := &Client{launch: protocol.Launch{Family: "aten", Token: "user1", PasswordToken: "pass2"}}
+	c := &Client{launch: Launch{Token: "user1", PasswordToken: "pass2"}}
 	a := c.tokenAuth()
 	if !bytes.Equal(bytes.TrimRight(a[:24], "\x00"), []byte("user1")) || !bytes.Equal(bytes.TrimRight(a[24:], "\x00"), []byte("pass2")) {
 		t.Fatalf("%q", a)
@@ -124,7 +124,7 @@ func TestJavaTokenAuthUsesDistinctPasswordField(t *testing.T) {
 }
 
 func TestHTML5TokenAuthClientTypeByte(t *testing.T) {
-	c := &Client{launch: protocol.Launch{Family: "aten", HTML5: true, Token: "tok"}}
+	c := &Client{launch: Launch{HTML5: true, Token: "tok"}}
 	if a := c.tokenAuth(); len(a) != 48 || !bytes.Equal(bytes.TrimRight(a, "\x00"), []byte("tok")) {
 		t.Fatalf("X10/X11: %q", a)
 	}

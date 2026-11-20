@@ -1,4 +1,4 @@
-package protocol
+package aten
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"oldipmi/internal/protocol"
 	"reflect"
 	"strings"
 	"sync"
@@ -108,17 +109,17 @@ func atenLogin(base64Form bool) http.HandlerFunc {
 	}
 }
 
-func newSMWeb(t *testing.T, mode string, routes map[string]http.HandlerFunc) (*Web, *smBMC, *[]string, context.Context) {
+func newSMWeb(t *testing.T, mode string, routes map[string]http.HandlerFunc) (*web, *smBMC, *[]string, context.Context) {
 	bmc := &smBMC{t: t, routes: routes}
 	srv := httptest.NewTLSServer(bmc)
 	t.Cleanup(srv.Close)
-	w, err := NewWeb(Profile{Host: "127.0.0.1", Family: "aten", Username: smUser, LegacyTLS: true, ConsoleMode: mode})
+	w, err := newWeb(protocol.Profile{Host: "127.0.0.1", Family: "aten", Username: smUser, LegacyTLS: true, ConsoleMode: mode})
 	if err != nil {
 		t.Fatal(err)
 	}
 	w.Base = srv.URL
 	stages := &[]string{}
-	ctx := WithProgress(context.Background(), func(p Progress) { *stages = append(*stages, p.Stage) })
+	ctx := protocol.WithProgress(context.Background(), func(p protocol.Progress) { *stages = append(*stages, p.Stage) })
 	return w, bmc, stages, ctx
 }
 
@@ -134,21 +135,21 @@ func TestSupermicroX9JavaJNLP(t *testing.T) {
 	w, bmc, stages, ctx := newSMWeb(t, "", map[string]http.HandlerFunc{
 		"GET /":               body(`<form action="/cgi/login.cgi"><input name="name"><input name="pwd"></form>`),
 		"POST /cgi/login.cgi": atenLogin(false),
-		"GET " + atenJNLPPath: sessionOnly(smJNLP10),
+		"GET " + jnlpPath:     sessionOnly(smJNLP10),
 		"GET /cgi/url_redirect.cgi?url_name=topmenu": body(`<script>SmcCsrfInsert("CSRF_TOKEN", "abcdef123");</script>`),
 	})
-	l, err := w.Login(ctx, smPass)
+	l, err := w.login(ctx, smPass)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if l.Family != "aten" || l.HTML5 || l.Token != "Tok3nAbc" || l.PasswordToken != "" || !l.Secure || l.Port != 5900 || l.CDPort != 623 {
+	if l.HTML5 || l.Token != "Tok3nAbc" || l.PasswordToken != "" || !l.Secure || l.Port != 5900 || l.CDPort != 623 {
 		t.Fatalf("%+v", l)
 	}
 	if !reflect.DeepEqual(*stages, []string{"logging_in", "discovering"}) {
 		t.Fatal(*stages)
 	}
 	// The console preference (CSRF-protected op.cgi) is never touched.
-	if bmc.hit("POST /cgi/op.cgi") || bmc.hit("GET "+atenHTML5Path) {
+	if bmc.hit("POST /cgi/op.cgi") || bmc.hit("GET "+html5Path) {
 		t.Fatal(bmc.hits)
 	}
 	w.Close()
@@ -165,11 +166,11 @@ func TestSupermicroBase64LoginAndLongJNLP(t *testing.T) {
         form1.pwd.value  = btoa (form1.pwd.value); document.form1.submit(); }</script>
 <form name="form1" action="/cgi/login.cgi" method="post"><input name="name"><input name="pwd" id="pwd"><input name="check" type="hidden" value="00"></form>`
 	w, bmc, _, ctx := newSMWeb(t, "auto", map[string]http.HandlerFunc{
-		"GET /":                  body(loginPage),
-		"POST /cgi/login.cgi":    atenLogin(true),
-		"GET " + atenAltJNLPPath: sessionOnly(smJNLP22),
+		"GET /":               body(loginPage),
+		"POST /cgi/login.cgi": atenLogin(true),
+		"GET " + altJNLPPath:  sessionOnly(smJNLP22),
 	})
-	l, err := w.Login(ctx, smPass)
+	l, err := w.login(ctx, smPass)
 	noSecret(t, err)
 	if err != nil {
 		t.Fatal(err, bmc.hits)
@@ -182,12 +183,12 @@ func TestSupermicroBase64LoginAndLongJNLP(t *testing.T) {
 // Firmware with Java iKVM disabled answers the JNLP URL with a web page.
 func TestSupermicroJavaDisabledFallsBackToHTML5(t *testing.T) {
 	w, bmc, stages, ctx := newSMWeb(t, "", map[string]http.HandlerFunc{
-		"POST /cgi/login.cgi":    atenLogin(false),
-		"GET " + atenJNLPPath:    body(`<html><body>Java plug-in is disabled</body></html>`),
-		"GET " + atenAltJNLPPath: body(`<html><body>Java plug-in is disabled</body></html>`),
-		"GET " + atenHTML5Path:   sessionOnly(smHTML5Page),
+		"POST /cgi/login.cgi": atenLogin(false),
+		"GET " + jnlpPath:     body(`<html><body>Java plug-in is disabled</body></html>`),
+		"GET " + altJNLPPath:  body(`<html><body>Java plug-in is disabled</body></html>`),
+		"GET " + html5Path:    sessionOnly(smHTML5Page),
 	})
-	l, err := w.Login(ctx, smPass)
+	l, err := w.login(ctx, smPass)
 	if err != nil {
 		t.Fatal(err, bmc.hits)
 	}
@@ -202,10 +203,10 @@ func TestSupermicroJavaDisabledFallsBackToHTML5(t *testing.T) {
 // Firmware without Java iKVM (verified live on an X10/X11-era BMC): 404.
 func TestSupermicro404FallsBackToHTML5(t *testing.T) {
 	w, _, _, ctx := newSMWeb(t, "", map[string]http.HandlerFunc{
-		"POST /cgi/login.cgi":  atenLogin(false),
-		"GET " + atenHTML5Path: sessionOnly(smHTML5Page),
+		"POST /cgi/login.cgi": atenLogin(false),
+		"GET " + html5Path:    sessionOnly(smHTML5Page),
 	})
-	l, err := w.Login(ctx, smPass)
+	l, err := w.login(ctx, smPass)
 	if err != nil || !l.HTML5 || l.Token != "H5tok-777" || l.ClientType {
 		t.Fatal(l, err)
 	}
@@ -225,23 +226,23 @@ func TestSupermicroHTML5ClientTypeFromBMCClient(t *testing.T) {
 		want bool
 	}{{smRFBX11, false}, {smRFBX12, true}, {"", false}} {
 		routes := map[string]http.HandlerFunc{
-			"POST /cgi/login.cgi":  atenLogin(false),
-			"GET " + atenHTML5Path: sessionOnly(smHTML5Page),
+			"POST /cgi/login.cgi": atenLogin(false),
+			"GET " + html5Path:    sessionOnly(smHTML5Page),
 		}
 		if c.rfb != "" {
-			routes["GET "+atenNoVNCRFB] = body(c.rfb)
+			routes["GET "+noVNCRFB] = body(c.rfb)
 		}
 		w, _, _, ctx := newSMWeb(t, "html5", routes)
-		l, err := w.Login(ctx, smPass)
+		l, err := w.login(ctx, smPass)
 		if err != nil || !l.HTML5 || l.ClientType != c.want {
 			t.Fatalf("rfb %q: %+v %v", c.rfb, l, err)
 		}
 		w.Close()
 	}
 	routes := redfish(t, redfishIKVMOem, "/redfish/Kk1D4UVATDja0Jw.IKVM", smHTML5Page)
-	routes["GET "+atenNoVNCRFB] = body(smRFBX12)
+	routes["GET "+noVNCRFB] = body(smRFBX12)
 	w, _, _, ctx := newSMWeb(t, "", routes)
-	if l, err := w.Login(ctx, smPass); err != nil || !l.Redfish || !l.ClientType {
+	if l, err := w.login(ctx, smPass); err != nil || !l.Redfish || !l.ClientType {
 		t.Fatalf("redfish: %+v %v", l, err)
 	}
 	w.Close()
@@ -249,14 +250,14 @@ func TestSupermicroHTML5ClientTypeFromBMCClient(t *testing.T) {
 
 func TestSupermicroJavaModeDoesNotFallBack(t *testing.T) {
 	w, bmc, _, ctx := newSMWeb(t, "java", map[string]http.HandlerFunc{
-		"POST /cgi/login.cgi":  atenLogin(false),
-		"GET " + atenHTML5Path: sessionOnly(smHTML5Page),
+		"POST /cgi/login.cgi": atenLogin(false),
+		"GET " + html5Path:    sessionOnly(smHTML5Page),
 	})
-	_, err := w.Login(ctx, smPass)
+	_, err := w.login(ctx, smPass)
 	if err == nil || !strings.Contains(err.Error(), "no Java iKVM") || !strings.Contains(err.Error(), "console mode to Auto or HTML5") {
 		t.Fatal(err)
 	}
-	if bmc.hit("GET " + atenHTML5Path) {
+	if bmc.hit("GET " + html5Path) {
 		t.Fatal("java mode used the HTML5 console")
 	}
 	if !bmc.hit("GET /cgi/logout.cgi") {
@@ -266,11 +267,11 @@ func TestSupermicroJavaModeDoesNotFallBack(t *testing.T) {
 
 func TestSupermicroHTML5ModeSkipsJava(t *testing.T) {
 	w, bmc, _, ctx := newSMWeb(t, "HTML5", map[string]http.HandlerFunc{
-		"POST /cgi/login.cgi":  atenLogin(false),
-		"GET " + atenJNLPPath:  sessionOnly(smJNLP10),
-		"GET " + atenHTML5Path: sessionOnly(smHTML5Page),
+		"POST /cgi/login.cgi": atenLogin(false),
+		"GET " + jnlpPath:     sessionOnly(smJNLP10),
+		"GET " + html5Path:    sessionOnly(smHTML5Page),
 	})
-	l, err := w.Login(ctx, smPass)
+	l, err := w.login(ctx, smPass)
 	if err != nil || !l.HTML5 {
 		t.Fatal(l, err)
 	}
@@ -283,12 +284,12 @@ func TestSupermicroHTML5ModeSkipsJava(t *testing.T) {
 // that names both attempts.
 func TestSupermicroSessionNotAcceptedByConsoles(t *testing.T) {
 	w, _, stages, ctx := newSMWeb(t, "", map[string]http.HandlerFunc{
-		"POST /cgi/login.cgi":    atenLogin(false),
-		"GET " + atenJNLPPath:    body(smTimeoutPage),
-		"GET " + atenAltJNLPPath: body(smTimeoutPage),
-		"GET " + atenHTML5Path:   body(smTimeoutPage),
+		"POST /cgi/login.cgi": atenLogin(false),
+		"GET " + jnlpPath:     body(smTimeoutPage),
+		"GET " + altJNLPPath:  body(smTimeoutPage),
+		"GET " + html5Path:    body(smTimeoutPage),
 	})
-	_, err := w.Login(ctx, smPass)
+	_, err := w.login(ctx, smPass)
 	noSecret(t, err)
 	if err == nil || !strings.Contains(err.Error(), "instead of a JNLP") || !strings.Contains(err.Error(), "HTML5 console was also unavailable") {
 		t.Fatal(err)
@@ -307,9 +308,9 @@ func TestSupermicroAMIJNLPNamesTheFamily(t *testing.T) {
 	} {
 		w, bmc, stages, ctx := newSMWeb(t, "", map[string]http.HandlerFunc{
 			"POST /cgi/login.cgi": atenLogin(false),
-			"GET " + atenJNLPPath: sessionOnly(jnlp),
+			"GET " + jnlpPath:     sessionOnly(jnlp),
 		})
-		_, err := w.Login(ctx, smPass)
+		_, err := w.login(ctx, smPass)
 		if err == nil || err.Error() != "the BMC served a non-ATEN JNLP; select the AMI family for this profile" {
 			t.Fatalf("%s: %v", jnlp, err)
 		}
@@ -322,13 +323,13 @@ func TestSupermicroAMIJNLPNamesTheFamily(t *testing.T) {
 func TestSupermicroWrongPasswordIsLoginStage(t *testing.T) {
 	w, bmc, stages, ctx := newSMWeb(t, "", map[string]http.HandlerFunc{
 		"POST /cgi/login.cgi": atenLogin(false),
-		"GET " + atenJNLPPath: sessionOnly(smJNLP10),
+		"GET " + jnlpPath:     sessionOnly(smJNLP10),
 	})
-	_, err := w.Login(ctx, "wrong-password")
+	_, err := w.login(ctx, "wrong-password")
 	if err == nil || !strings.Contains(err.Error(), "password was rejected") || strings.Contains(err.Error(), "wrong-password") {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(*stages, []string{"logging_in"}) || bmc.hit("GET "+atenJNLPPath) {
+	if !reflect.DeepEqual(*stages, []string{"logging_in"}) || bmc.hit("GET "+jnlpPath) {
 		t.Fatal(*stages, bmc.hits)
 	}
 	n := 0
@@ -378,7 +379,7 @@ func redfish(t *testing.T, ikvmPath, uri, page string) map[string]http.HandlerFu
 
 func TestSupermicroX13RedfishHTML5(t *testing.T) {
 	w, bmc, stages, ctx := newSMWeb(t, "", redfish(t, redfishIKVMOem, "/redfish/Kk1D4UVATDja0Jw.IKVM", smHTML5Page))
-	l, err := w.Login(ctx, smPass)
+	l, err := w.login(ctx, smPass)
 	if err != nil {
 		t.Fatal(err, bmc.hits)
 	}
@@ -388,7 +389,7 @@ func TestSupermicroX13RedfishHTML5(t *testing.T) {
 	if !reflect.DeepEqual(*stages, []string{"logging_in", "discovering"}) {
 		t.Fatal(*stages)
 	}
-	info := l.ConsoleInfo(w.Profile)
+	info := l.ConsoleInfo(w.p)
 	b, _ := json.Marshal(info)
 	if strings.Contains(string(b), "Kk1D4UVATDja0Jw") || strings.Contains(string(b), l.Token) || !strings.Contains(info.Protocol, "Redfish") {
 		t.Fatal(string(b))
@@ -403,7 +404,7 @@ func TestSupermicroX13RedfishHTML5(t *testing.T) {
 // Redfish session is still deleted.
 func TestSupermicroRedfishUnsupportedPage(t *testing.T) {
 	w, bmc, _, ctx := newSMWeb(t, "", redfish(t, redfishIKVMLegacy, "/redfish/Kk1D4UVATDja0Jw.IKVM", `<html><app-root></app-root></html>`))
-	_, err := w.Login(ctx, smPass)
+	_, err := w.login(ctx, smPass)
 	if err == nil || !strings.Contains(err.Error(), "X10/X11 (Redfish iKVM)") || !strings.Contains(err.Error(), "not supported yet") {
 		t.Fatal(err)
 	}
@@ -417,7 +418,7 @@ func TestSupermicroRedfishUnsupportedPage(t *testing.T) {
 
 func TestSupermicroRedfishRejectedAndOffHost(t *testing.T) {
 	w, _, stages, ctx := newSMWeb(t, "", redfish(t, redfishIKVMOem, "/redfish/Kk1D4UVATDja0Jw.IKVM", smHTML5Page))
-	_, err := w.Login(ctx, "wrong")
+	_, err := w.login(ctx, "wrong")
 	if err == nil || !strings.Contains(err.Error(), "rejected the account or password (Redfish HTTP 401)") {
 		t.Fatal(err)
 	}
@@ -425,7 +426,7 @@ func TestSupermicroRedfishRejectedAndOffHost(t *testing.T) {
 		t.Fatal(*stages)
 	}
 	w, _, _, ctx = newSMWeb(t, "", redfish(t, redfishIKVMOem, "https://evil.invalid/redfish/x.IKVM", smHTML5Page))
-	if _, err = w.Login(ctx, smPass); err == nil || !strings.Contains(err.Error(), "outside this BMC") {
+	if _, err = w.login(ctx, smPass); err == nil || !strings.Contains(err.Error(), "outside this BMC") {
 		t.Fatal(err)
 	}
 }
@@ -436,93 +437,39 @@ func TestSupermicroHTML5PageMissingTriesRedfish(t *testing.T) {
 	routes := redfish(t, redfishIKVMOem, "/redfish/Kk1D4UVATDja0Jw.IKVM", smHTML5Page)
 	routes["POST /cgi/login.cgi"] = atenLogin(false)
 	w, _, _, ctx := newSMWeb(t, "", routes)
-	l, err := w.Login(ctx, smPass)
+	l, err := w.login(ctx, smPass)
 	if err != nil || !l.Redfish {
 		t.Fatal(l, err)
 	}
 }
 
+// An unknown console mode fails before anything is sent.
 func TestConsoleModeValidation(t *testing.T) {
-	for in, want := range map[string]string{"": "auto", "Auto": "auto", "java": "java", " html5 ": "html5"} {
-		if got, err := (Profile{ConsoleMode: in}).ConsoleModeValue(); err != nil || got != want {
-			t.Fatal(in, got, err)
-		}
-	}
-	w, _ := NewWeb(Profile{Host: "bmc", Family: "aten", ConsoleMode: "vnc"})
+	w, _ := newWeb(protocol.Profile{Host: "bmc", Family: "aten", ConsoleMode: "vnc"})
 	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) { t.Fatal("network used"); return nil, nil })
-	if _, err := w.Login(context.Background(), "x"); err == nil || !strings.Contains(err.Error(), "Auto, Java or HTML5") {
+	if _, err := w.login(context.Background(), "x"); err == nil || !strings.Contains(err.Error(), "Auto, Java or HTML5") {
 		t.Fatal(err)
-	}
-	w, _ = NewWeb(Profile{Host: "bmc", Family: "ami", ConsoleMode: "html5"})
-	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) { t.Fatal("network used"); return nil, nil })
-	if _, err := w.Login(context.Background(), "x"); err == nil || !strings.Contains(err.Error(), "only implemented for the ATEN") {
-		t.Fatal(err)
-	}
-	b, _ := json.Marshal(Profile{ConsoleMode: "html5"})
-	if !strings.Contains(string(b), `"consoleMode":"html5"`) {
-		t.Fatal(string(b))
-	}
-	if b, _ = json.Marshal(Profile{}); strings.Contains(string(b), "consoleMode") {
-		t.Fatal("empty console mode should be omitted")
 	}
 }
 
-func atenJNLP(args ...string) []byte {
-	var s strings.Builder
-	s.WriteString(`<jnlp><application-desc main-class="tw.com.aten.ikvm.KVMMain">`)
-	for _, a := range args {
-		s.WriteString("<argument>" + a + "</argument>")
-	}
-	s.WriteString("</application-desc></jnlp>")
-	return []byte(s.String())
-}
+type roundTripper func(*http.Request) (*http.Response, error)
 
-// Argument layouts per iKVM version (drac-kvm version table, ATENtion, osso.nl).
-func TestATENJNLPVariants(t *testing.T) {
-	cases := []struct {
-		name               string
-		jnlp               []byte
-		port, cd           int
-		secure             bool
-		token, passwordTok string
-	}{
-		{"1.69.21 (8 args, plain)", atenJNLP("bmc", "user", "pass", "null", "5900", "623", "2", "0"), 5900, 623, false, "user", "pass"},
-		{"1.69.27 (tunnel off)", atenJNLP("bmc", "tok", "tok", "null", "5900", "623", "0", "0", "0", "3520"), 5900, 623, false, "tok", ""},
-		{"1.69.37 (tunnel on)", smJNLP10Bytes(), 5900, 623, true, "Tok3nAbc", ""},
-		{"1.69.39 (22 args)", []byte(smJNLP22), 5900, 623, true, "rotUser1", "rotPass2"},
-		{"trailing certificate", atenJNLP("bmc", "tok", "tok", "h", "63630", "623", "0", "0", "1", "5900", "-----BEGIN CERTIFICATE-----\nMIIx\n-----END CERTIFICATE-----"), 5900, 623, true, "tok", ""},
-	}
-	for _, c := range cases {
-		l, err := ParseJNLP(c.jnlp)
-		if err != nil || l.Family != "aten" || l.Port != c.port || l.CDPort != c.cd || l.Secure != c.secure || l.Token != c.token || l.PasswordToken != c.passwordTok {
-			t.Errorf("%s: %+v %v", c.name, l, err)
-		}
-	}
-	// ATENtion's truncated fixture (certificate in argument 6) must fail cleanly.
-	if _, err := ParseJNLP(atenJNLP("192.0.2.139", "t", "t", "LAB-IPMI", "63630", "623", "-----BEGIN CERTIFICATE-----")); err == nil || !strings.Contains(err.Error(), "unsupported ATEN JNLP layout") {
-		t.Fatal(err)
-	}
-	if _, err := ParseJNLP(atenJNLP("http://x/", "a.jar", "b.jar")); err == nil {
-		t.Fatal("jar-only JNLP accepted")
-	}
-}
+func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
-func smJNLP10Bytes() []byte { return []byte(smJNLP10) }
-
-func TestSameHostPath(t *testing.T) {
-	w, _ := NewWeb(Profile{Host: "bmc.example"})
-	for ref, want := range map[string]string{
-		"/redfish/v1/SessionService/Sessions/7":                         "/redfish/v1/SessionService/Sessions/7",
-		"https://bmc.example/redfish/v1/SessionService/Sessions/7":      "/redfish/v1/SessionService/Sessions/7",
-		"https://BMC.example:443/redfish/v1/SessionService/Sessions/7":  "/redfish/v1/SessionService/Sessions/7",
-		"https://bmc.example:8443/redfish/v1/SessionService/Sessions/7": "",
-		"http://bmc.example/redfish/x.IKVM":                             "",
-		"https://evil.invalid/redfish/x.IKVM":                           "",
-		"//evil.invalid/x":                                              "",
-		"/cgi/url_redirect.cgi?url_name=man_ikvm_html5_bootstrap&x=1":   "/cgi/url_redirect.cgi?url_name=man_ikvm_html5_bootstrap&x=1",
-	} {
-		if got, ok := w.SameHostPath(ref); got != want || ok != (want != "") {
-			t.Errorf("%s: %q %v", ref, got, ok)
-		}
+// A rejected ATEN login sets no session cookie and answers every page with a
+// "session timeout" page; it must fail in the login stage.
+func TestNonJNLPResponseExplainsLogin(t *testing.T) {
+	w, _ := newWeb(protocol.Profile{Host: "bmc", Family: "aten"})
+	var stages []string
+	ctx := protocol.WithProgress(context.Background(), func(p protocol.Progress) { stages = append(stages, p.Stage) })
+	w.Client.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`<html><body onload='logout_alert()'>SessionTimeout ()</body></html>`)), Header: make(http.Header)}, nil
+	})
+	_, e := w.login(ctx, "do-not-log")
+	if e == nil || !strings.Contains(e.Error(), "password was rejected") || strings.Contains(e.Error(), "do-not-log") {
+		t.Fatal(e)
+	}
+	if len(stages) != 1 || stages[0] != "logging_in" {
+		t.Fatal("rejected login reported as a later stage:", stages)
 	}
 }

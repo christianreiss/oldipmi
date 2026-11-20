@@ -140,7 +140,7 @@ func TestJavaGoldenFrames(t *testing.T) {
 	}
 	port, done := rfbConsole(t, updates)
 	j := fmt.Sprintf(`<jnlp><application-desc main-class="com.aten.ikvm"><argument>localhost</argument><argument>fixture-token</argument><argument>x</argument><argument>x</argument><argument>%d</argument><argument>623</argument><argument>x</argument><argument>x</argument><argument>0</argument><argument>0</argument></application-desc></jnlp>`, port)
-	launch, err := protocol.ParseJNLP([]byte(j))
+	launch, err := parseJNLP([]byte(j))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestHTML5GoldenFrames(t *testing.T) {
 	host, portStr, _ := net.SplitHostPort(strings.TrimPrefix(srv.URL, "https://"))
 	port, _ := strconv.Atoi(portStr)
 	p := protocol.Profile{Host: host, Family: "aten", LegacyTLS: true}
-	l := protocol.Launch{Family: "aten", HTML5: true, Token: "tok-123", Cookie: "SID=abc", Port: port, Secure: true}
+	l := Launch{HTML5: true, Token: "tok-123", Cookie: "SID=abc", Port: port, Secure: true}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	c := &Client{p: p, launch: l, pressed: map[uint32]bool{}, controlling: true}

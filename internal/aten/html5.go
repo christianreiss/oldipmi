@@ -48,7 +48,7 @@ func (c *wsConn) Write(p []byte) (int, error) {
 // discard drops the unread rest of the current WebSocket message.
 func (c *wsConn) discard() { c.buf = nil }
 
-func dialHTML5(ctx context.Context, p protocol.Profile, l protocol.Launch) (*transport.Wire, error) {
+func dialHTML5(ctx context.Context, p protocol.Profile, l Launch) (*transport.Wire, error) {
 	ws, err := transport.DialWS(ctx, p.Policy(), l.Port, l.Secure, l.Cookie)
 	var dial *websocket.DialError
 	if errors.As(err, &dial) {

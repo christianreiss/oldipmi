@@ -16,8 +16,8 @@ import (
 
 type Client struct {
 	p           protocol.Profile
-	web         *protocol.Web
-	launch      protocol.Launch
+	web         *web
+	launch      Launch
 	wire        *transport.Wire
 	mu          sync.Mutex
 	pressed     map[uint32]bool
@@ -38,9 +38,9 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 			c.Close()
 		}
 	}()
-	c.web, err = protocol.NewWeb(p)
+	c.web, err = newWeb(p)
 	if err == nil {
-		c.launch, err = c.web.Login(ctx, password)
+		c.launch, err = c.web.login(ctx, password)
 	}
 	if err != nil {
 		return c, err
@@ -52,9 +52,6 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 // attach dials the console described by c.launch and runs the handshake.
 func (c *Client) attach(ctx context.Context) (err error) {
 	p := c.p
-	if c.launch.Family != "aten" {
-		return fmt.Errorf("this BMC needs the AMI family; select it for this profile")
-	}
 	info := c.launch.ConsoleInfo(p)
 	protocol.Report(ctx, protocol.StageConnecting, &info)
 	if c.launch.HTML5 {

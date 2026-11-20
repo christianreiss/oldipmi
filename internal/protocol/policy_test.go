@@ -129,10 +129,9 @@ func TestWebSchemeFollowsTheHTTPOption(t *testing.T) {
 // Without legacy TLS the web login checks the BMC's certificate, and fails in
 // the login stage before a request (and so the password) reaches the BMC.
 func TestWebLoginChecksTheCertificateBeforeCredentials(t *testing.T) {
+	// The ATEN login: internal/aten's TestWebLoginChecksTheCertificateBeforeCredentials.
 	for _, c := range []struct{ family, prefix, suffix string }{
 		{"ami", `BMC HTTP transport failed: Post "https://BMC/rpc/WEBSES/create.asp": `, ""},
-		{"aten", `the BMC web login (/cgi/login.cgi) failed: BMC HTTP transport failed: Post "https://BMC/cgi/login.cgi": `,
-			"; check the hostname and this profile's HTTP / legacy TLS options"},
 	} {
 		t.Run(c.family, func(t *testing.T) {
 			var q requests
@@ -360,8 +359,8 @@ func TestConsoleDialPolicy(t *testing.T) {
 	}
 }
 
-// What the connection page shows per family and console (no tokens, cookies
-// or credentials ever reach it).
+// What the connection page shows per AMI console (no tokens, cookies or
+// credentials ever reach it). The ATEN consoles: internal/aten.
 func TestConsoleInfoPerLaunch(t *testing.T) {
 	p := Profile{Host: "bmc.example.net"}
 	ep := func(role, addr, via string) Endpoint {
@@ -382,18 +381,6 @@ func TestConsoleInfoPerLaunch(t *testing.T) {
 		{"AMI MegaRAC VSC", Launch{Family: "ami", Legacy: true, Token: "secret", Port: 7578, HIDPort: 7582, CDPort: 5120}, false,
 			ConsoleInfo{Protocol: "AMI MegaRAC VSC", Endpoints: []Endpoint{ep("Video", "bmc.example.net:7578", "Plain TCP"), ep("Input", "bmc.example.net:7582", "TLS"),
 				ep("Media (advertised)", "bmc.example.net:5120", "Plain TCP")}, Capabilities: []string{"Video", "Keyboard", "Pointer", "Read-only ISO"}}},
-		{"ATEN Java", Launch{Family: "aten", Token: "secret", PasswordToken: "secret", Port: 5900, Secure: true, CDPort: 623, MediaSecure: true}, false,
-			ConsoleInfo{Protocol: "ATEN RFB", Endpoints: []Endpoint{ep("Video / input", "bmc.example.net:5900", "TLS"), ep("Media (advertised)", "bmc.example.net:623", "Plain TCP")},
-				Capabilities: []string{"Video", "Keyboard", "Pointer", "Read-only ISO"}}},
-		{"ATEN HTML5", Launch{Family: "aten", HTML5: true, Token: "secret", Cookie: "secret", Port: 443, Secure: true}, false,
-			ConsoleInfo{Protocol: "ATEN HTML5 (AST2100 over WebSocket)", Endpoints: []Endpoint{ep("Video / input", "bmc.example.net:443", "TLS (WebSocket)")},
-				Capabilities: []string{"Video", "Keyboard", "Pointer", "Power"}}},
-		{"ATEN HTML5 over HTTP", Launch{Family: "aten", HTML5: true, Token: "secret", Port: 80}, false,
-			ConsoleInfo{Protocol: "ATEN HTML5 (AST2100 over WebSocket)", Endpoints: []Endpoint{ep("Video / input", "bmc.example.net:80", "Plain TCP (WebSocket)")},
-				Capabilities: []string{"Video", "Keyboard", "Pointer", "Power"}}},
-		{"ATEN Redfish", Launch{Family: "aten", HTML5: true, Redfish: true, Token: "secret", Port: 443, Secure: true}, true,
-			ConsoleInfo{Protocol: "ATEN HTML5 (AST2100 over WebSocket), discovered via Redfish", Endpoints: []Endpoint{ep("Video / input", "bmc.example.net:443", "TLS (WebSocket)")},
-				Capabilities: []string{"Video", "Keyboard", "Pointer", "Power"}, LegacyTLS: true}},
 	} {
 		q := p
 		q.LegacyTLS = c.legacy

@@ -94,7 +94,7 @@ func TestHTML5ConsoleSession(t *testing.T) {
 	host, portStr, _ := net.SplitHostPort(strings.TrimPrefix(srv.URL, "https://"))
 	port, _ := strconv.Atoi(portStr)
 	p := protocol.Profile{Host: host, Family: "aten", LegacyTLS: true}
-	l := protocol.Launch{Family: "aten", HTML5: true, Token: "tok-123", Cookie: "SID=abc", Port: port, Secure: true}
+	l := Launch{HTML5: true, Token: "tok-123", Cookie: "SID=abc", Port: port, Secure: true}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	c := &Client{p: p, launch: l, pressed: map[uint32]bool{}, controlling: true}
