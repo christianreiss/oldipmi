@@ -24,6 +24,7 @@ type fakeKVM struct {
 	cookie   string
 	auth     []byte
 	received [][]byte
+	updates  [][]byte // framebuffer updates to send; nil sends one that ends the frame at once
 }
 
 func (k *fakeKVM) handler(ws *websocket.Conn) {
@@ -52,14 +53,19 @@ func (k *fakeKVM) handler(ws *websocket.Conn) {
 	readN(10) // framebuffer update request
 	// Unknown message in its own WebSocket message must be skipped.
 	send([]byte{0x7f, 1, 2, 3})
-	// One AST2100 rectangle: 32x16, 4:2:2, stream that ends the frame at once.
-	payload := append([]byte{4, 7, 0x01, 0xa6}, 0, 0, 0, 0x90, 0, 0, 0, 0)
-	hdr := make([]byte, 20)
-	binary.BigEndian.PutUint16(hdr[4:], 32)
-	binary.BigEndian.PutUint16(hdr[6:], 16)
-	binary.BigEndian.PutUint32(hdr[8:], encAST2100)
-	binary.BigEndian.PutUint32(hdr[16:], uint32(len(payload)))
-	send(append(append([]byte{0, 0, 0, 1}, hdr...), payload...))
+	for _, u := range k.updates {
+		send(u)
+	}
+	if k.updates == nil {
+		// One AST2100 rectangle: 32x16, 4:2:2, stream that ends the frame at once.
+		payload := append([]byte{4, 7, 0x01, 0xa6}, 0, 0, 0, 0x90, 0, 0, 0, 0)
+		hdr := make([]byte, 20)
+		binary.BigEndian.PutUint16(hdr[4:], 32)
+		binary.BigEndian.PutUint16(hdr[6:], 16)
+		binary.BigEndian.PutUint32(hdr[8:], encAST2100)
+		binary.BigEndian.PutUint32(hdr[16:], uint32(len(payload)))
+		send(append(append([]byte{0, 0, 0, 1}, hdr...), payload...))
+	}
 	for {
 		m := readN(1)
 		if m[0] == 4 || m[0] == 5 {

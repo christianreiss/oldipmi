@@ -293,6 +293,13 @@ UndefinedBehaviorSanitizer and runs CTest there, and validates the desktop file.
 `tools/check.sh --package DIR` runs the part that an offline package build can run
 on its finished build directory; the RPM's `%check` uses it.
 
+The Go tests compare what each console family shows for a run of video packets
+with golden pictures in `internal/*/testdata/frames`. After a deliberate change
+to a decoder, `UPDATE_GOLDEN=1 go test ./internal/...` rewrites them; look at
+the new pictures before committing them.
+`GENERATE_STREAMS=1 go test ./internal/ami/codec -run TestGenerateGoldenStreams`
+writes new AST2100 test streams, after which the pictures need rewriting too.
+
 CTest runs every test with a fresh, private home and runtime directory
 (`tools/isolated.sh`), so it never touches your settings, wallet, `~/.qttest` or
 a running OldIPMI. Its `desktop_tour` test walks the screenshot tour below and

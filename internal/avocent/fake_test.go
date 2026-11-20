@@ -35,6 +35,7 @@ type fakeBMC struct {
 	major  byte // protocol version the setup announces
 	status byte // the KVM login answer, 0 accepts
 	cert   tls.Certificate
+	video  [][]byte // AVPT packets the console sends after the login
 	// What the BMC saw:
 	plain    int64  // bytes that arrived in plain text after the setup
 	user     string // from the login, which only arrives under TLS
@@ -126,6 +127,11 @@ func (f *fakeBMC) session(ln net.Listener) error {
 	answer := []byte{f.status, 0, 0, 0, 0, 0, 0, 7, 0, 1, 4, 'r', 'o', 'o', 't'}
 	if _, err := tc.Write(apcp.AVPTFrame{ID: 33541, Payload: answer}.Encode()); err != nil {
 		return err
+	}
+	for _, v := range f.video {
+		if _, err := tc.Write(v); err != nil {
+			return err
+		}
 	}
 	for {
 		p, err := apcp.ReadAVPTFrame(tc)
