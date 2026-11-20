@@ -21,6 +21,17 @@ private slots:
     SingleInstance third(dir.path());
     QVERIFY(third.acquire());
   }
+  // --probe-ui only asks: it does not bring the running instance forward.
+  void askingDoesNotRaiseFirst() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    SingleInstance first(dir.path());
+    QSignalSpy spy(&first, &SingleInstance::activationRequested);
+    QVERIFY(first.acquire());
+    SingleInstance second(dir.path());
+    QVERIFY(!second.acquire({}, false));
+    QVERIFY(!spy.wait(300));
+  }
   void staleLockIsReclaimed() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());

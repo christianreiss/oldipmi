@@ -807,9 +807,15 @@ int main(int argc, char **argv) {
   app.setDesktopFileName("net.alpha_labs.OldIPMI");
   app.setWindowIcon(QIcon::fromTheme("oldipmi", QIcon(":/oldipmi.svg")));
   // One instance per user session; a second start shows the running window.
-  // The self-test runs with isolated test paths and stays independent.
+  // The self-test runs with isolated test paths and stays independent. The UI
+  // probe leaves a running OldIPMI alone and fails: it would probe nothing (C-18).
+  const bool probe = app.arguments().contains("--probe-ui");
   SingleInstance instance;
-  if (!test && !instance.acquire(qgetenv("XDG_ACTIVATION_TOKEN"))) {
+  if (!test && !instance.acquire(qgetenv("XDG_ACTIVATION_TOKEN"), !probe)) {
+    if (probe) {
+      fprintf(stderr, "OldIPMI is already running; close it before --probe-ui.\n");
+      return 6;
+    }
     fprintf(stderr, "OldIPMI is already running; showing its window.\n");
     return 0;
   }
@@ -901,7 +907,7 @@ int main(int argc, char **argv) {
                    &Controller::pointer);
   QObject::connect(console, &Console::releaseInput, &controller,
                    &Controller::releaseInput);
-  if (app.arguments().contains("--probe-ui")) {
+  if (probe) {
     QFile input;
     if (!input.open(stdin, QIODevice::ReadOnly))
       return 4;
@@ -921,6 +927,7 @@ int main(int argc, char **argv) {
     QObject::connect(&controller, &Controller::changed, &app, [&] {
       // Probe diagnostics use the same allowlisted metadata as the GUI.
       QJsonObject event{{"state", controller.state()},
+                        {"message", controller.message()},
                         {"info", QJsonObject::fromVariantMap(controller.consoleInfo())}};
       auto bytes = QJsonDocument(event).toJson(QJsonDocument::Compact);
       fprintf(stdout, "%s\n", bytes.constData());
@@ -939,10 +946,19 @@ int main(int argc, char **argv) {
       controller.connectHost(profile,
                              json["password"].toString());
     });
+    // Without a password there is nothing to probe: a prompt would wait for the user.
+    QObject::connect(&controller, &Controller::passwordRequired, &app, [&] {
+      fprintf(stderr, "%s\n", qPrintable(controller.message()));
+      app.exit(7);
+    });
     QObject::connect(
-        &controller, &Controller::frameReady, &app, [&](QImage im) {
-          if (im.isNull())
+        &controller, &Controller::frameReady, &app, [&, framed = false](QImage im) mutable {
+          if (im.isNull() || framed)
             return;
+          framed = true;
+          QJsonObject size{{"width", im.width()}, {"height", im.height()}};
+          fprintf(stdout, "%s\n", QJsonDocument(QJsonObject{{"frame", size}}).toJson(QJsonDocument::Compact).constData());
+          fflush(stdout);
           QTimer::singleShot(200, &app, [&] {
             auto w = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
             QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");

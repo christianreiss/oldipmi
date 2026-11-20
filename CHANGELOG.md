@@ -28,6 +28,11 @@
   stay as they are.
 
 ### Fixed
+* **`--probe-ui` no longer reports success while OldIPMI is running.** It ended
+  with 0 without probing anything and brought the running window to the front;
+  it now leaves that window alone and ends with 6. It also ends with 7 when the
+  connection needs a password, instead of waiting 30 seconds for its timeout,
+  and prints each stage's text and the size of the first picture.
 * **A crashed backend says so.** When the backend process of a console crashed,
   OldIPMI said "The native backend could not run. Check the application
   bundle."; it now says that the backend crashed.

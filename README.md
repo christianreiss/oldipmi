@@ -322,7 +322,10 @@ keeps that synthetic preview open. Neither contacts a BMC.
 stdin and checks live video without injecting keys or changing power/media.
 `oldipmi --probe-ui` accepts the same stdin JSON, resolves a saved profile by
 hostname, and tests the complete desktop flow (including KWallet when enabled);
-it prints only connection stages and allowlisted console information.
+it prints only the connection stages with their texts, allowlisted console
+information and the size of the first picture. It ends with 0 once a picture
+arrives, 4 when the connection fails or times out, 6 when OldIPMI is already
+running (it leaves that window alone) and 7 when the connection needs a password.
 `OLDIPMI_TRACE_AVPT=1` makes `oldipmi-core` log Avocent/Cisco AVPT packet types
 and 12-byte headers to stderr (for a console opened in the app, the core's stderr
 is the app's own: the terminal or the journal); `OLDIPMI_TRACE_AVPT_DUMP=DIR` additionally writes

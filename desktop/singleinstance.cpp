@@ -41,7 +41,7 @@ SingleInstance::~SingleInstance() {
   if (m_lock)
     m_lock->unlock();
 }
-bool SingleInstance::acquire(const QByteArray &token) {
+bool SingleInstance::acquire(const QByteArray &token, bool activate) {
   QDir().mkpath(m_dir);
   QFile::setPermissions(m_dir, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
   const QString sock = m_dir + "/instance.sock";
@@ -56,6 +56,8 @@ bool SingleInstance::acquire(const QByteArray &token) {
     return true;
   }
   m_lock.reset();
+  if (!activate)
+    return false;
   QLocalSocket s;
   s.connectToServer(sock);
   if (s.waitForConnected(1000)) {

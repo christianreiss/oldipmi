@@ -15,9 +15,10 @@ public:
   explicit SingleInstance(QString dir = {}, QObject *parent = nullptr);
   ~SingleInstance() override;
   // True when this process is now the only instance. False when another
-  // instance runs; it has been asked to show itself (token: the launcher's
-  // XDG activation token, passed on so the compositor lets it take focus).
-  bool acquire(const QByteArray &token = {});
+  // instance runs; unless `activate` is false, it has been asked to show itself
+  // (token: the launcher's XDG activation token, passed on so the compositor
+  // lets it take focus).
+  bool acquire(const QByteArray &token = {}, bool activate = true);
   static QString defaultDir();
 signals:
   void activationRequested(const QByteArray &token);

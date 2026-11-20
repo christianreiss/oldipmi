@@ -40,6 +40,10 @@ set_tests_properties(desktop_smoke PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offsc
 add_test(NAME desktop_tour COMMAND ${ISOLATED} $<TARGET_FILE:oldipmi> --self-test --screenshots ${CMAKE_BINARY_DIR}/tour)
 set_tests_properties(desktop_tour PROPERTIES TIMEOUT 300
                      ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_FORCE_STDERR_LOGGING=1")
+# --probe-ui: what it prints and its exit codes, against the demo console.
+add_test(NAME probe_ui COMMAND ${ISOLATED} sh ${CMAKE_SOURCE_DIR}/desktop/probe_ui_test.sh $<TARGET_FILE:oldipmi>)
+set_tests_properties(probe_ui PROPERTIES TIMEOUT 120
+                     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_FORCE_STDERR_LOGGING=1")
 qt_add_executable(profile_tests desktop/controller_test.cpp desktop/controller.cpp desktop/controller.h desktop/session.cpp desktop/session.h desktop/credentials.cpp desktop/credentials.h)
 target_link_libraries(profile_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test KF6::Wallet)
 target_compile_definitions(profile_tests PRIVATE IPC_FIXTURES="${CMAKE_SOURCE_DIR}/testdata/ipc" FAKECORE_DIR="$<TARGET_FILE_DIR:fakecore>")
