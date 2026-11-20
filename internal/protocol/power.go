@@ -6,9 +6,11 @@ import (
 	ipmi "github.com/bougou/go-ipmi"
 )
 
+// chassisControl is the IPMI chassis control command for each power word.
+var chassisControl = map[string]ipmi.ChassisControl{"on": ipmi.ChassisControlPowerUp, "off": ipmi.ChassisControlPowerDown, "reset": ipmi.ChassisControlHardReset, "soft": ipmi.ChassisControlSoftShutdown}
+
 func Power(ctx context.Context, p Profile, password, action string) error {
-	actions := map[string]ipmi.ChassisControl{"on": ipmi.ChassisControlPowerUp, "off": ipmi.ChassisControlPowerDown, "reset": ipmi.ChassisControlHardReset, "soft": ipmi.ChassisControlSoftShutdown}
-	a, ok := actions[action]
+	a, ok := chassisControl[action]
 	if !ok {
 		return fmt.Errorf("unknown power action")
 	}
