@@ -557,6 +557,7 @@ ColumnLayout {
                             }
                             BarButton {
                                 id: keysButton
+                                objectName: "fullscreenKeys"
                                 icon.name: "input-keyboard"
                                 text: "Send key"
                                 checked: keysMenu.visible
@@ -638,6 +639,7 @@ ColumnLayout {
                     }
                     QQC2.Menu {
                         id: keysMenu
+                        objectName: "fullscreenKeysMenu"
                         Component.onCompleted: root.fillMenu(keysMenu, sendKeyAction.children)
                     }
                     QQC2.Menu {

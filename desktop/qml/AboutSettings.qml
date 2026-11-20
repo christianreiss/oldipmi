@@ -35,12 +35,12 @@ FormCard.FormCardPage {
     FormCard.FormCard {
         FormCard.FormTextDelegate {
             text: "Connection profiles"
-            description: controller.profilesPath()
+            description: Theme.shownPath(controller.profilesPath())
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormTextDelegate {
             text: "Preferences"
-            description: settings.configPath()
+            description: Theme.shownPath(settings.configPath())
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormTextDelegate {

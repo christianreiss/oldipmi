@@ -92,11 +92,20 @@ Item {
     // stops it at a fixed time (testClock), so its screenshots do not change.
     function clock() { return testClock > 0 ? testClock : Date.now() }
     property double now: clock()
+    // False in the self-test: motion that shows time passing (the connecting
+    // spinner) stands still with its clock.
+    readonly property bool clockRunning: testClock === 0
     Timer {
         interval: 1000
         repeat: true
-        running: testClock === 0
+        running: theme.clockRunning
         onTriggered: theme.now = theme.clock()
+    }
+    // A file path as pages show it. The self-test shows its configuration folder
+    // (testConfigDir) as ~/.config, where an installed OldIPMI has it.
+    function shownPath(path) {
+        return testConfigDir !== "" && path.startsWith(testConfigDir + "/")
+            ? "~/.config" + path.slice(testConfigDir.length) : path
     }
 
     // Clipboard without another import: a hidden text editor copies its selection.

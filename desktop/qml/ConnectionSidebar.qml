@@ -96,6 +96,7 @@ Rectangle {
                 onClicked: appMenu.visible ? appMenu.close() : appMenu.popup(menuButton, 0, menuButton.height)
                 QQC2.Menu {
                     id: appMenu
+                    objectName: "mainMenu"
                     QQC2.MenuItem { text: "Settings…"; icon.name: "configure"; onTriggered: root.settingsRequested("general") }
                     QQC2.MenuItem { text: "AI agents (MCP)…"; icon.name: "dialog-scripts"; onTriggered: root.settingsRequested("agents") }
                     QQC2.MenuSeparator {}
@@ -401,6 +402,7 @@ Rectangle {
                         }
                         QQC2.Menu {
                             id: contextMenu
+                            objectName: "rowMenu"
                             QQC2.MenuItem { text: entry.active ? "Show" : "Connect"; icon.name: "media-playback-start"; onTriggered: root.connectRequested(entry.profile) }
                             QQC2.MenuItem { text: "Disconnect"; icon.name: "network-disconnect"; enabled: entry.active; onTriggered: controller.disconnectProfile(entry.profile.id) }
                             QQC2.MenuSeparator {}

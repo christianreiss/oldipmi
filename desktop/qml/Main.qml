@@ -155,6 +155,7 @@ Kirigami.ApplicationWindow {
 
         ConnectionSidebar {
             id: sidebar
+            objectName: "sidebar"
             visible: settings.showSidebar && !consolePane.immersive
             // A third of the window, within limits, so the console keeps most of it.
             Layout.preferredWidth: Math.round(Math.min(Theme.gu * 16, window.width * 0.42, Math.max(Theme.gu * 11, window.width * 0.3)))

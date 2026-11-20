@@ -16,6 +16,7 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -26,6 +27,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QSet>
 #include <QStandardPaths>
 #include <QStyleHints>
 #include <QTimer>
@@ -84,8 +86,8 @@ static QString writeTourProfiles() {
     return {};
   return path;
 }
-static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
-                             Controller &controller, const QString &dir, QSize size) {
+static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, Controller &controller,
+                             MemoryCredentials &credentials, const QString &dir, QSize size) {
   auto *root = engine.rootObjects().first();
   auto *window = qobject_cast<QQuickWindow *>(root);
   // Every failed check is reported when it happens; the tour then exits 5.
@@ -158,17 +160,53 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   // `wait` ms after `act`, the step is grabbed as soon as `ready` (if given) holds
   // and every window has its size, with no limit a busy machine would reach.
   struct Step { QString name; std::function<void()> act; int wait; std::function<bool()> ready = {}; };
-  auto closePopups = [root, invoke] {
-    for (auto *o : root->findChildren<QObject *>())
-      if (o->inherits("QQuickPopup") && o->property("opened").toBool())
+  // Every object of a window, also those that are only visual children (list
+  // delegates and what they declare, such as each row's menu).
+  auto objectsOf = [](QQuickWindow *w) {
+    QList<QObject *> out, todo{w, w->contentItem()};
+    QSet<QObject *> seen;
+    while (!todo.isEmpty()) {
+      QObject *o = todo.takeLast();
+      if (!o || seen.contains(o))
+        continue;
+      seen.insert(o);
+      out << o;
+      todo << o->children();
+      if (auto *item = qobject_cast<QQuickItem *>(o))
+        for (auto *child : item->childItems())
+          todo << child;
+    }
+    return out;
+  };
+  auto popups = [objectsOf, window] {
+    QList<QObject *> out;
+    for (auto *o : objectsOf(window))
+      if (o->inherits("QQuickPopup"))
+        out << o;
+    return out;
+  };
+  auto closePopups = [popups, invoke] {
+    for (auto *o : popups())
+      if (o->property("opened").toBool())
         invoke(o, "close");
+  };
+  auto closeOtherWindows = [window] {
+    for (auto *w : QGuiApplication::topLevelWindows())
+      if (w != window)
+        w->close();
   };
   // Popups still fading in or out, and scrims between clear and dark: a grab
   // waits for them, so it never shows a dialog that is halfway open or closed.
-  auto inTransition = [root, label, visibleWindows] {
+  auto *sidebar = root->findChild<QObject *>("sidebar");
+  if (!sidebar)
+    problem("no object named \"sidebar\"");
+  auto inTransition = [popups, label, visibleWindows, sidebar, &controller] {
     QStringList busy;
-    for (auto *o : root->findChildren<QObject *>())
-      if (o->inherits("QQuickPopup") && o->property("visible").toBool() && !o->property("opened").toBool())
+    // The list regroups its rows a moment after a console opens or closes.
+    if (sidebar && sidebar->property("openRows").toInt() != controller.openCount())
+      busy << "the connection list";
+    for (auto *o : popups())
+      if (o->property("visible").toBool() && !o->property("opened").toBool())
         busy << label(o);
     for (auto *w : visibleWindows()) {
       QQuickItem *top = w->contentItem();
@@ -184,10 +222,35 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
   };
   // Silent lookups for the ready checks, which run many times; acts use find().
   auto console = [root] { return root->findChild<Console *>("console"); };
-  auto popup = [root](const char *name) { return root->findChild<QObject *>(name); };
-  auto popupOpen = [popup](const char *name) {
-    auto *p = popup(name);
-    return p && p->property("opened").toBool();
+  auto popup = [popups](const char *name) -> QObject * {
+    for (auto *o : popups())
+      if (o->objectName() == QLatin1String(name))
+        return o;
+    return nullptr;
+  };
+  // Any popup of that name (every row has its own menu) is open.
+  auto popupOpen = [popups](const char *name) {
+    for (auto *o : popups())
+      if (o->objectName() == QLatin1String(name) && o->property("opened").toBool())
+        return true;
+    return false;
+  };
+  // Scrolls the general settings to their end, the keyboard shortcuts; true once there.
+  auto generalSettingsEnd = [objectsOf, visibleWindows] {
+    for (auto *w : visibleWindows())
+      for (auto *o : objectsOf(w))
+        if (o->objectName() == QLatin1String("generalSettings")) {
+          auto *f = o->property("flickable").value<QObject *>();
+          if (!f)
+            return false;
+          auto get = [f](const char *name) { return f->property(name).toDouble(); };
+          const double end = std::max(get("originY") - get("topMargin"),
+                                      get("originY") + get("contentHeight") + get("bottomMargin") - get("height"));
+          if (get("contentY") != end)
+            f->setProperty("contentY", end);
+          return get("contentY") == end;
+        }
+    return false;
   };
   auto consoleView = [console, problem] {
     auto *c = console();
@@ -203,18 +266,19 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
                       {"remember", false}};
   // The full-screen bar shows for a moment after entering full screen, and the
   // note after taking or giving back control: both are set before the grab
-  // instead of hoping that it comes in time. True once both have settled.
+  // instead of hoping that it comes in time. True once the bar and the note are
+  // shown or hidden as asked (an open menu of the bar keeps it shown).
   const QList<QObject *> transient{find("fullscreenPeek"), find("fullscreenNoteTimer"),
                                    find("fullscreenBar"), find("fullscreenNote")};
-  auto transients = [=](bool shown) {
+  auto transients = [=](bool bar, bool note) {
     if (transient.contains(nullptr))
       return true; // find() reported it
-    for (auto *timer : transient.mid(0, 2))
-      if (timer->property("running").toBool() != shown)
-        invoke(timer, shown ? "restart" : "stop");
-    const double settled = shown ? 1 : 0;
-    return transient[2]->property("opacity").toDouble() == settled &&
-           transient[3]->property("opacity").toDouble() == settled;
+    const bool run[] = {bar, note};
+    for (int i = 0; i < 2; ++i)
+      if (transient[i]->property("running").toBool() != run[i])
+        invoke(transient[i], run[i] ? "restart" : "stop");
+    return transient[2]->property("opacity").toDouble() == (bar ? 1.0 : 0.0) &&
+           transient[3]->property("opacity").toDouble() == (note ? 1.0 : 0.0);
   };
   // Keyboard and mouse to the server, once the window is active.
   auto takeControl = [=] {
@@ -236,17 +300,48 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
        }, 700, [=] { return popupOpen("connectionDialog"); }},
       {"04-settings-general", [=] { closePopups(); call("openSettings", QString("general")); }, 900,
        [=] { return visibleWindows().size() == 2; }},
+      // The end of the general page: the keyboard shortcuts.
+      {"04a-settings-shortcuts", [] {}, 300, [=] { return generalSettingsEnd(); }},
       {"05-settings-agents", [=] { call("openSettings", QString("agents")); }, 900,
        [=] { return visibleWindows().size() == 2; }},
-      {"06-connecting", [=, &controller] {
-         for (auto *w : QGuiApplication::topLevelWindows())
-           if (w != qobject_cast<QWindow *>(root)) w->close();
+      {"05a-settings-about", [=] { call("openSettings", QString("about")); }, 900,
+       [=] { return visibleWindows().size() == 2; }},
+      // The instructions for agents, as the AI agents page shows them.
+      {"05b-mcp-instructions", [=] {
+         closeOtherWindows();
+         call("showMcpInstructions");
+       }, 700, [=] { return popupOpen("mcpDialog") && visibleWindows().size() == 1; }},
+      {"05c-main-menu", [=] { closePopups(); invoke(find("mcpButton"), "clicked"); }, 500,
+       [=] { return popupOpen("mainMenu"); }},
+      // The menu key opens the selected row's context menu below the row.
+      {"05d-row-menu", [=] {
+         closePopups();
+         if (auto *list = find("connectionList")) {
+           QKeyEvent press(QEvent::KeyPress, Qt::Key_Menu, Qt::NoModifier);
+           QCoreApplication::sendEvent(list, &press);
+         }
+       }, 500, [=] { return popupOpen("rowMenu"); }},
+      // A password to be saved while the wallet is unavailable: the warning, and
+      // the offer to connect without saving (to the demo console: no network).
+      {"05e-wallet", [=, &controller, &credentials] {
+         closePopups();
+         credentials.available = false;
+         controller.connectHost(QVariantMap{{"name", "Demo console"}, {"host", "demo"}, {"family", "demo"},
+                                            {"remember", true}}, "tour");
+       }, 700, [=] { return popupOpen("walletDialog"); }},
+      {"06-connecting", [=, &controller, &credentials] {
+         closePopups(); // Cancel on the wallet warning, as the user would
+         controller.cancelCredentials();
+         credentials.available = true;
          controller.connectHost(pending, {});
        }, 800, [=, &controller] { return controller.state() == "logging_in" && visibleWindows().size() == 1; }},
       {"07-error", [=, &controller] {
          controller.disconnectHost();
          controller.connectHost(demo, {});
-       }, 600, [&controller] { return !controller.errorStage().isEmpty(); }},
+       }, 600, [&controller] {
+         // The failed login ends its backend; only then is the console no longer open.
+         return !controller.errorStage().isEmpty() && controller.openCount() == 0;
+       }},
       {"08-console", [=, &controller] {
          controller.disconnectHost();
          controller.connectHost(QVariantMap{{"name", "Demo console"}, {"host", "demo"}, {"family", "demo"}}, {});
@@ -278,19 +373,25 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
            window->requestActivate();
            *recaptured = true;
          }
-         return takeControl() && transients(true);
+         return takeControl() && transients(true, true);
        }},
       // Released in full screen: the note says how to take control again.
       {"10b1-fullscreen-released", [=] { if (auto *c = consoleView()) c->release(); },
        700, [=] {
          auto *c = console();
-         return window->visibility() == QWindow::FullScreen && c && !c->captured() && transients(true);
+         return window->visibility() == QWindow::FullScreen && c && !c->captured() && transients(true, true);
+       }},
+      // The bar's Send key menu; the bar stays while it is open.
+      {"10b2-fullscreen-keys", [=] { invoke(find("fullscreenKeys"), "clicked"); }, 500, [=] {
+         return window->visibility() == QWindow::FullScreen && popupOpen("fullscreenKeysMenu") && transients(true, false);
        }},
       // Full screen without a console (a closed connection selected, as after
       // losing one): the header with Quit and the connection list stay.
-      {"10b2-fullscreen-idle", [=, &controller] { call("loadHost", controller.hosts().first()); },
-       700, [=, &controller] {
-         return window->visibility() == QWindow::FullScreen && !controller.hasFrame() && transients(false);
+      {"10b3-fullscreen-idle", [=, &controller] {
+         closePopups();
+         call("loadHost", controller.hosts().first());
+       }, 700, [=, &controller] {
+         return window->visibility() == QWindow::FullScreen && !controller.hasFrame() && transients(false, false);
        }},
       {"10c-delete-confirm", [=, &controller] {
          if (auto *c = consoleView()) c->release();
@@ -358,6 +459,7 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
        }, 600},
   });
   auto index = std::make_shared<int>(0);
+  auto states = std::make_shared<QJsonObject>(); // "settings-general": "04-settings-general-2.png"
   auto next = std::make_shared<std::function<void()>>();
   auto settle = std::make_shared<std::function<void(int)>>();
   constexpr int readyLimit = 60000; // CTest's timeout bounds the whole tour
@@ -389,9 +491,14 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine,
         const QString file = dir + "/" + done.name + (n++ ? "-" + QString::number(n) : "") + ".png";
         if (!w->grabWindow().save(file))
           problem("cannot save " + file);
+        (*states)[done.name.section('-', 1)] = QFileInfo(file).fileName(); // the newest window wins
       }
     }
     if (*index >= steps->size()) {
+      // For review tools (tools/slop/capture.py): the picture of each state.
+      if (QFile f(dir + "/states.json"); problems->isEmpty() &&
+          (!f.open(QIODevice::WriteOnly | QIODevice::Truncate) || f.write(QJsonDocument(*states).toJson()) < 0))
+        problem("cannot write " + f.fileName());
       const int warnings = qmlWarningsResult(); // listed either way
       app.exit(problems->isEmpty() ? warnings : 5);
       return;
@@ -715,6 +822,9 @@ int main(int argc, char **argv) {
   engine.rootContext()->setContextProperty("agent", &agent);
   engine.rootContext()->setContextProperty("settings", &settings);
   engine.rootContext()->setContextProperty("testClock", test ? double(s_testNow.toMSecsSinceEpoch()) : 0.0);
+  // The self-test's configuration folder (in ~/.qttest), which its pages show as ~/.config.
+  engine.rootContext()->setContextProperty(
+      "testConfigDir", test ? QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) : QString());
   const QUrl mainQml("qrc:/desktop/qml/Main.qml");
   s_qmlRoot = mainQml.adjusted(QUrl::RemoveFilename).toString();
   engine.load(mainQml);
@@ -822,7 +932,7 @@ int main(int argc, char **argv) {
         return 1;
       }
     }
-    return runScreenshotTour(app, engine, controller, app.arguments()[shots + 1], size);
+    return runScreenshotTour(app, engine, controller, testCredentials, app.arguments()[shots + 1], size);
   }
   if (test || preview)
     QTimer::singleShot(100, &controller, &Controller::preview);

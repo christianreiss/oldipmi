@@ -318,8 +318,10 @@ for review; `--size WxH` fixes the window size. Every run saves the same picture
 clock stands at a fixed time, and each picture waits until dialogs have finished opening
 or closing. A step that cannot run or never becomes ready ends the tour with exit code 5. `slop native --config
 tools/slop/native.json --root . --out .slop/native` renders the full matrix
-(17 states × light/dark × 1200x800/720x480 × scale 1/2 × text 1/1.5) for the
-`slop` UI review; build into `build/` first.
+(27 states × light/dark × 1200x800/720x480 × scale 1/2 × text 1/1.5) for the
+`slop` UI review; build into `build/` first. Each variant runs in a private home with
+its own theme settings and animations off; the cache in `.slop/capture-cache` follows
+the `oldipmi` and `oldipmi-core` binaries.
 `--capture PATH` saves the first frame to a new mode-0600 PNG, only when explicitly
 requested. Never commit real console captures or credential-bearing JNLP files.
 

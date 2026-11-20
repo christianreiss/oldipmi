@@ -4,6 +4,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.kirigamiaddons.formcard as FormCard
 
 FormCard.FormCardPage {
+    objectName: "generalSettings"
     title: "General"
 
     FormCard.FormHeader { title: "Connections" }
