@@ -170,7 +170,7 @@ func simpleDone(t Tool, op, done string) Tool {
 		if err != nil {
 			return nil, err
 		}
-		if done != "" && emptyObject(raw) {
+		if done != "" && saidNothing(raw) {
 			return text(done), nil
 		}
 		return pretty(raw), nil
@@ -178,9 +178,17 @@ func simpleDone(t Tool, op, done string) Tool {
 	return t
 }
 
-func emptyObject(raw json.RawMessage) bool {
+// saidNothing reports whether the app's reply has nothing to show: an empty
+// object, or only an empty message, which is how it answers mount and eject.
+func saidNothing(raw json.RawMessage) bool {
 	var v map[string]any
-	return json.Unmarshal(raw, &v) == nil && len(v) == 0
+	if json.Unmarshal(raw, &v) != nil {
+		return false
+	}
+	if v["message"] == "" {
+		delete(v, "message")
+	}
+	return len(v) == 0
 }
 
 // input sends key and pointer events and, if the tool stops early (error or
@@ -829,7 +837,7 @@ func rawTools() []Tool {
 				if err != nil {
 					return nil, err
 				}
-				if emptyObject(raw) {
+				if saidNothing(raw) {
 					return text("Virtual media detached."), nil
 				}
 				return pretty(raw), nil

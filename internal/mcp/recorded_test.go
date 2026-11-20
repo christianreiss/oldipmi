@@ -121,16 +121,15 @@ func TestToolsReadRecordedReplies(t *testing.T) {
 	if c := content(callTool(t, f, "power", `{"action":"soft"}`)); !strings.Contains(c, "Power action 'soft' accepted by the BMC.") {
 		t.Errorf("power: %s", c)
 	}
-	// mount and eject: the app answers {"message": ""}, not the {} for which
-	// the tools have a sentence, so an agent reads the raw reply today. Phase 1
-	// fixes that; until then this pins it.
+	// mount and eject: the app answers {"message": ""}, which says nothing, so
+	// the tools say what happened (they showed that raw reply before).
 	f = &fake{result: map[string]string{"mount": ok(recorded(t, "mount", `{"path":"$ISO"}`, 0))}}
-	if c := content(callTool(t, f, "mount_iso", `{"path":"/srv/iso/install.iso"}`)); !strings.Contains(c, `"message": ""`) {
+	if c := content(callTool(t, f, "mount_iso", `{"path":"/srv/iso/install.iso"}`)); !strings.Contains(c, "ISO attached read-only;") {
 		t.Errorf("mount_iso: %s", c)
 	}
 	f = &fake{result: map[string]string{"eject": ok(recorded(t, "eject", `{}`, 0))},
 		statuses: []string{ok(recorded(t, "status", `{}`, 2))}}
-	if c := content(callTool(t, f, "eject_iso", `{}`)); !strings.Contains(c, `"message": ""`) {
+	if c := content(callTool(t, f, "eject_iso", `{}`)); !strings.Contains(c, "Virtual media detached.") {
 		t.Errorf("eject_iso: %s", c)
 	}
 }

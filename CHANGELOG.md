@@ -28,6 +28,10 @@
   stay as they are.
 
 ### Fixed
+* **Agents are told in words that an ISO was attached or detached.** The
+  `mount_iso` and `eject_iso` tools showed the app's raw reply, `{"message": ""}`,
+  instead of their sentence ("ISO attached read-only; …", "Virtual media
+  detached.").
 * **A failure without a reason still reaches the agent as text.** When OldIPMI
   reported a failure without a message, for example a console that did not open
   and gave no reason, the agent got a text block without its text, which MCP does
