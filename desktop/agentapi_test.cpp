@@ -610,6 +610,28 @@ private slots:
     QVERIFY(c.pendingProfile().value("id") == "kept-1"); // the prompt is open, for the user
     c.cancelCredentials();
   }
+  // The agent socket's default directory must be this user's own; one that is
+  // not, here a link, is refused, as one another user made first would be (B-12).
+  void socketDirectoryMustBeOurs() {
+    QTemporaryDir xdg, dir;
+    QVERIFY(QDir().mkdir(dir.filePath("elsewhere")));
+    QVERIFY(QFile::link(dir.filePath("elsewhere"), xdg.filePath("oldipmi")));
+    const QByteArray oldXdg = qgetenv("XDG_RUNTIME_DIR"), oldSocket = qgetenv("OLDIPMI_AGENT_SOCKET");
+    auto restore = qScopeGuard([&] {
+      qputenv("XDG_RUNTIME_DIR", oldXdg);
+      if (oldSocket.isNull()) qunsetenv("OLDIPMI_AGENT_SOCKET"); else qputenv("OLDIPMI_AGENT_SOCKET", oldSocket);
+    });
+    qputenv("XDG_RUNTIME_DIR", xdg.path().toLocal8Bit());
+    qunsetenv("OLDIPMI_AGENT_SOCKET");
+    NoCredentials w;
+    Controller c(nullptr, &w, dir.filePath("hosts.json"));
+    AgentApi api(&c);
+    QCOMPARE(api.socketPath(), xdg.path() + "/oldipmi/agent.sock");
+    QVERIFY(!api.start());
+    QVERIFY2(api.errorString().contains("is not a directory of this user"), qPrintable(api.errorString()));
+    QVERIFY(QDir(dir.filePath("elsewhere")).isEmpty());
+    api.stop();
+  }
   void instructionsNameTheBinary() {
     QTemporaryDir dir; NoCredentials w;
     Controller c(nullptr, &w, dir.filePath("hosts.json"));

@@ -1,16 +1,12 @@
 #include "singleinstance.h"
+#include "runtimedir.h"
 #include <QDir>
 #include <QFile>
 #include <QLocalSocket>
 #include <QLockFile>
 #include <unistd.h>
 
-QString SingleInstance::defaultDir() {
-  auto dir = qEnvironmentVariable("XDG_RUNTIME_DIR");
-  if (dir.isEmpty())
-    dir = QDir::tempPath() + "/oldipmi-" + QString::number(getuid());
-  return dir + "/oldipmi";
-}
+QString SingleInstance::defaultDir() { return runtimeDirPath(); }
 SingleInstance::SingleInstance(QString dir, QObject *parent)
     : QObject(parent), m_dir(dir.isEmpty() ? defaultDir() : dir) {
   m_server.setSocketOptions(QLocalServer::UserAccessOption);
@@ -42,6 +38,10 @@ SingleInstance::~SingleInstance() {
     m_lock->unlock();
 }
 bool SingleInstance::acquire(const QByteArray &token, bool activate) {
+  if (QString why; m_dir == runtimeDirPath() && runtimeDir(&why).isEmpty()) {
+    fprintf(stderr, "OldIPMI: %s Starting without the check for a running instance.\n", qPrintable(why));
+    return true;
+  }
   QDir().mkpath(m_dir);
   QFile::setPermissions(m_dir, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
   const QString sock = m_dir + "/instance.sock";

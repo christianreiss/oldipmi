@@ -1,4 +1,5 @@
 #include "agentapi.h"
+#include "runtimedir.h"
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QDir>
@@ -44,12 +45,7 @@ static QString clean(const QString &s, int max = 64) {
 
 QString AgentApi::defaultSocketPath() {
   auto env = qEnvironmentVariable("OLDIPMI_AGENT_SOCKET");
-  if (!env.isEmpty())
-    return env;
-  auto dir = qEnvironmentVariable("XDG_RUNTIME_DIR");
-  if (dir.isEmpty())
-    dir = QDir::tempPath() + "/oldipmi-" + QString::number(getuid());
-  return dir + "/oldipmi/agent.sock";
+  return env.isEmpty() ? runtimeDirPath() + "/agent.sock" : env;
 }
 AgentApi::AgentApi(Controller *c, QString path, QObject *parent)
     : QObject(parent), m_c(c), m_path(path.isEmpty() ? defaultSocketPath() : path) {
@@ -96,15 +92,25 @@ bool AgentApi::start() {
   }
   if (m_server.isListening())
     return true;
-  QDir().mkpath(QFileInfo(m_path).absolutePath());
-  QFile::setPermissions(QFileInfo(m_path).absolutePath(),
-                        QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+  // The runtime directory must be this user's own (B-12); a path given
+  // explicitly is the caller's choice.
+  const QString dir = QFileInfo(m_path).absolutePath();
+  QString unsafe;
+  if (dir == runtimeDirPath()) {
+    runtimeDir(&unsafe);
+  } else {
+    QDir().mkpath(dir);
+    QFile::setPermissions(dir, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+  }
   // A live instance owns the socket; only remove a stale file.
   QLocalSocket probe;
-  probe.connectToServer(m_path);
+  if (unsafe.isEmpty())
+    probe.connectToServer(m_path);
   bool ok = false;
   const QString before = m_error;
-  if (probe.waitForConnected(200)) {
+  if (!unsafe.isEmpty()) {
+    m_error = unsafe;
+  } else if (probe.waitForConnected(200)) {
     m_error = "Another OldIPMI instance is already serving " + m_path + "; this window takes over when that one closes.";
   } else {
     QLocalServer::removeServer(m_path);

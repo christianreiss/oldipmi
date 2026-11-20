@@ -28,6 +28,13 @@
   stay as they are.
 
 ### Fixed
+* **OldIPMI keeps its sockets in a directory of its own.** Without
+  `XDG_RUNTIME_DIR` it created `/tmp/oldipmi-<uid>` with the default permissions
+  and used it even if another user had created it first, who could then serve
+  or watch the agent socket. Every level is now created with mode 0700, and a
+  directory that is not the user's own (or a link) is refused: the agent socket
+  then stays off with that reason, and the app starts without the check for a
+  running instance.
 * **`--probe-ui` no longer reports success while OldIPMI is running.** It ended
   with 0 without probing anything and brought the running window to the front;
   it now leaves that window alone and ends with 6. It also ends with 7 when the
