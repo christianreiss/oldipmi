@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -81,6 +82,10 @@ func (c *Client) dial() error {
 	if err != nil {
 		return ErrNotRunning
 	}
+	if err := servedByUs(conn); err != nil {
+		conn.Close()
+		return fmt.Errorf("refusing the agent socket %s: %w", c.Path, err)
+	}
 	c.conn, c.rd = conn, bufio.NewReaderSize(conn, 1<<20)
 	if c.hello != nil {
 		if _, err, _ := c.roundTrip("hello", c.hello); err != nil && c.conn == nil {
@@ -123,4 +128,35 @@ func (c *Client) roundTrip(op string, args map[string]any) (json.RawMessage, err
 		}
 		return r.Result, nil, false
 	}
+}
+
+// ownUID is this process's user; tests pretend to be someone else.
+var ownUID = os.Getuid
+
+// servedByUs checks that the process on the other end of conn runs as this
+// user. A socket in a directory another user controls could be served by
+// them and see every key an agent types (B-12).
+func servedByUs(conn net.Conn) error {
+	uc, ok := conn.(*net.UnixConn)
+	if !ok {
+		return nil
+	}
+	raw, err := uc.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var cred *syscall.Ucred
+	var credErr error
+	if err := raw.Control(func(fd uintptr) {
+		cred, credErr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	}); err != nil {
+		return err
+	}
+	if credErr != nil {
+		return credErr
+	}
+	if int(cred.Uid) != ownUID() {
+		return fmt.Errorf("it is served by another user (uid %d), not by this user's OldIPMI", cred.Uid)
+	}
+	return nil
 }

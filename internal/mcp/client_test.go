@@ -247,3 +247,22 @@ func TestClientLosesTheAppAtTheHello(t *testing.T) {
 		t.Fatalf("the app received %q", got)
 	}
 }
+
+// A socket served by another user is not used: in a directory that user
+// controls, it could be their program waiting for an agent's keys (B-12).
+func TestClientRefusesAnotherUsersSocket(t *testing.T) {
+	a := newFakeApp(t, func(_ int, req map[string]any) []string { return []string{answer(req, `{}`)} })
+	uid := ownUID
+	ownUID = func() int { return os.Getuid() + 1 }
+	t.Cleanup(func() { ownUID = uid })
+	c := &Client{Path: a.path}
+	c.Hello("fixture-agent", "1.0", "2025-06-18")
+	if _, err := c.Call("status", map[string]any{}); err == nil || !strings.Contains(err.Error(), "served by another user") {
+		t.Fatalf("got %v", err)
+	}
+	for _, conn := range a.requests() {
+		if len(conn) != 0 {
+			t.Fatalf("the other user's socket received %q", conn)
+		}
+	}
+}

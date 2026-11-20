@@ -28,6 +28,9 @@
   stay as they are.
 
 ### Fixed
+* **`oldipmi-mcp` only talks to an OldIPMI of the same user.** It checks who
+  serves the agent socket (`SO_PEERCRED`) and refuses one served by another
+  user, who could otherwise see every key an agent types.
 * **OldIPMI keeps its sockets in a directory of its own.** Without
   `XDG_RUNTIME_DIR` it created `/tmp/oldipmi-<uid>` with the default permissions
   and used it even if another user had created it first, who could then serve
