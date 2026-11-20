@@ -28,6 +28,12 @@
   stay as they are.
 
 ### Fixed
+* **A malformed virtual-media request no longer ends an AMI console.** An AMI
+  BMC that sent a cut-short read or write command crashed the backend, and a read
+  for an absurd amount of data (up to 8 TiB) made it allocate that much memory.
+  Such a request now ends only the virtual media session, as if the ISO had been
+  ejected, and the reason goes to the log. Reads are limited to 1 MiB each, as on
+  ATEN consoles; hosts ask for far less.
 * **Consoles no longer drop when the computer is busy.** The backend gave the
   window only 3 seconds to take each screen update. On a heavily loaded machine,
   or while the window was busy closing another console, open consoles ended with

@@ -2,6 +2,7 @@ package vmedia
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 )
@@ -88,11 +89,23 @@ func newDevice(r Reader, w WriterAt, blockSize int, mmc bool) *Device {
 // BytesServed reports how many image bytes have been sent to the host.
 func (c *Device) BytesServed() int64 { return c.nBytes }
 
-// Handle dispatches one IUSB SCSI request, returning the response payload.
+// maxRead is the most data one READ may ask for, as on the ATEN console; the
+// host's requests stay far below it.
+const maxRead = 1 << 20
+
+// cdbLen is the length of the commands whose fields Handle reads at fixed
+// offsets; a shorter one from the BMC ends the session.
+var cdbLen = map[byte]int{scsiRead10: 10, scsiWrite10: 10, scsiRead12: 12, scsiWrite12: 12}
+
+// Handle dispatches one IUSB SCSI request, returning the response payload. An
+// error means the BMC sent a request that cannot be answered.
 func (c *Device) Handle(req *Packet) ([]byte, error) {
 	cdb := req.cdb()
 	if len(cdb) == 0 {
 		return nil, nil
+	}
+	if n := cdbLen[cdb[0]]; len(cdb) < n {
+		return nil, fmt.Errorf("SCSI command 0x%02X is %d bytes long, not %d", cdb[0], len(cdb), n)
 	}
 	switch cdb[0] {
 	case scsiTestUnitReady, scsiPreventAllow, scsiStartStopUnit, scsiModeSelect6:
@@ -110,15 +123,17 @@ func (c *Device) Handle(req *Packet) ([]byte, error) {
 	case scsiReadCapacity10:
 		return c.buildResponse(req, c.readCapacity()), nil
 
-	case scsiRead10:
+	case scsiRead10, scsiRead12:
 		lba := binary.BigEndian.Uint32(cdb[2:6])
 		blocks := uint32(binary.BigEndian.Uint16(cdb[7:9]))
-		return c.buildResponse(req, c.read(lba, blocks)), nil
-
-	case scsiRead12:
-		lba := binary.BigEndian.Uint32(cdb[2:6])
-		blocks := binary.BigEndian.Uint32(cdb[6:10])
-		return c.buildResponse(req, c.read(lba, blocks)), nil
+		if cdb[0] == scsiRead12 {
+			blocks = binary.BigEndian.Uint32(cdb[6:10])
+		}
+		data, err := c.read(lba, blocks)
+		if err != nil {
+			return nil, err
+		}
+		return c.buildResponse(req, data), nil
 
 	case scsiWrite10:
 		lba := binary.BigEndian.Uint32(cdb[2:6])
@@ -202,9 +217,12 @@ func (c *Device) buildResponse(req *Packet, data []byte) []byte {
 }
 
 // read returns blocks*blockSize bytes starting at lba, zero-filling any short
-// read past end-of-medium.
-func (c *Device) read(lba, blocks uint32) []byte {
-	n := int(blocks) * c.blockSize
+// read past end-of-medium. More than maxRead is an error.
+func (c *Device) read(lba, blocks uint32) ([]byte, error) {
+	n := int64(blocks) * int64(c.blockSize)
+	if n > maxRead {
+		return nil, fmt.Errorf("READ of %d blocks exceeds %d KiB", blocks, maxRead>>10)
+	}
 	buf := make([]byte, n)
 	off := int64(lba) * int64(c.blockSize)
 	got, err := c.r.ReadAt(buf, off)
@@ -212,7 +230,7 @@ func (c *Device) read(lba, blocks uint32) []byte {
 		log.Printf("vmedia: read lba=%d blocks=%d off=%d: %v", lba, blocks, off, err)
 	}
 	c.nBytes += int64(got)
-	return buf
+	return buf, nil
 }
 
 // write applies a WRITE(10)/WRITE(12): the host's data for the command rides in

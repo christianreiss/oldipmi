@@ -179,3 +179,26 @@ func TestDiskProfile512(t *testing.T) {
 		t.Errorf("data[0] = %d, want %d (wrong 512-byte LBA scaling)", data[0], want)
 	}
 }
+
+// Requests a BMC cannot mean are errors, which end the media session instead
+// of the core (A2-01).
+func TestMalformedRequestsAreErrors(t *testing.T) {
+	cd := NewCDROM(patReader{size: 1 << 20})
+	for name, cdb := range map[string][]byte{
+		"READ(10) cut short":  {scsiRead10, 0, 0, 0, 0, 14},
+		"READ(12) cut short":  {scsiRead12, 0},
+		"WRITE(12) cut short": {scsiWrite12, 0, 0},
+		"READ(12) of 8 TiB":   {scsiRead12, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0, 0},
+		"READ(10) of 128 MiB": {scsiRead10, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0},
+	} {
+		p := append(make([]byte, opcodeOffset), cdb...)
+		if out, err := cd.Handle(&Packet{Payload: p}); err == nil {
+			t.Errorf("%s: answered with %d bytes", name, len(out))
+		}
+	}
+	// The largest READ there is: 512 blocks of 2048 bytes.
+	p := append(make([]byte, opcodeOffset), scsiRead10, 0, 0, 0, 0, 0, 0, 0x02, 0x00, 0)
+	if out, err := cd.Handle(&Packet{Payload: p}); err != nil || len(out) != len(p)+maxRead {
+		t.Errorf("READ(10) of 1 MiB: %d bytes, %v", len(out), err)
+	}
+}

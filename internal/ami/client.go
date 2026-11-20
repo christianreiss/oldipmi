@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"net"
 	"oldipmi/internal/ami/codec"
 	"oldipmi/internal/ami/vmedia"
@@ -405,7 +406,9 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 		defer file.Close()
 		defer s.Close()
 		defer cancel()
-		s.Serve(mctx, vmedia.NewCDROM(file))
+		if err := s.Serve(mctx, vmedia.NewCDROM(file)); err != nil && mctx.Err() == nil {
+			log.Printf("virtual media ended: %v", err)
+		}
 		c.mu.Lock()
 		if c.media == s {
 			c.media = nil
