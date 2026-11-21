@@ -9,6 +9,10 @@
   instead of "Unknown operation", and Settings → AI agents warns while an
   agent uses an oldipmi-mcp of another version, such as an old copy in
   `~/.local/bin` after an update of the AppImage.
+* **Each error of the agent socket names its kind.** An error reply on
+  OldIPMI's agent socket carries a `code` beside its message, such as
+  `not_connected`, `no_profile` or `ambiguous`, so that a program using the
+  socket can tell the errors apart without reading the message.
 
 ### Fixed
 * **A garbled message from the backend says so.** A control message from

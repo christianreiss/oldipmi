@@ -1,5 +1,5 @@
 {
-  "about": "The names of the agent socket between OldIPMI and oldipmi-mcp, by the rest of their constant name: desktop/agentops.h has agentops::Op*, internal/mcp/agentops.go has op*. A request names one of ops in op; exchanges.json records each of them as the app answers it. api is the version of the agent API (agentops::Api, agentAPI) that the reply to hello reports beside the ops the app offers; new ops and keys leave it as it is.",
+  "about": "The names of the agent socket between OldIPMI and oldipmi-mcp, by the rest of their constant name: desktop/agentops.h has agentops::Op*, internal/mcp/agentops.go has op*. A request names one of ops in op; exchanges.json records each of them as the app answers it. api is the version of the agent API (agentops::Api, agentAPI) that the reply to hello reports beside the ops the app offers; new ops and keys leave it as it is. codes are the kinds of error that an error reply names in code beside its message (agentops::Err*); oldipmi-mcp passes on the message.",
   "api": 1,
   "ops": {
     "Hello": "hello",
@@ -14,5 +14,16 @@
     "Power": "power",
     "Mount": "mount",
     "Eject": "eject"
+  },
+  "codes": {
+    "BadRequest": "bad_request",
+    "UnknownOp": "unknown_op",
+    "BadArgs": "bad_args",
+    "NoProfile": "no_profile",
+    "Ambiguous": "ambiguous",
+    "Busy": "busy",
+    "NotConnected": "not_connected",
+    "NoFrame": "no_frame",
+    "Failed": "failed"
   }
 }

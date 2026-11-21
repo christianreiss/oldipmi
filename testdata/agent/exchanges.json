@@ -98,6 +98,7 @@
         {
             "args": {
             },
+            "code": "no_frame",
             "error": "No frame yet (state: disconnected). Connect first, or wait_for_change after connecting.",
             "ok": false,
             "op": "screenshot"
@@ -107,6 +108,7 @@
                 "down": true,
                 "usage": 4
             },
+            "code": "not_connected",
             "error": "Not connected (state: disconnected). Use connect first.",
             "ok": false,
             "op": "key"
@@ -115,6 +117,7 @@
             "args": {
                 "profile": "nope"
             },
+            "code": "no_profile",
             "error": "No profile named 'nope'. Available: Demo, Demo Fail, Wide, Fake.",
             "ok": false,
             "op": "connect"
@@ -244,6 +247,7 @@
                 "width": 10,
                 "x": 1020
             },
+            "code": "bad_args",
             "error": "Region outside the 1024x768 framebuffer.",
             "ok": false,
             "op": "screenshot"
@@ -252,6 +256,7 @@
             "args": {
                 "scale": 2
             },
+            "code": "bad_args",
             "error": "scale must be between 0.1 and 1.0.",
             "ok": false,
             "op": "screenshot"
@@ -281,6 +286,7 @@
                 "down": true,
                 "usage": 3
             },
+            "code": "bad_args",
             "error": "Invalid key usage.",
             "ok": false,
             "op": "key"
@@ -316,6 +322,7 @@
                 "x": 2000,
                 "y": 10
             },
+            "code": "bad_args",
             "error": "Point 2000,10 is outside the 1024x768 framebuffer.",
             "ok": false,
             "op": "pointer"
@@ -342,6 +349,7 @@
             "args": {
                 "action": "boot"
             },
+            "code": "bad_args",
             "error": "Unknown power action.",
             "ok": false,
             "op": "power"
@@ -350,6 +358,7 @@
             "args": {
                 "path": "relative.iso"
             },
+            "code": "bad_args",
             "error": "path must be an absolute, readable .iso file.",
             "ok": false,
             "op": "mount"
@@ -457,6 +466,7 @@
                 "down": true,
                 "usage": 4
             },
+            "code": "ambiguous",
             "error": "Several consoles are open ('Demo', 'Wide'). Say which one with the profile argument.",
             "ok": false,
             "op": "key"
@@ -690,6 +700,7 @@
         {
             "args": {
             },
+            "code": "unknown_op",
             "error": "Unknown operation 'nope'.",
             "ok": false,
             "op": "nope"

@@ -70,16 +70,16 @@ static QString differs(const QJsonValue &got, const QJsonValue &want, const QJso
 
 class AgentApiTest : public QObject {
   Q_OBJECT
-  struct R { bool ok = false; QJsonValue value; bool called = false; };
+  struct R { bool ok = false; QJsonValue value; QString code; bool called = false; };
   static R run(AgentApi &api, const QString &op, QJsonObject args = {}) {
     R r;
-    api.dispatch(op, args, [&r](bool ok, QJsonValue v) { r = {ok, v, true}; });
+    api.dispatch(op, args, [&r](bool ok, QJsonValue v, QString code) { r = {ok, v, code, true}; });
     return r;
   }
   // For operations that answer later (power, mount, eject).
   static std::shared_ptr<R> runAsync(AgentApi &api, const QString &op, QJsonObject args = {}) {
     auto r = std::make_shared<R>();
-    api.dispatch(op, args, [r](bool ok, QJsonValue v) { *r = {ok, v, true}; });
+    api.dispatch(op, args, [r](bool ok, QJsonValue v, QString code) { *r = {ok, v, code, true}; });
     return r;
   }
   static QJsonObject request(QLocalSocket &s, const QByteArray &line) {
@@ -152,13 +152,17 @@ private slots:
       if (record) {
         e.remove("result");
         e.remove("error");
+        e.remove("code");
         e["ok"] = r->ok;
         e[r->ok ? "result" : "error"] = r->value;
+        if (!r->ok)
+          e["code"] = r->code;
         steps[n] = e;
         continue;
       }
       const QString at = QString("exchange %1, %2: ").arg(n).arg(e["op"].toString());
       QVERIFY2(r->ok == e["ok"].toBool(), qPrintable(at + "ok is " + (r->ok ? "true" : "false")));
+      QVERIFY2(r->code == e["code"].toString(), qPrintable(at + "code is " + r->code));
       const QString diff = differs(r->value, e[r->ok ? "result" : "error"], e["vary"].toArray());
       QVERIFY2(diff.isEmpty(), qPrintable(at + diff));
     }
@@ -341,8 +345,10 @@ private slots:
       auto r = run(api, op, {{"usage", 4}, {"action", "on"}});
       QVERIFY2(r.called && !r.ok, op);
       QVERIFY(r.value.toString().contains("Not connected"));
+      QCOMPARE(r.code, QString(agentops::ErrNotConnected));
     }
     QVERIFY(!run(api, "nope").ok);
+    QCOMPARE(run(api, "nope").code, QString(agentops::ErrUnknownOp));
   }
   void connectErrorsAndPasswordPrompt() {
     QTemporaryDir dir; NoCredentials w;
@@ -351,6 +357,7 @@ private slots:
     auto r = run(api, "connect", {{"profile", "does-not-exist"}});
     QVERIFY(!r.ok);
     QVERIFY(r.value.toString().contains("Available: Demo, Demo Fail, Fake"));
+    QCOMPARE(r.code, QString(agentops::ErrNoProfile));
     QSignalSpy prompts(&c, &Controller::passwordRequired);
     r = run(api, "connect", {{"profile", "fake"}}); // case-insensitive, no saved password
     QVERIFY(r.ok);
@@ -362,6 +369,10 @@ private slots:
     r = run(api, "connect", {{"profile", "bmc.invalid"}}); // by host; asks again (prompt may have been dismissed)
     QVERIFY(r.ok && r.value.toObject()["passwordRequired"].toBool());
     QCOMPARE(prompts.count(), 2);
+    // Another console waits until the user has answered the prompt.
+    r = run(api, "connect", {{"profile", "Demo"}});
+    QVERIFY(!r.ok);
+    QCOMPARE(r.code, QString(agentops::ErrBusy));
     QVERIFY(run(api, "disconnect").ok);
     QVERIFY(!run(api, "status").value.toObject()["passwordRequired"].toBool());
   }
@@ -388,6 +399,7 @@ private slots:
     auto r = run(api, "screenshot");
     QVERIFY(!r.ok);
     QVERIFY(r.value.toString().contains("Several consoles"));
+    QCOMPARE(r.code, QString(agentops::ErrAmbiguous));
     QVERIFY(!run(api, "status").ok);
     QVERIFY(!run(api, "key", {{"usage", 4}, {"down", true}}).ok);
     // Each profile answers for itself.
@@ -531,11 +543,13 @@ private slots:
     o = QJsonDocument::fromJson(a.readLine()).object();
     QCOMPARE(o["id"].toInt(), 4);
     QVERIFY(!o["ok"].toBool());
+    QCOMPARE(o["code"].toString(), QString(agentops::ErrUnknownOp));
     QCOMPARE(request(b, R"({"id":9,"op":"status"})")["id"].toInt(), 9);
     // Invalid JSON is answered, not ignored.
     o = request(b, "{oops");
     QVERIFY(!o["ok"].toBool());
     QVERIFY(o["error"].toString().contains("Invalid JSON"));
+    QCOMPARE(o["code"].toString(), QString(agentops::ErrBadRequest));
     // An oversized line closes only that client.
     b.write(QByteArray((1 << 20) + 1024, 'x'));
     QTRY_COMPARE_WITH_TIMEOUT(b.state(), QLocalSocket::UnconnectedState, 5000);
@@ -600,6 +614,23 @@ private slots:
     QVERIFY(changed.count() > 20);
     api.clearActivity();
     QVERIFY(api.activity().isEmpty());
+  }
+  // A command the console refuses fails with the console's message, as failed.
+  void aRefusedCommandFails() {
+    QTemporaryDir dir;
+    auto fake = useFakeCore(dir, R"([{"expect": "connect"},
+      {"send": {"version": 1, "type": "state", "state": "connected"}}, {"expect": "power"},
+      {"reply": {"version": 1, "type": "error", "message": "power control requires account credentials"}}])");
+    NoCredentials w;
+    Controller c(nullptr, &w, writeProfiles(dir));
+    AgentApi api(&c, dir.filePath("s"));
+    QVERIFY(run(api, "connect", {{"profile", "Demo"}}).ok);
+    QTRY_VERIFY(c.session("demo-1") && c.session("demo-1")->connected());
+    auto power = runAsync(api, "power", {{"action", "soft"}});
+    QTRY_VERIFY(power->called);
+    QVERIFY(!power->ok);
+    QCOMPARE(power->value.toString(), QString("power control requires account credentials"));
+    QCOMPARE(power->code, QString(agentops::ErrFailed));
   }
   // Quitting while a power command waits for its answer: the agent API goes
   // first, then the controller, whose sessions settle their callbacks. None may

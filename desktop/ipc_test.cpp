@@ -67,9 +67,9 @@ void IpcNames::agentHeaderMatchesNamesJson() {
   QVERIFY(names.open(QIODevice::ReadOnly));
   QVERIFY(header.open(QIODevice::ReadOnly));
   const QJsonObject fixture = QJsonDocument::fromJson(names.readAll()).object();
-  static const QRegularExpression constant(R"re(^inline constexpr char Op(\w+)\[\] = "([^"]*)";)re");
+  static const QRegularExpression constant(R"re(^inline constexpr char (Op|Err)(\w+)\[\] = "([^"]*)";)re");
   static const QRegularExpression api(R"re(^inline constexpr int Api = (\d+);)re");
-  QVariantMap got;
+  QVariantMap got, gotCodes;
   int gotApi = 0;
   for (const QString &line : QString::fromUtf8(header.readAll()).split('\n')) {
     if (!line.contains("constexpr"))
@@ -80,16 +80,21 @@ void IpcNames::agentHeaderMatchesNamesJson() {
     }
     const auto m = constant.match(line);
     QVERIFY2(m.hasMatch(), qPrintable("agentops.h: not one constant in the usual form: " + line));
-    got[m.captured(1)] = m.captured(2);
+    (m.captured(1) == "Op" ? got : gotCodes)[m.captured(2)] = m.captured(3);
   }
   const QVariantMap want = fixture.value("ops").toObject().toVariantMap();
   QVERIFY2(!want.isEmpty(), "names.json has no ops");
   QVERIFY2(pairs(got) == pairs(want), qPrintable(QString("agentops::Op* are %1; names.json has %2")
                                                      .arg(pairs(got).join(' '), pairs(want).join(' '))));
+  const QVariantMap codes = fixture.value("codes").toObject().toVariantMap();
+  QVERIFY2(!codes.isEmpty(), "names.json has no codes");
+  QVERIFY2(pairs(gotCodes) == pairs(codes), qPrintable(QString("agentops::Err* are %1; names.json has %2")
+                                                           .arg(pairs(gotCodes).join(' '), pairs(codes).join(' '))));
   QVERIFY2(gotApi > 0 && gotApi == fixture["api"].toInt(),
            qPrintable(QString("agentops::Api is %1; names.json has api %2").arg(gotApi).arg(fixture["api"].toInt())));
   // The text is what the desktop compiles.
   QCOMPARE(QString(agentops::OpListProfiles), want["ListProfiles"].toString());
+  QCOMPARE(QString(agentops::ErrNotConnected), codes["NotConnected"].toString());
   QCOMPARE(agentops::Api, gotApi);
 }
 

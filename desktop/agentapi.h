@@ -14,7 +14,8 @@
 // Controller and Session methods on the GUI thread; the socket file is owner-only.
 //
 // Protocol: one JSON object per line, {"id":N,"op":"...","args":{...}} ->
-// {"id":N,"ok":true,"result":{...}} or {"id":N,"ok":false,"error":"..."}.
+// {"id":N,"ok":true,"result":{...}} or {"id":N,"ok":false,"error":"...",
+// "code":"..."}, where code is the kind of error (agentops::Err*).
 // Zero or more console sessions can be open at once; session-bound operations take an
 // optional args.profile (id, name or host) and otherwise act on the only open session.
 // Several clients may be connected; each one's held keys and mouse buttons are
@@ -63,9 +64,11 @@ public:
   static QString defaultSocketPath();
   static constexpr int MaxActivity = 20;
   struct Client;
-  // Runs one operation; `reply` is called exactly once (possibly later). `client` is
-  // null for direct calls (tests); it scopes held-input tracking and activity entries.
-  using Reply = std::function<void(bool ok, QJsonValue result)>;
+  // Runs one operation; `reply` is called exactly once (possibly later): with
+  // the result, or with the error message and its code (agentops::Err*; empty
+  // when ok). `client` is null for direct calls (tests); it scopes held-input
+  // tracking and activity entries.
+  using Reply = std::function<void(bool ok, QJsonValue result, QString code)>;
   void dispatch(const QString &op, const QJsonObject &args, Reply reply, Client *client = nullptr);
 signals:
   void enabledChanged();
@@ -99,7 +102,14 @@ private:
   void log(const QString &who, const QString &kind, const QString &text, bool coalesce = false);
   void note(const QString &what);
   QVariantMap findProfile(const QString &key) const;
-  // The session a request targets: args.profile, else the only open one. Null with an empty
-  // `error` when nothing matches or nothing is open; null with `error` set when ambiguous.
-  Session *resolve(const QJsonObject &args, QString *error) const;
+  // A request that cannot be done: its code (agentops::Err*) and the message.
+  struct Failure {
+    const char *code = nullptr;
+    QString message;
+  };
+  // The session a request targets: args.profile, else the only open one. Null
+  // when that console or every console is closed; null with *failure set
+  // (ErrNoProfile, ErrAmbiguous) when no profile matches args.profile, or when
+  // args names none and several consoles are open.
+  Session *resolve(const QJsonObject &args, Failure *failure) const;
 };

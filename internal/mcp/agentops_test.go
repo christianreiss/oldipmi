@@ -13,11 +13,14 @@ import (
 // testdata/agent/names.json is the one list of the agent socket's names. Both
 // directions are checked: every op* constant is in the file with its value,
 // and every entry of the file is one; desktop/ipc_test.cpp does the same for
-// agentops.h. exchanges.json, which both sides replay, records every op.
+// agentops.h. exchanges.json, which both sides replay, records every op, and
+// each error in it names one of the file's codes, which only the desktop
+// spells (agentops::Err*): oldipmi-mcp passes on the message.
 func TestAgentNames(t *testing.T) {
 	var n struct {
-		Ops map[string]string
-		API int
+		Ops   map[string]string
+		API   int
+		Codes map[string]string
 	}
 	b, err := os.ReadFile("../../testdata/agent/names.json")
 	if err != nil {
@@ -32,9 +35,16 @@ func TestAgentNames(t *testing.T) {
 	if agentAPI != n.API {
 		t.Errorf("agentAPI is %d, names.json has api %d", agentAPI, n.API)
 	}
+	codes := slices.Collect(maps.Values(n.Codes))
+	if len(codes) == 0 {
+		t.Error("names.json has no codes")
+	}
 	seen := map[string]bool{}
 	for _, x := range allExchanges(t) {
 		seen[x.Op] = true
+		if x.Op != "" && (x.OK && x.Code != "" || !x.OK && !slices.Contains(codes, x.Code)) {
+			t.Errorf("recorded %s %v: ok is %v and code %q, which is not one of names.json's codes", x.Op, x.Args, x.OK, x.Code)
+		}
 		// The app's hello lists every op and the API version.
 		if x.Op == opHello && x.OK {
 			h, err := readReply[helloReply](opHello, x.Result)

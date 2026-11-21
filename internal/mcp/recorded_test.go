@@ -20,6 +20,7 @@ type exchange struct {
 	OK     bool            `json:"ok"`
 	Result json.RawMessage `json:"result"`
 	Error  string          `json:"error"`
+	Code   string          `json:"code"`
 }
 
 // allExchanges is every exchange of exchanges.json, in order.
