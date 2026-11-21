@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"oldipmi/internal/protocol"
@@ -21,6 +22,7 @@ type blockingConsole struct {
 	mu                                     sync.Mutex
 	mounting, mounted, closed, closedEarly bool
 	releases                               int
+	mediaErr                               error
 }
 
 func newBlockingConsole() *blockingConsole {
@@ -56,9 +58,21 @@ func (c *blockingConsole) Mount(ctx context.Context, _ string) error {
 		return ctx.Err()
 	}
 }
-func (c *blockingConsole) Eject() error    { c.set(&c.mounted, false); return nil }
+func (c *blockingConsole) Eject() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.mounted, c.mediaErr = false, nil
+	return nil
+}
 func (c *blockingConsole) Mounted() bool   { return c.get(&c.mounted) }
-func (c *blockingConsole) MediaErr() error { return nil }
+func (c *blockingConsole) MediaErr() error { c.mu.Lock(); defer c.mu.Unlock(); return c.mediaErr }
+
+// endMedia lets the ISO go away without an eject, because of err.
+func (c *blockingConsole) endMedia(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.mounted, c.mediaErr = false, err
+}
 func (c *blockingConsole) Power(ctx context.Context, _ protocol.PowerAction) error {
 	<-ctx.Done()
 	return ctx.Err()
@@ -215,4 +229,23 @@ func TestDesktopGoesAwayDuringAMount(t *testing.T) {
 		t.Fatal("serve did not end")
 	}
 	console.closedAfterMount(t, 0)
+}
+
+// When the ISO goes away without an eject, the media event says why.
+func TestMediaEventSaysWhy(t *testing.T) {
+	console := newBlockingConsole()
+	close(console.release)
+	peer, done := startServe(t, console)
+	writeCommand(t, peer, Command{ID: 2, Op: OpMount, Path: "/boot.iso"})
+	if e := readEvent(t, peer); e.ID != 2 || e.Type != EventOK || e.Mounted == nil || !*e.Mounted {
+		t.Fatalf("the mount's reply: %+v", e)
+	}
+	console.endMedia(errors.New("vmedia: read request: EOF"))
+	if e := readEvent(t, peer); e.Type != EventMedia || e.Mounted == nil || *e.Mounted || e.Message != "vmedia: read request: EOF" {
+		t.Fatalf("the media event: %+v", e)
+	}
+	writeCommand(t, peer, Command{Op: OpDisconnect})
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
 }

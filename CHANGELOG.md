@@ -53,6 +53,10 @@
   has answered a mount, and the picture of an AMI console no longer stands still
   meanwhile. A mount now gives up after 30 seconds and a power command after 15,
   each with an error that says so; a mount had no time limit of its own before.
+* **An ISO that goes away by itself says why.** When the BMC ends the virtual
+  media or its connection drops, the status strip now says “The ISO is no
+  longer mounted:” with the reason, until an ISO is mounted again. Before, only
+  the “ISO mounted” note disappeared.
 * **An AMI console ends when its keepalive fails.** The native AMI console
   (IVTP) sends a keepalive every 5 seconds but ignored a failed send, so a
   console whose BMC had stopped taking data could stay open with a frozen

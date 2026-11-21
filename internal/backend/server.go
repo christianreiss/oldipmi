@@ -254,7 +254,13 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 			mounted := isMounted()
 			if mounted != wasMounted {
 				wasMounted = mounted
-				emit(Event{Type: EventMedia, Mounted: &mounted})
+				ev := Event{Type: EventMedia, Mounted: &mounted}
+				if !mounted && media != nil {
+					if e := media.MediaErr(); e != nil {
+						ev.Message = e.Error() // why the ISO went away without an eject
+					}
+				}
+				emit(ev)
 			}
 		case e := <-done:
 			if inFlight != nil {

@@ -9,6 +9,11 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+// The message of a console that is ready, and the start of the notice of an
+// ISO that went away by itself, which a new mount retires.
+static const QString connectedText = "Connected — click the console to control it.";
+static const QString isoGoneText = "The ISO is no longer mounted: ";
+
 quint64 Session::nextStamp() {
   static quint64 clock = 0;
   return ++clock;
@@ -208,6 +213,8 @@ void Session::readControl() {
       state = o["state"].toString();
     if (o["type"] == ipc::EventError)
       setMessage(o["message"].toString());
+    else if (o["type"] == ipc::EventMedia && !o["message"].toString().isEmpty())
+      setMessage(isoGoneText + o["message"].toString());
     else if (o["state"] == ipc::StageLoggingIn)
       setMessage("Logging in…");
     else if (o["state"] == ipc::StageDiscovering)
@@ -215,15 +222,18 @@ void Session::readControl() {
     else if (o["state"] == ipc::StageConnecting)
       setMessage("Connecting to console…");
     else if (o["state"] == ipc::StateConnected)
-      setMessage("Connected — click the console to control it.");
+      setMessage(connectedText);
     if (o.contains("info")) {
       auto resolution = consoleInfo.value("resolution");
       consoleInfo = o["info"].toObject().toVariantMap();
       if (resolution.isValid())
         consoleInfo["resolution"] = resolution;
     }
-    if (o.contains("mounted"))
+    if (o.contains("mounted")) {
       mounted = o["mounted"].toBool();
+      if (mounted && message.startsWith(isoGoneText))
+        setMessage(connectedText);
+    }
     if (int id = o.value("id").toInt(); id && m_pending.count(id) &&
         (o["type"] == ipc::EventOK || o["type"] == ipc::EventError)) {
       auto p = std::move(m_pending[id]);

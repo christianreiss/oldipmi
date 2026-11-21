@@ -171,6 +171,28 @@ private slots:
     delete s;
   }
 
+  // An ISO that goes away without an eject says why (events.json 9), until an
+  // ISO is mounted again; a media event without a reason (6) leaves the
+  // message alone (eventsDriveTheState).
+  void mediaEventSaysWhy() {
+    auto *s = start({expect("connect"), send(event(3)), expect("mount"), reply(event(5)), send(event(9)),
+                     expect("mount"), reply(event(5))});
+    QTRY_VERIFY(s->connected());
+    s->command({{"op", "mount"}, {"path", "/srv/iso/install.iso"}});
+    QTRY_COMPARE(s->message, QString("The ISO is no longer mounted: the BMC ended the virtual media"));
+    QVERIFY(!s->mounted);
+    s->command({{"op", "mount"}, {"path", "/srv/iso/install.iso"}});
+    QTRY_VERIFY(s->mounted);
+    QCOMPARE(seen, (QStringList{
+                       "logging_in | Opening console on bmc1.example.net…",
+                       "connected | Connected — click the console to control it.",
+                       "connected | Connected — click the console to control it. | mounted",
+                       "connected | The ISO is no longer mounted: the BMC ended the virtual media",
+                       "connected | Connected — click the console to control it. | mounted",
+                   }));
+    delete s;
+  }
+
   // A stage that fails names itself: the error arrives before a picture.
   void errorBeforeThePictureNamesTheStage() {
     auto *s = start({expect("connect"), send(event(0)), send(event(1)),
