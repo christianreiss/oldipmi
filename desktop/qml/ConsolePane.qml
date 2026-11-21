@@ -402,7 +402,7 @@ ColumnLayout {
 
                     HoverHandler { id: screenHover }
 
-                    // The console item always exists: main.cpp connects frames and input to it.
+                    // The console item always exists: app/application.cpp connects frames and input to it.
                     ConsoleView {
                         id: view
                         objectName: "console"

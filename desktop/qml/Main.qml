@@ -99,7 +99,7 @@ Kirigami.ApplicationWindow {
         }
     }
     // Set once quitting is decided (confirmed here, or any quit request of the
-    // application, as when the session ends: see main.cpp), so closing the window
+    // application, as when the session ends: see app/application.h), so closing the window
     // does not ask again.
     property bool quitConfirmed: false
     // Close first so onClosing stores the window geometry, then end the app

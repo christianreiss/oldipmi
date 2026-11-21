@@ -1,37 +1,25 @@
-#include "agentapi.h"
+#include "app/application.h"
 #include "app/exitcode.h"
+#include "app/options.h"
 #include "console.h"
-#include "controller.h"
 #include "devtools/probeui.h"
 #include "devtools/qmlwarnings.h"
 #include "devtools/selftest.h"
 #include "devtools/tour.h"
 #include "families.h"
 #include "framethumbnail.h"
-#include "i18n.h"
-#include "settings.h"
 #include "singleinstance.h"
-#include <QIcon>
-#include <QImage>
-#include <algorithm>
-#include <cstring>
 #include <QApplication>
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QPointer>
-#include <QQmlApplicationEngine>
-#include <QQmlContext>
-#include <QQuickWindow>
+#include <QIcon>
 #include <QStandardPaths>
 #include <QStyleHints>
 #include <QTimer>
-#include <QWindow>
+#include <cstdio>
 #include <dlfcn.h>
 int main(int argc, char **argv) {
   // Test mode must be on before QApplication: the platform theme reads
   // kdeglobals (colours, icon theme, fonts) during construction.
-  bool test = std::any_of(argv + 1, argv + argc, [](const char *a) { return !strcmp(a, "--self-test"); });
+  const bool test = selfTestRequested(argc, argv);
   if (test)
     QStandardPaths::setTestModeEnabled(true);
   // The AppImage also runs where the Breeze icons are missing, as on GNOME or
@@ -53,25 +41,21 @@ int main(int argc, char **argv) {
   app.setApplicationDisplayName("OldIPMI");
   app.setDesktopFileName(QStringLiteral(OLDIPMI_APP_ID));
   app.setWindowIcon(QIcon::fromTheme("oldipmi", QIcon(":/oldipmi.svg")));
+  const Options options = parseOptions(app.arguments(), test);
   // One instance per user session; a second start shows the running window.
   // The self-test runs with isolated test paths and stays independent. The UI
   // probe leaves a running OldIPMI alone and fails: it would probe nothing (C-18).
-  const bool probe = app.arguments().contains("--probe-ui");
   SingleInstance instance;
-  if (!test && !instance.acquire(qgetenv("XDG_ACTIVATION_TOKEN"), !probe)) {
-    if (probe) {
+  if (!test && !instance.acquire(qgetenv("XDG_ACTIVATION_TOKEN"), !options.probe)) {
+    if (options.probe) {
       fprintf(stderr, "OldIPMI is already running; close it before --probe-ui.\n");
       return code(ExitCode::AlreadyRunning);
     }
     fprintf(stderr, "OldIPMI is already running; showing its window.\n");
     return code(ExitCode::Ok);
   }
-  bool preview = app.arguments().contains("--preview");
-  const int shots = app.arguments().indexOf("--screenshots");
-  // Only with --self-test: the tour deletes profiles, which must be test-mode copies.
-  const bool tour = test && shots > 0 && shots + 1 < app.arguments().size();
   QString profiles;
-  if (tour && (profiles = devtools::writeTourProfiles()).isEmpty()) {
+  if (options.tour && (profiles = devtools::writeTourProfiles()).isEmpty()) {
     fprintf(stderr, "Screenshot tour: could not write the test-mode connections\n");
     return code(ExitCode::CheckFailed);
   }
@@ -80,101 +64,24 @@ int main(int argc, char **argv) {
   // The family table (desktop/families.json) for qml/families.js.
   qmlRegisterSingletonType("OldIPMI", 1, 0, "FamilyTable",
                            [](QQmlEngine *, QJSEngine *js) -> QJSValue { return familyTableScript(js); });
-  // The self-test never opens the user's wallet.
-  MemoryCredentials testCredentials;
-  Controller controller(nullptr, test ? &testCredentials : nullptr, profiles);
-  FrameThumbnail::setController(&controller);
-  AppSettings settings;
-  // The self-test never opens the agent socket. Its pages show where an installed
-  // OldIPMI has it and oldipmi-mcp: the same in every run, and no local paths.
-  AgentApi agent(&controller, test ? QString("/run/user/1000/oldipmi/agent.sock") : QString());
-  if (test)
-    agent.setMcpPath("/usr/bin/oldipmi-mcp");
-  // Auth-less local control socket for oldipmi-mcp; skipped by self-test and
-  // --no-agent-api, and switchable at runtime in Settings → AI agents.
-  bool agentAllowed = !test && !app.arguments().contains("--no-agent-api");
-  auto applyAgentSetting = [&] {
-    if (!agentAllowed || settings.agentApiEnabled() == agent.enabled())
-      return;
-    agent.setEnabled(settings.agentApiEnabled());
-    if (agent.enabled() && !agent.listening())
-      fprintf(stderr, "Agent API unavailable at %s: %s\n", qPrintable(agent.socketPath()),
-              qPrintable(agent.errorString()));
-  };
-  applyAgentSetting();
-  QObject::connect(&settings, &AppSettings::changed, &agent, applyAgentSetting);
-  // The root context object must outlive the engine, which is destroyed first.
-  LocalizedContext i18n;
-  QQmlApplicationEngine engine;
-  engine.rootContext()->setContextObject(&i18n);
-  engine.rootContext()->setContextProperty("controller", &controller);
-  // False for the whole session with --no-agent-api or --self-test: Settings then
-  // says that the agent switch applies from the next start.
-  engine.rootContext()->setContextProperty("agentAllowed", agentAllowed);
-  engine.rootContext()->setContextProperty("agent", &agent);
-  engine.rootContext()->setContextProperty("settings", &settings);
-  engine.rootContext()->setContextProperty("testClock", test ? double(devtools::testNow.toMSecsSinceEpoch()) : 0.0);
-  // The self-test's configuration folder (in ~/.qttest), which its pages show as ~/.config.
-  engine.rootContext()->setContextProperty(
-      "testConfigDir", test ? QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) : QString());
-  const QUrl mainQml("qrc:/desktop/qml/Main.qml");
-  devtools::setQmlRoot(mainQml.adjusted(QUrl::RemoveFilename).toString());
-  engine.load(mainQml);
-  if (engine.rootObjects().isEmpty())
-    return code(ExitCode::QmlNotLoaded);
-  engine.rootContext()->setContextProperty("mainWindow", engine.rootObjects().first());
-  // Any quit request of the application (Qt.quit() after Quit was confirmed, or the
-  // session manager when the session ends) closes the window without asking about
-  // the open consoles; only Quit itself and closing the window ask (Main.qml).
-  struct QuitRequests : QObject {
-    QPointer<QObject> root;
-    bool eventFilter(QObject *watched, QEvent *e) override {
-      if (e->type() == QEvent::Quit && watched == qApp && root)
-        root->setProperty("quitConfirmed", true);
-      return false;
-    }
-  } quitRequests;
-  quitRequests.root = engine.rootObjects().first();
-  app.installEventFilter(&quitRequests);
-  QObject::connect(&instance, &SingleInstance::activationRequested, &app, [&](const QByteArray &token) {
-    auto *w = qobject_cast<QWindow *>(engine.rootObjects().first());
-    if (!w)
-      return;
-    if (!token.isEmpty()) // Wayland: lets the compositor grant focus to this window
-      qputenv("XDG_ACTIVATION_TOKEN", token);
-    w->setWindowStates(w->windowStates() & ~Qt::WindowMinimized);
-    w->show();
-    w->raise();
-    w->requestActivate();
-  });
-  auto console = engine.rootObjects().first()->findChild<Console *>("console");
-  if (!console)
-    return code(ExitCode::NoConsoleView);
-  QObject::connect(&controller, &Controller::frameReady, console,
-                   &Console::setFrame);
-  QObject::connect(console, &Console::keyInput, &controller, &Controller::key);
-  QObject::connect(console, &Console::pointerInput, &controller,
-                   &Controller::pointer);
-  QObject::connect(console, &Console::releaseInput, &controller,
-                   &Controller::releaseInput);
-  if (probe && !devtools::startProbeUi(app, engine, controller))
+  Application application(options, profiles);
+  if (const ExitCode failed = application.load(); failed != ExitCode::Ok)
+    return code(failed);
+  QObject::connect(&instance, &SingleInstance::activationRequested, &app,
+                   [&application](const QByteArray &token) { application.activate(token); });
+  if (options.probe && !devtools::startProbeUi(app, application.engine(), application.controller()))
     return code(ExitCode::ProbeFailed);
-  if (tour) {
-    QSize size;
-    if (int s = app.arguments().indexOf("--size"); s > 0 && s + 1 < app.arguments().size()) {
-      auto wh = app.arguments()[s + 1].split('x');
-      if (wh.size() == 2)
-        size = {wh[0].toInt(), wh[1].toInt()};
-      if (size.isEmpty()) {
-        fprintf(stderr, "--size expects WIDTHxHEIGHT\n");
-        return code(ExitCode::BadArgument);
-      }
+  if (options.tour) {
+    if (options.badSize) {
+      fprintf(stderr, "--size expects WIDTHxHEIGHT\n");
+      return code(ExitCode::BadArgument);
     }
-    return devtools::runScreenshotTour(app, engine, controller, testCredentials, app.arguments()[shots + 1], size);
+    return devtools::runScreenshotTour(app, application.engine(), application.controller(),
+                                       application.testCredentials(), options.tourDir, options.tourSize);
   }
-  if (test || preview)
-    QTimer::singleShot(100, &controller, &Controller::preview);
+  if (test || options.preview)
+    QTimer::singleShot(100, &application.controller(), &Controller::preview);
   if (test)
-    devtools::startSelfTest(app, engine, console, controller);
+    devtools::startSelfTest(app, application.engine(), application.console(), application.controller());
   return app.exec();
 }
