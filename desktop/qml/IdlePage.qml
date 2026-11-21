@@ -148,7 +148,7 @@ Item {
                             Repeater {
                                 model: [
                                     {label: "Account", value: page.profile.username || (Families.needsAccount(page.profile.family) ? "Not set" : "Not needed"), mono: !!page.profile.username},
-                                    {label: "Last connected", value: page.capitalized(Families.relativeTime(page.profile.lastConnected, Theme.clock()))},
+                                    {label: "Last connected", value: page.capitalized(Families.relativeTime(page.profile.lastConnected, Theme.minuteNow))},
                                     {label: "Password", value: !Families.needsAccount(page.profile.family) ? "Not needed"
                                                                 : page.profile.remember ? "Kept in KWallet" : "Asked for on connect"},
                                     {label: "Security", value: page.exceptions !== "" ? "Exceptions enabled" : "No exceptions", warn: page.exceptions !== ""}

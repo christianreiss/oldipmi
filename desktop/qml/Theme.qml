@@ -92,6 +92,9 @@ Item {
     // stops it at a fixed time (testClock), so its screenshots do not change.
     function clock() { return testClock > 0 ? testClock : Date.now() }
     property double now: clock()
+    // The same clock, read once a minute, for labels such as "5 min ago": what
+    // binds to it re-evaluates once a minute instead of every second.
+    property double minuteNow: clock()
     // False in the self-test: motion that shows time passing (the connecting
     // spinner) stands still with its clock.
     readonly property bool clockRunning: testClock === 0
@@ -100,6 +103,12 @@ Item {
         repeat: true
         running: theme.clockRunning
         onTriggered: theme.now = theme.clock()
+    }
+    Timer {
+        interval: 60000
+        repeat: true
+        running: theme.clockRunning
+        onTriggered: theme.minuteNow = theme.clock()
     }
     // A file path as pages show it. The self-test shows its configuration folder
     // (testConfigDir) as ~/.config, where an installed OldIPMI has it.

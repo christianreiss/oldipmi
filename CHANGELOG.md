@@ -15,6 +15,10 @@
   background. A console opened again on the same BMC starts after that
   logout, so a BMC that allows a single session sees the old one end first,
   and quitting still waits for every logout.
+* **"Last connected" keeps up with the time.** On the page of a console that
+  is not open, "Last connected" stayed at what it said when the page came
+  up, such as "just now", until the profile list changed. It now moves on
+  once a minute.
 
 ## 0.4.0 (2026-11-21)
 
