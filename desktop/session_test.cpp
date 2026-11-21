@@ -180,6 +180,23 @@ private slots:
     delete s;
   }
 
+  // The class of the error that ends the console stays with its message, for
+  // the error page's hint (events.json 10), also once the core has exited.
+  void errorKeepsItsClass() {
+    auto *s = start({expect("connect"), send(event(10)), QJsonObject{{"exit", 2}}});
+    QTRY_COMPARE(seen.size(), 3); // the start, the error and the exit
+    QCOMPARE(s->message, event(10)["message"].toString());
+    QCOMPARE(s->errorCode, QString("unreachable"));
+    delete s;
+  }
+  // Another message drops it: a class is that of the message it came with.
+  void laterMessageDropsTheClass() {
+    auto *s = start({expect("connect"), send(event(10)), send(event(0)), QJsonObject{{"exit", 2}}});
+    QTRY_COMPARE(s->message, QString("Connection ended. Reconnect to obtain a fresh session."));
+    QCOMPARE(s->errorCode, QString());
+    delete s;
+  }
+
   // An ISO that goes away without an eject says why (events.json 9), until an
   // ISO is mounted again; a media event without a reason (6) leaves the
   // message alone (eventsDriveTheState).

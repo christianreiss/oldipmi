@@ -35,6 +35,7 @@ void Session::settle(const Pending &p, bool ok, const QString &message) {
 }
 void Session::setMessage(const QString &m) {
   message = m;
+  errorCode.clear(); // a class belongs to the message it came with
   messageStamp = nextStamp();
 }
 void Session::fail(const QString &m) {
@@ -223,6 +224,8 @@ void Session::readControl() {
       setMessage("Connecting to console…");
     else if (o["state"] == ipc::StateConnected)
       setMessage(connectedText);
+    if (consoleError)
+      errorCode = o["code"].toString(); // for the error page's hint
     if (o.contains("info")) {
       auto resolution = consoleInfo.value("resolution");
       consoleInfo = o["info"].toObject().toVariantMap();

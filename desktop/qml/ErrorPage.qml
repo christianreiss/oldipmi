@@ -12,11 +12,13 @@ Rectangle {
     property var profile: ({})
     property string errorStage: ""
     property string message: ""
+    // The class of the error in message (testdata/ipc/names.json, codes), "" if none is known.
+    property string errorCode: ""
     signal retryRequested()
     signal editRequested()
 
     readonly property int stage: Families.stageIndex(errorStage)
-    readonly property string hint: Families.errorHint(message)
+    readonly property string hint: Families.errorHint(message, errorCode)
     readonly property string detail: Families.errorDetail(message)
     // A short page (large text on a small screen): no picture, a smaller title and
     // tighter spacing, so both buttons are in view.

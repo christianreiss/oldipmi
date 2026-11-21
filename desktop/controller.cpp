@@ -47,6 +47,10 @@ QString Controller::message() const {
   // Whichever was written last: a session's own status or an app-level notice.
   return m_shown && m_shown->messageStamp > m_messageStamp ? m_shown->message : m_message;
 }
+QString Controller::errorCode() const {
+  // A notice written after the session's message has no class.
+  return m_shown && m_shown->messageStamp > m_messageStamp ? m_shown->errorCode : QString();
+}
 QVariantMap Controller::sessions() const {
   QVariantMap out;
   for (auto *s : m_sessions)

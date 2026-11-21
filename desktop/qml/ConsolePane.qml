@@ -867,8 +867,9 @@ ColumnLayout {
                 anchors { fill: parent; leftMargin: surface.margin; rightMargin: surface.margin; bottomMargin: surface.margin }
                 visible: root.mode === "error"
                 profile: root.shown
-                errorStage: controller.errorStage
+                errorStage: root.session.errorStage || ""
                 message: visible ? controller.message : ""
+                errorCode: visible ? controller.errorCode : ""
                 onRetryRequested: root.connectRequested(controller.activeProfile)
                 onEditRequested: root.editRequested(controller.host(controller.activeProfile.id) || controller.activeProfile)
             }

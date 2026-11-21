@@ -51,6 +51,11 @@
   stay as they are.
 
 ### Fixed
+* **A wrong account or password gets its hint on Supermicro (ATEN), Avocent
+  and Cisco consoles too.** The error page suggests checking the username and
+  password when the BMC rejects them, but it did not recognise how these
+  consoles word that. It now goes by the kind of error the backend reports, and
+  by the words only when the backend names none.
 * **Typing and the picture go on while an ISO is being mounted.** Mounting,
   ejecting and power commands now run beside the console, one at a time and in
   the order they were given. Keys and mouse input no longer wait until the BMC

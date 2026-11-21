@@ -22,6 +22,8 @@ class Controller : public QObject {
   Q_PROPERTY(QVariantMap activeProfile READ activeProfile NOTIFY changed)
   // Setup stage that failed last (an ipc::Stage*), else empty.
   Q_PROPERTY(QString errorStage READ errorStage NOTIFY changed)
+  // Class of the error in message (an ipc::Code*), else empty.
+  Q_PROPERTY(QString errorCode READ errorCode NOTIFY changed)
   Q_PROPERTY(bool hasFrame READ hasFrame NOTIFY changed)
   // Every session the app holds (open, failed or ended), by profile id:
   // {state, errorStage, message, startedAt}. Re-evaluates whenever any session changes.
@@ -37,6 +39,7 @@ public:
   // The single-session properties describe the shown session (or "disconnected").
   QString state() const { return m_shown ? m_shown->state : QString(ipc::StateDisconnected); }
   QString message() const;
+  QString errorCode() const;
   QVariantMap consoleInfo() const { return m_shown ? m_shown->consoleInfo : QVariantMap(); }
   bool mounted() const { return m_shown && m_shown->mounted; }
   QVariantMap activeProfile() const { return m_shown ? m_shown->profile : QVariantMap(); }

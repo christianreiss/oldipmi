@@ -41,6 +41,9 @@ public:
   const QString id;       // profile id; unique among open sessions
   QVariantMap profile;
   QString state = ipc::StateDisconnected, message, errorStage;
+  // The class of the error in message (an ipc::Code*), if the core named one;
+  // setMessage drops it.
+  QString errorCode;
   quint64 messageStamp = 0;
   QVariantMap consoleInfo;
   bool mounted = false;

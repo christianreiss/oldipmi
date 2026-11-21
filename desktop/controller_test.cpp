@@ -286,6 +286,19 @@ private slots:
     QVERIFY(c.activeProfile().isEmpty());
     QCOMPARE(c.message(), failure); // nothing was open, so nothing was "cancelled"
   }
+  // The class of a failure goes with the session's message; a notice written
+  // after it, which message() then shows, has none.
+  void errorCodeGoesWithTheMessageShown() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    Controller c(nullptr, &wallet, writeProfiles(dir, {savedProfile()}));
+    c.connectHost({{"id", "u"}, {"name", "u"}, {"host", "demo-unreachable"}, {"family", "demo"}}, "");
+    QTRY_COMPARE(c.state(), QString("disconnected"));
+    QCOMPARE(c.errorStage(), QString("logging_in"));
+    QCOMPARE(c.errorCode(), QString("unreachable"));
+    QVERIFY(c.saveHost({{"name", "No address"}}, {}, false).isEmpty());
+    QCOMPARE(c.message(), QString("Enter a BMC address before saving."));
+    QCOMPARE(c.errorCode(), QString());
+  }
   void invalidFileIsPreserved() {
     QTemporaryDir dir; FakeCredentials wallet;
     QString path = dir.filePath("hosts.json");

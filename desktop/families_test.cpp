@@ -13,8 +13,8 @@
 class FamiliesTest : public QObject {
   Q_OBJECT
   QJSEngine m_engine;
-  QString call(const char *function, const QString &message) {
-    QJSValue result = m_engine.globalObject().property(function).call({message});
+  QString call(const char *function, const QString &message, const QJSValue &code = QJSValue()) {
+    QJSValue result = m_engine.globalObject().property(function).call({message, code});
     return result.isError() ? "error: " + result.toString() : result.toString();
   }
 private slots:
@@ -79,52 +79,42 @@ private slots:
   }
   // testdata/ipc/errors.json: errors as the core words them, with the class it
   // sends as their code (internal/protocol and the drivers' tests check the
-  // rows). Each code stands for one of the hints, and each message gets the
-  // hint of its code: the code says what the text says. Except where only the
-  // code knows yet that the BMC rejected the login.
+  // rows). Each class has a hint and each hint a class. An error with a code
+  // gets its class's hint, the one its words got before wherever they get one;
+  // an error of no known class gets none either way.
   void errorCodesMatchTheHints() {
-    const QMap<QString, QString> hintOf{{"dns", "Check the BMC address"},
-                                        {"unreachable", "The BMC did not answer"},
-                                        {"refused", "The BMC refused the connection"},
-                                        {"tls_name", "The BMC's certificate does not name this address"},
-                                        {"tls_unverified", "The BMC's certificate cannot be verified"},
-                                        {"tls_old", "The BMC uses an old TLS version"},
-                                        {"tls", "The secure connection (TLS) to the BMC failed"},
-                                        {"auth", "Check the username and password"},
-                                        {"text_mode", "The server's screen is in text mode"},
-                                        {"plain_console", "This BMC offers only an unencrypted console"}};
-    const QStringList codeOnly{"aten: no web session", "aten: Redfish login rejected",
-                               "avocent: invalid user name", "avocent: invalid password"};
     QFile names(IPC_FIXTURES "/names.json"), errors(IPC_FIXTURES "/errors.json");
     QVERIFY(names.open(QIODevice::ReadOnly));
     QVERIFY(errors.open(QIODevice::ReadOnly));
     QStringList codes;
     for (const QJsonValue &code : QJsonDocument::fromJson(names.readAll())["codes"].toObject())
       codes << code.toString();
+    QStringList hinted = m_engine.evaluate("errorHints.map(function (h) { return h[0]; })").toVariant().toStringList();
     codes.sort();
-    QCOMPARE(codes, hintOf.keys());
-    QSet<QString> seen, exceptions;
+    hinted.sort();
+    QCOMPARE(hinted, codes);
+    QSet<QString> seen, agreed;
     const QJsonArray rows = QJsonDocument::fromJson(errors.readAll())["errors"].toArray();
     QVERIFY(!rows.isEmpty());
     for (const QJsonValue &v : rows) {
-      const QString name = v["name"].toString(), code = v["code"].toString();
-      const QString hint = call("errorHint", v["message"].toString());
-      QVERIFY2(code.isEmpty() || hintOf.contains(code), qPrintable(name + ": unknown code " + code));
+      const QString name = v["name"].toString(), code = v["code"].toString(), message = v["message"].toString();
+      const QString hint = call("errorHint", message, code), byWords = call("errorHint", message);
+      QVERIFY2(code.isEmpty() || codes.contains(code), qPrintable(name + ": unknown code " + code));
       seen << code;
-      if (codeOnly.contains(name)) {
-        exceptions << name;
-        QVERIFY2(code == "auth" && hint.isEmpty(), qPrintable(name + ": " + code + ", " + hint));
-      } else if (code.isEmpty()) {
-        QVERIFY2(hint.isEmpty(), qPrintable(name + ": " + hint));
-      } else {
-        QVERIFY2(hint.startsWith(hintOf[code]), qPrintable(name + ": " + code + ", " + hint));
+      if (code.isEmpty()) {
+        QVERIFY2(hint.isEmpty() && byWords.isEmpty(), qPrintable(name + ": " + hint + " | " + byWords));
+        continue;
       }
+      QVERIFY2(!hint.isEmpty() && (byWords.isEmpty() || byWords == hint),
+               qPrintable(name + ": " + code + ", " + hint + " | " + byWords));
+      if (!byWords.isEmpty())
+        agreed << code;
     }
-    // An example of each class, of errors of none, and of each exception.
-    for (const QString &code : hintOf.keys())
-      QVERIFY2(seen.contains(code), qPrintable("errors.json has no example of " + code));
+    // Each class has an example whose words get its hint too, and errors of
+    // no class have one.
+    for (const QString &code : codes)
+      QVERIFY2(agreed.contains(code), qPrintable("errors.json has no example of " + code + " that its words recognise"));
     QVERIFY(seen.contains(""));
-    QCOMPARE(exceptions.size(), codeOnly.size());
   }
   // The family helpers answer from the table (desktop/families.json), which QML
   // gets as a JavaScript array; the controller asks the same table.
