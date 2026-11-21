@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 (2026-11-21)
 
 ### Added
 * **`packaging/smoke-test.sh`** runs the AppImage's self-test offscreen on the
