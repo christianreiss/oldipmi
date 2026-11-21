@@ -855,7 +855,7 @@ int main(int argc, char **argv) {
   app.setOrganizationName("OldIPMI");
   app.setApplicationVersion(OLDIPMI_VERSION);
   app.setApplicationDisplayName("OldIPMI");
-  app.setDesktopFileName("io.uggs.OldIPMI");
+  app.setDesktopFileName(QStringLiteral(OLDIPMI_APP_ID));
   app.setWindowIcon(QIcon::fromTheme("oldipmi", QIcon(":/oldipmi.svg")));
   // One instance per user session; a second start shows the running window.
   // The self-test runs with isolated test paths and stays independent. The UI

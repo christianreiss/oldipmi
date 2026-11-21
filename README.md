@@ -372,6 +372,9 @@ builds `build/` and runs CTest, builds `build-asan/` with AddressSanitizer and
 UndefinedBehaviorSanitizer and runs CTest there, and validates the desktop file.
 `tools/check.sh --package DIR` runs the part that an offline package build can run
 on its finished build directory; the RPM's `%check` uses it.
+CTest labels the tests: `ctest --test-dir build -L unit` runs the quick ones,
+`-L ui` the three that start the application offscreen. Configuring with
+`-DBUILD_TESTING=OFF` builds no tests at all.
 
 The Go tests compare what each console family shows for a run of video packets
 with golden pictures in `internal/*/testdata/frames`. After a deliberate change

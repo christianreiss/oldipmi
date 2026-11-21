@@ -163,7 +163,9 @@ copy(ROOT / 'LICENSE', APP / 'usr/share/licenses/OldIPMI/LICENSE')
 for name in ('README.md', 'THIRD_PARTY.md', 'CHANGELOG.md'):
     copy(ROOT / name, APP / 'usr/share/doc/OldIPMI' / name)
 copy(font, APP / 'usr/share/fonts/DejaVuSans.ttf')
-copy(ROOT / 'packaging/io.uggs.OldIPMI.desktop', APP / 'io.uggs.OldIPMI.desktop')
+# The one desktop file; its name is the app id.
+(desktop,) = (ROOT / 'packaging').glob('*.desktop')
+copy(desktop, APP / desktop.name)
 copy(ROOT / 'packaging/oldipmi.svg', APP / 'oldipmi.svg')
 copy(ROOT / 'packaging/AppRun', APP / 'AppRun')
 (APP / 'AppRun').chmod(0o755)

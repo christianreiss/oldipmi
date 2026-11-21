@@ -83,7 +83,7 @@ export GOFLAGS=-mod=vendor
 # The project's checks that an offline build can run (see README, Checks); every
 # CTest runs with its own private home and runtime directory.
 tools/check.sh --package %{_vpath_builddir}
-desktop-file-validate %{buildroot}%{_datadir}/applications/io.uggs.OldIPMI.desktop
+desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
 
 %files
 %license LICENSE THIRD_PARTY.md
@@ -93,7 +93,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/io.uggs.OldIPMI.deskt
 %{_bindir}/oldipmi
 %{_bindir}/oldipmi-core
 %{_bindir}/oldipmi-mcp
-%{_datadir}/applications/io.uggs.OldIPMI.desktop
+# One desktop file, named after the app id (packaging/<app id>.desktop).
+%{_datadir}/applications/*.desktop
 %{_datadir}/icons/hicolor/scalable/apps/oldipmi.svg
 
 %changelog

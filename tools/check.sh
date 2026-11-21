@@ -95,5 +95,5 @@ if [ -n "$missing" ]; then
   exit 1
 fi
 step desktop-file-validate
-desktop-file-validate packaging/io.uggs.OldIPMI.desktop
+desktop-file-validate packaging/*.desktop
 step "all checks passed"
