@@ -15,6 +15,7 @@ import (
 	"net"
 	"oldipmi/internal/avocent/apcp"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/testkit"
 	"reflect"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ type fakeBMC struct {
 	major  byte // protocol version the setup announces
 	status byte // the KVM login answer, 0 accepts
 	cert   tls.Certificate
+	hangUp bool     // the BMC hangs up where TLS would begin
 	video  [][]byte // AVPT packets the console sends after the login
 	// What the BMC saw:
 	plain    int64  // bytes that arrived in plain text after the setup
@@ -109,6 +111,9 @@ func (f *fakeBMC) session(ln net.Listener) error {
 	}
 	if !f.ssl {
 		f.plain, _ = io.Copy(io.Discard, conn)
+		return nil
+	}
+	if f.hangUp {
 		return nil
 	}
 	tc := tls.Server(conn, &tls.Config{Certificates: []tls.Certificate{f.cert}})
@@ -187,10 +192,11 @@ func TestConsoleChecksTheCertificateBeforeLogin(t *testing.T) {
 	for _, c := range []struct {
 		name   string
 		named  bool   // the certificate names the address
-		reason string // in Go's error, which the desktop's hints read
+		reason string // in Go's error
+		code   string // its class, from which the desktop picks its hint
 	}{
-		{"another name", false, "because it doesn't contain any IP SANs"},
-		{"self-signed", true, "certificate signed by unknown authority"},
+		{"another name", false, "because it doesn't contain any IP SANs", protocol.CodeTLSName},
+		{"self-signed", true, "certificate signed by unknown authority", protocol.CodeTLSUnverified},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			ln, host := listenFixed(t, 5900)
@@ -207,6 +213,9 @@ func TestConsoleChecksTheCertificateBeforeLogin(t *testing.T) {
 			if err == nil || !strings.HasPrefix(err.Error(), "apcp.Session: tls: ") || !strings.Contains(err.Error(), c.reason) {
 				t.Fatal(err)
 			}
+			if code := protocol.ErrorCode(err); code != c.code {
+				t.Fatalf("code %q, want %q", code, c.code)
+			}
 			if e := <-done; e != nil {
 				t.Fatal(e)
 			}
@@ -217,24 +226,44 @@ func TestConsoleChecksTheCertificateBeforeLogin(t *testing.T) {
 	}
 }
 
+// A login the BMC refuses ends the setup with the BMC's reason; a wrong user
+// name or password is a rejected login (errors.json), an account that may not
+// use the console is not.
 func TestConsoleLoginRejected(t *testing.T) {
+	for status, row := range map[byte]string{1: "avocent: invalid user name", 2: "avocent: invalid password", 3: "avocent: channel access denied"} {
+		t.Run(row, func(t *testing.T) {
+			ln, host := listenFixed(t, 5900)
+			defer ln.Close()
+			f := &fakeBMC{ssl: true, major: 1, status: status, cert: selfSigned(t)}
+			done := f.serve(ln)
+			var g progress
+			_, err := Connect(g.ctx(t), protocol.Profile{Host: host, Family: "avocent", Username: "root", LegacyTLS: true}, "calvin")
+			testkit.ErrorRow(t, row, err)
+			if e := <-done; e != nil {
+				t.Fatal(e)
+			}
+			if f.user != "root" || f.password != "calvin" || !reflect.DeepEqual(f.sent, []uint16{apcp.KVMLoginPktID}) {
+				t.Fatalf("the BMC saw user %q, password %q, packets %v", f.user, f.password, f.sent)
+			}
+			if !reflect.DeepEqual(g.stages, []string{"logging_in"}) {
+				t.Fatal("stages", g.stages)
+			}
+		})
+	}
+}
+
+// A BMC that hangs up where TLS would begin ends the setup as a failed secure
+// connection (errors.json), before the login is sent.
+func TestConsoleTLSEnded(t *testing.T) {
 	ln, host := listenFixed(t, 5900)
 	defer ln.Close()
-	f := &fakeBMC{ssl: true, major: 1, status: 2, cert: selfSigned(t)}
+	f := &fakeBMC{ssl: true, major: 1, hangUp: true}
 	done := f.serve(ln)
 	var g progress
-	_, err := Connect(g.ctx(t), protocol.Profile{Host: host, Family: "avocent", Username: "root", LegacyTLS: true}, "calvin")
-	if err == nil || err.Error() != "Avocent login: INVALID_PASSWORD" {
-		t.Fatal(err)
-	}
+	_, err := Connect(g.ctx(t), protocol.Profile{Host: host, Family: "avocent", Username: "root"}, "calvin")
+	testkit.ErrorRow(t, "avocent: TLS ended", err)
 	if e := <-done; e != nil {
 		t.Fatal(e)
-	}
-	if f.user != "root" || f.password != "calvin" || !reflect.DeepEqual(f.sent, []uint16{apcp.KVMLoginPktID}) {
-		t.Fatalf("the BMC saw user %q, password %q, packets %v", f.user, f.password, f.sent)
-	}
-	if !reflect.DeepEqual(g.stages, []string{"logging_in"}) {
-		t.Fatal("stages", g.stages)
 	}
 }
 

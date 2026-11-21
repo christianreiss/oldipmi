@@ -36,6 +36,19 @@ inline constexpr char PowerOff[] = "off"; // at once
 inline constexpr char PowerReset[] = "reset";
 inline constexpr char PowerSoft[] = "soft"; // graceful shutdown
 
+// Codes: the class of an error event without id (the setup or the console
+// ended), for the error page's hint; an error of no known class has none.
+inline constexpr char CodeDNS[] = "dns";
+inline constexpr char CodeUnreachable[] = "unreachable";
+inline constexpr char CodeRefused[] = "refused";
+inline constexpr char CodeTLSName[] = "tls_name";
+inline constexpr char CodeTLSUnverified[] = "tls_unverified";
+inline constexpr char CodeTLSOld[] = "tls_old"; // the BMC chose TLS 1.0 or 1.1
+inline constexpr char CodeTLS[] = "tls";
+inline constexpr char CodeAuth[] = "auth";
+inline constexpr char CodeTextMode[] = "text_mode";
+inline constexpr char CodePlainConsole[] = "plain_console";
+
 // The largest video frame the core sends (internal/video/raster); the desktop
 // refuses a larger one.
 inline constexpr unsigned MaxFrameWidth = 4096;

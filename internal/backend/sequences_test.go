@@ -35,7 +35,7 @@ var dialogueConsoles = map[string]func(info *protocol.ConsoleInfo) opener{
 	},
 	"loginFails": func(*protocol.ConsoleInfo) opener {
 		return func(context.Context, protocol.Profile, string) (protocol.Console, error) {
-			return nil, errors.New("the BMC rejected the login")
+			return nil, protocol.Mark(protocol.CodeAuth, errors.New("the BMC rejected the login"))
 		}
 	},
 	"discoveryFails": func(*protocol.ConsoleInfo) opener {

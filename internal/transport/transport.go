@@ -7,6 +7,7 @@ package transport
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +15,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+)
+
+// Console connections that cannot start; protocol.ErrorCode gives them their
+// class, for the desktop's hints.
+var (
+	ErrPlainConsole   = errors.New("BMC requests an unencrypted console; enable this host's plain-console option explicitly")
+	ErrPlainWebSocket = errors.New("unencrypted console not permitted")
+	ErrClientCert     = errors.New("cannot load client certificate/key")
 )
 
 // Policy is what a connection profile allows its connections
@@ -84,7 +93,7 @@ func Dial(ctx context.Context, p Policy, port int, secure bool) (*Wire, error) {
 		return nil, fmt.Errorf("invalid console port")
 	}
 	if !secure && !p.AllowPlainConsole {
-		return nil, fmt.Errorf("BMC requests an unencrypted console; enable this host's plain-console option explicitly")
+		return nil, ErrPlainConsole
 	}
 	d := &net.Dialer{Timeout: 10 * time.Second}
 	addr := net.JoinHostPort(p.Host, strconv.Itoa(port))
@@ -95,7 +104,7 @@ func Dial(ctx context.Context, p Policy, port int, secure bool) (*Wire, error) {
 		if p.ClientCert != "" || p.ClientKey != "" {
 			cert, e := tls.LoadX509KeyPair(p.ClientCert, p.ClientKey)
 			if e != nil {
-				return nil, fmt.Errorf("cannot load client certificate/key")
+				return nil, ErrClientCert
 			}
 			tc.Certificates = []tls.Certificate{cert}
 		}

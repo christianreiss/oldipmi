@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/testkit"
 	"oldipmi/internal/transport"
 	"reflect"
 	"strings"
@@ -130,6 +131,20 @@ func noSecret(t *testing.T, err error) {
 	t.Helper()
 	if err != nil && strings.Contains(err.Error(), smPass) {
 		t.Fatal("password leaked into error")
+	}
+}
+
+// A login form the BMC turns down opens no web session: the setup ends with
+// what to check (errors.json).
+func TestSupermicroLoginRejected(t *testing.T) {
+	w, _, stages, ctx := newSMWeb(t, "", map[string]http.HandlerFunc{
+		"GET /":               body(`<form action="/cgi/login.cgi"><input name="name"><input name="pwd"></form>`),
+		"POST /cgi/login.cgi": atenLogin(false),
+	})
+	_, err := w.login(ctx, "wrong")
+	testkit.ErrorRow(t, "aten: no web session", err)
+	if !reflect.DeepEqual(*stages, []string{"logging_in"}) {
+		t.Fatal(*stages)
 	}
 }
 
@@ -425,6 +440,7 @@ func TestSupermicroRedfishRejectedAndOffHost(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "rejected the account or password (Redfish HTTP 401)") {
 		t.Fatal(err)
 	}
+	testkit.ErrorRow(t, "aten: Redfish login rejected", err)
 	if !reflect.DeepEqual(*stages, []string{"logging_in"}) {
 		t.Fatal(*stages)
 	}

@@ -3,7 +3,10 @@
 // And the family helpers there, which answer from the family table.
 #include "families.h"
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QJSEngine>
 #include <QtTest>
 
@@ -73,6 +76,55 @@ private slots:
       QCOMPARE(got, QString());
     else
       QVERIFY2(got.startsWith(hint), qPrintable(got));
+  }
+  // testdata/ipc/errors.json: errors as the core words them, with the class it
+  // sends as their code (internal/protocol and the drivers' tests check the
+  // rows). Each code stands for one of the hints, and each message gets the
+  // hint of its code: the code says what the text says. Except where only the
+  // code knows yet that the BMC rejected the login.
+  void errorCodesMatchTheHints() {
+    const QMap<QString, QString> hintOf{{"dns", "Check the BMC address"},
+                                        {"unreachable", "The BMC did not answer"},
+                                        {"refused", "The BMC refused the connection"},
+                                        {"tls_name", "The BMC's certificate does not name this address"},
+                                        {"tls_unverified", "The BMC's certificate cannot be verified"},
+                                        {"tls_old", "The BMC uses an old TLS version"},
+                                        {"tls", "The secure connection (TLS) to the BMC failed"},
+                                        {"auth", "Check the username and password"},
+                                        {"text_mode", "The server's screen is in text mode"},
+                                        {"plain_console", "This BMC offers only an unencrypted console"}};
+    const QStringList codeOnly{"aten: no web session", "aten: Redfish login rejected",
+                               "avocent: invalid user name", "avocent: invalid password"};
+    QFile names(IPC_FIXTURES "/names.json"), errors(IPC_FIXTURES "/errors.json");
+    QVERIFY(names.open(QIODevice::ReadOnly));
+    QVERIFY(errors.open(QIODevice::ReadOnly));
+    QStringList codes;
+    for (const QJsonValue &code : QJsonDocument::fromJson(names.readAll())["codes"].toObject())
+      codes << code.toString();
+    codes.sort();
+    QCOMPARE(codes, hintOf.keys());
+    QSet<QString> seen, exceptions;
+    const QJsonArray rows = QJsonDocument::fromJson(errors.readAll())["errors"].toArray();
+    QVERIFY(!rows.isEmpty());
+    for (const QJsonValue &v : rows) {
+      const QString name = v["name"].toString(), code = v["code"].toString();
+      const QString hint = call("errorHint", v["message"].toString());
+      QVERIFY2(code.isEmpty() || hintOf.contains(code), qPrintable(name + ": unknown code " + code));
+      seen << code;
+      if (codeOnly.contains(name)) {
+        exceptions << name;
+        QVERIFY2(code == "auth" && hint.isEmpty(), qPrintable(name + ": " + code + ", " + hint));
+      } else if (code.isEmpty()) {
+        QVERIFY2(hint.isEmpty(), qPrintable(name + ": " + hint));
+      } else {
+        QVERIFY2(hint.startsWith(hintOf[code]), qPrintable(name + ": " + code + ", " + hint));
+      }
+    }
+    // An example of each class, of errors of none, and of each exception.
+    for (const QString &code : hintOf.keys())
+      QVERIFY2(seen.contains(code), qPrintable("errors.json has no example of " + code));
+    QVERIFY(seen.contains(""));
+    QCOMPARE(exceptions.size(), codeOnly.size());
   }
   // The family helpers answer from the table (desktop/families.json), which QML
   // gets as a JavaScript array; the controller asks the same table.

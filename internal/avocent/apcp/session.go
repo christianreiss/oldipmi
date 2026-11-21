@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"oldipmi/internal/protocol"
 )
 
 // SessionType selects which BMC channel this session opens. The BMC responds
@@ -101,7 +102,7 @@ func (s *Session) Open() error {
 	}
 	conn, err := s.UpgradeTLS(raw)
 	if err != nil {
-		return fmt.Errorf("apcp.Session: tls: %w", err)
+		return protocol.Mark(protocol.CodeTLS, fmt.Errorf("apcp.Session: tls: %w", err))
 	}
 
 	if s.SkipLogin {

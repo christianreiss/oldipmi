@@ -23,13 +23,13 @@
   "loginFails": [
     {"desktop": {"version": 1, "id": 1, "op": "connect", "profile": {"host": "bmc1.example.net"}, "password": "pw-1"}},
     {"core": {"version": 1, "type": "state", "state": "logging_in"}},
-    {"core": {"version": 1, "type": "error", "state": "disconnected", "message": "Login failed: the BMC rejected the login"}}
+    {"core": {"version": 1, "type": "error", "state": "disconnected", "message": "Login failed: the BMC rejected the login", "stage": "logging_in", "code": "auth"}}
   ],
   "discoveryFails": [
     {"desktop": {"version": 1, "id": 1, "op": "connect", "profile": {"host": "bmc1.example.net"}, "password": "pw-1"}},
     {"core": {"version": 1, "type": "state", "state": "logging_in"}},
     {"core": {"version": 1, "type": "state", "state": "discovering"}},
-    {"core": {"version": 1, "type": "error", "state": "disconnected", "message": "Console discovery failed: no console found"}}
+    {"core": {"version": 1, "type": "error", "state": "disconnected", "message": "Console discovery failed: no console found", "stage": "discovering"}}
   ],
   "connectionFails": [
     {"desktop": {"version": 1, "id": 1, "op": "connect", "profile": {"host": "bmc1.example.net"}, "password": "pw-1"}},
@@ -41,6 +41,6 @@
       "capabilities": ["Video", "Keyboard", "Pointer"],
       "legacyTLS": false
     }}},
-    {"core": {"version": 1, "type": "error", "state": "disconnected", "message": "Console connection failed: EOF"}}
+    {"core": {"version": 1, "type": "error", "state": "disconnected", "message": "Console connection failed: EOF", "stage": "connecting"}}
   ]
 }

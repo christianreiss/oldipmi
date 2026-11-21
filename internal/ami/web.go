@@ -54,7 +54,7 @@ func (w *web) login(ctx context.Context, password string) (Launch, error) {
 		return Launch{}, e
 	}
 	if m := statusRE.FindSubmatch(b); m != nil && string(m[1]) != "0" {
-		return Launch{}, fmt.Errorf("BMC rejected login (HAPI_STATUS=%s)", m[1])
+		return Launch{}, protocol.Mark(protocol.CodeAuth, fmt.Errorf("BMC rejected login (HAPI_STATUS=%s)", m[1]))
 	}
 	m := cookieRE.FindSubmatch(b)
 	if m == nil || strings.Contains(strings.ToLower(string(m[1])), "fail") {
@@ -75,7 +75,7 @@ func (w *web) login(ctx context.Context, password string) (Launch, error) {
 	}
 	if !bytes.Contains(bytes.ToLower(b), []byte("<jnlp")) {
 		w.Close()
-		return Launch{}, fmt.Errorf("BMC returned no JNLP (login was not accepted or the session expired; check the account and password)")
+		return Launch{}, protocol.Mark(protocol.CodeAuth, fmt.Errorf("BMC returned no JNLP (login was not accepted or the session expired; check the account and password)"))
 	}
 	l, e := parseJNLP(b)
 	if e != nil {

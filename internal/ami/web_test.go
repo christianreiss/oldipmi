@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/testkit"
 	"reflect"
 	"strings"
 	"sync"
@@ -140,6 +141,12 @@ func TestAMIWebLoginFailures(t *testing.T) {
 			_, err, got, stages := amiLogin(t, protocol.Profile{}, c.answer)
 			if err == nil || err.Error() != c.err {
 				t.Fatalf("error %v, want %q", err, c.err)
+			}
+			// The rejected logins are examples for the desktop's hints.
+			if row, ok := map[string]string{"rejected": "ami: login rejected", "no JNLP": "ami: no JNLP"}[c.name]; ok {
+				testkit.ErrorRow(t, row, err)
+			} else if code := protocol.ErrorCode(err); code != "" {
+				t.Fatalf("code %q", code)
 			}
 			if !reflect.DeepEqual(got, c.requests) {
 				t.Fatalf("requests\n %q\nwant\n %q", got, c.requests)

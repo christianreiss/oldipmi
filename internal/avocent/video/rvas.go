@@ -3,6 +3,7 @@ package video
 import (
 	"encoding/binary"
 	"fmt"
+	"oldipmi/internal/protocol"
 	"oldipmi/internal/video/raster"
 )
 
@@ -96,7 +97,7 @@ func (r *RVAS) Feed(fb *Framebuffer, p []byte) (bool, error) {
 	case rvasCursorBMP, rvasCursorMove:
 		return false, nil // the host draws its own cursor into the picture
 	case rvasCursorPos, rvasAttribute, rvasASCII:
-		return false, fmt.Errorf("unsupported video format: this BMC is in text mode (Cisco IMC RLE text), which OldIPMI cannot draw yet")
+		return false, protocol.Mark(protocol.CodeTextMode, fmt.Errorf("unsupported video format: this BMC is in text mode (Cisco IMC RLE text), which OldIPMI cannot draw yet"))
 	}
 	return false, fmt.Errorf("unsupported Cisco IMC RLE video subtype %d", p[0])
 }

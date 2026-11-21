@@ -3,6 +3,7 @@ package video
 import (
 	"bytes"
 	"encoding/binary"
+	"oldipmi/internal/testkit"
 	"testing"
 )
 
@@ -168,8 +169,12 @@ func TestRVASRejectsBadInput(t *testing.T) {
 		"text mode":           {rvasASCII, 0, 0, 0, 1, 144, 2, 208, 25, 80, 0, 0},
 	}
 	for name, p := range cases {
-		if _, err := r.Feed(fb, p); err == nil {
+		_, err := r.Feed(fb, p)
+		if err == nil {
 			t.Errorf("%s: accepted", name)
+		}
+		if name == "text mode" {
+			testkit.ErrorRow(t, "avocent: text mode", err)
 		}
 	}
 }

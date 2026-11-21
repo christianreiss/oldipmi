@@ -308,10 +308,14 @@ sends and sends its events in exactly that form; the C++ tests check the desktop
 against the same files, with a stand-in core (`desktop/fakecore_test.cpp`) that
 plays a script. A change to either side's messages changes these files.
 `testdata/ipc/names.json` lists the names (ops, event types, states, power
-actions) and the keys of each message; both sides' tests check their constants
-(`internal/backend/ipc.go`, `protocol.Stage*` and `protocol.Power*`, and
-`desktop/ipc.h`) against it in both directions, as does the `power` tool of
-`oldipmi-mcp` for its actions. `sequences.json` holds whole
+actions, error codes) and the keys of each message; both sides' tests check their
+constants (`internal/backend/ipc.go`, `protocol.Stage*`, `protocol.Power*` and
+`protocol.Code*`, and `desktop/ipc.h`) against it in both directions, as does the
+`power` tool of `oldipmi-mcp` for its actions. `errors.json` holds errors as the
+core words them, with the class it sends as their `code`: the Go tests make the
+connection errors for real (`UPDATE_GOLDEN=1` writes them anew) and check each
+driver's own word for word, and the `error_hints` test checks that each message
+gets the hint of its class. `sequences.json` holds whole
 dialogues: the core must send exactly their events, in order, and a Session that
 plays them must send exactly their commands.
 `testdata/agent` does the same for the agent socket: requests as `oldipmi-mcp`
@@ -366,7 +370,9 @@ The GUI owns one backend child per open connection (any number at once, one `Ses
 carry version-1 control messages and RGBA video frames. There are no listening
 ports or installed background services. Control records are length-prefixed JSON
 (maximum 1 MiB); setup state events include `logging_in`, `discovering`,
-`connecting`, and `connected`, plus optional nonsecret `info` metadata; frame records carry width, height and raw RGBA bytes, at most 4096×2160 pixels (`maxFrame` in `testdata/ipc/names.json`).
+`connecting`, and `connected`, plus optional nonsecret `info` metadata; an error
+without an id, which ends the setup or the console, names the stage that failed
+(`stage`) and, when it is known, the class of the error (`code`); frame records carry width, height and raw RGBA bytes, at most 4096×2160 pixels (`maxFrame` in `testdata/ipc/names.json`).
 A one-frame queue drops superseded display frames without delaying input.
 
 Each console family is a Go package under `internal/` whose `driver.go` holds

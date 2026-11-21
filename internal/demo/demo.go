@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -70,7 +71,7 @@ func Connect(ctx context.Context, p protocol.Profile) (protocol.Console, error) 
 		return nil, fmt.Errorf("demo login rejected (the host name contains \"fail\")")
 	}
 	if strings.Contains(host, "unreachable") {
-		return nil, fmt.Errorf("demo BMC unreachable (the host name contains \"unreachable\"): no route to host")
+		return nil, fmt.Errorf("demo BMC unreachable (the host name contains \"unreachable\"): %w", syscall.EHOSTUNREACH)
 	}
 	info := &protocol.ConsoleInfo{Protocol: "OldIPMI demo (synthetic, no network)",
 		Endpoints:    []protocol.Endpoint{{Role: "Video / input", Address: "in-process", Transport: "none"}},

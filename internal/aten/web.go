@@ -113,7 +113,7 @@ func (w *web) login(ctx context.Context, password string) (l Launch, err error) 
 		if w.p.HTTP {
 			hint = "; if the credentials are correct, disable HTTP login for this profile (the BMC may issue its session cookie only over HTTPS)"
 		}
-		return Launch{}, fmt.Errorf("the BMC did not open a web session: the account or password was rejected, the account lacks web access, or it is locked after failed attempts; check the credentials in the BMC web interface%s", hint)
+		return Launch{}, protocol.Mark(protocol.CodeAuth, fmt.Errorf("the BMC did not open a web session: the account or password was rejected, the account lacks web access, or it is locked after failed attempts; check the credentials in the BMC web interface%s", hint))
 	}
 	protocol.Report(ctx, protocol.StageDiscovering, nil)
 	if mode == protocol.ConsoleHTML5 {
@@ -259,7 +259,7 @@ func (w *web) redfishLaunch(ctx context.Context, password string, login bool) (L
 	case e != nil:
 		return Launch{}, fmt.Errorf("the Redfish login failed: %w; check the hostname and this profile's HTTP / legacy TLS options", e)
 	case res.Status == 401 || res.Status == 403:
-		return Launch{}, fmt.Errorf("the BMC rejected the account or password (Redfish HTTP %d); check the credentials and that the account may use Redfish", res.Status)
+		return Launch{}, protocol.Mark(protocol.CodeAuth, fmt.Errorf("the BMC rejected the account or password (Redfish HTTP %d); check the credentials and that the account may use Redfish", res.Status))
 	case res.Status == 404 || res.Status == 405:
 		if login {
 			return Launch{}, fmt.Errorf("the BMC offers neither the ATEN web login (/cgi/login.cgi) nor Redfish sessions; this is not a supported Supermicro firmware; check the selected BMC family")

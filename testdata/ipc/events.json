@@ -14,6 +14,7 @@
   {"version": 1, "id": 5, "type": "ok", "mounted": true},
   {"version": 1, "type": "media", "mounted": false},
   {"version": 1, "id": 7, "type": "error", "message": "power control requires account credentials"},
-  {"version": 1, "type": "error", "state": "disconnected", "message": "Console connection failed: EOF"},
-  {"version": 1, "type": "media", "mounted": false, "message": "the BMC ended the virtual media"}
+  {"version": 1, "type": "error", "state": "disconnected", "message": "Console connection failed: EOF", "stage": "connecting"},
+  {"version": 1, "type": "media", "mounted": false, "message": "the BMC ended the virtual media"},
+  {"version": 1, "type": "error", "state": "disconnected", "message": "the AMI keepalive could not be sent: write tcp 192.0.2.20:41000->192.0.2.10:7578: i/o timeout", "code": "unreachable"}
 ]

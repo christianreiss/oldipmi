@@ -1,6 +1,7 @@
 // Package testkit holds helpers for the tests of the console families: it runs
 // a session until it has shown its frames and compares them with golden
-// pictures. Only tests import it.
+// pictures, and checks errors against testdata/ipc/errors.json. Only tests
+// import it.
 package testkit
 
 import (

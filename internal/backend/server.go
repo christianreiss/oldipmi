@@ -56,9 +56,11 @@ type Event struct {
 	Message string                `json:"message,omitempty"`
 	Mounted *bool                 `json:"mounted,omitempty"`
 	Info    *protocol.ConsoleInfo `json:"info,omitempty"`
-	// Not sent yet; defined here once for what follows:
-	Stage string `json:"stage,omitempty"` // the setup stage an error ended
-	Code  string `json:"code,omitempty"`  // the class of an error, for hints
+	// An error without id, which ends the setup or the console, says the
+	// stage it ended (only the setup's) and its class (protocol.Code*), if
+	// one is known.
+	Stage string `json:"stage,omitempty"`
+	Code  string `json:"code,omitempty"`
 }
 
 func ReadCommand(r io.Reader) (Command, error) {
@@ -154,7 +156,8 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 	first.Password = ""
 	if e != nil {
 		if ctx.Err() == nil {
-			emit(Event{Type: EventError, State: StateDisconnected, Message: stageLabel[stage] + " failed: " + e.Error()})
+			emit(Event{Type: EventError, State: StateDisconnected, Stage: stage, Code: protocol.ErrorCode(e),
+				Message: stageLabel[stage] + " failed: " + e.Error()})
 		}
 		return e
 	}
@@ -293,7 +296,7 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 				reply(r.cmd, r.err)
 			}
 			if e != nil && ctx.Err() == nil {
-				emit(Event{Type: EventError, State: StateDisconnected, Message: e.Error()})
+				emit(Event{Type: EventError, State: StateDisconnected, Code: protocol.ErrorCode(e), Message: e.Error()})
 			}
 			return e
 		case r := <-slow:

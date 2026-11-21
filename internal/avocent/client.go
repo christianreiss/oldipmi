@@ -62,7 +62,13 @@ func Connect(ctx context.Context, p protocol.Profile, password string) (c *Clien
 		}
 		if !skip && s.KVMLoginResponse.Status != 0 {
 			s.Conn.Close()
-			return nil, fmt.Errorf("Avocent login: %s", apcp.LoginStatusName(s.KVMLoginResponse.Status))
+			err := fmt.Errorf("Avocent login: %s", apcp.LoginStatusName(s.KVMLoginResponse.Status))
+			// INVALID_USER_NAME and INVALID_PASSWORD. An account that may not use
+			// the console (CHANNEL_ACCESS_DENIED) needs no other password.
+			if st := s.KVMLoginResponse.Status; st == 1 || st == 2 {
+				err = protocol.Mark(protocol.CodeAuth, err)
+			}
+			return nil, err
 		}
 		s.Conn.SetDeadline(time.Time{})
 		return s, nil

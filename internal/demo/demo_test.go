@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"oldipmi/internal/hid"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/testkit"
 	"os"
 	"strings"
 	"testing"
@@ -145,10 +146,9 @@ func TestConnectStagesAndVariants(t *testing.T) {
 	if _, err := Connect(c, protocol.Profile{Host: "slow"}); err == nil {
 		t.Fatal("cancel must abort setup")
 	}
-	if _, err := Connect(context.Background(), protocol.Profile{Host: "demo-unreachable"}); err == nil ||
-		!strings.Contains(err.Error(), "no route to host") {
-		t.Fatal("unreachable host must fail like an unreachable BMC:", err)
-	}
+	// It fails as an unreachable BMC does, with that class (errors.json).
+	_, err = Connect(context.Background(), protocol.Profile{Host: "demo-unreachable"})
+	testkit.ErrorRow(t, "demo: unreachable", err)
 	// "hang" stays at the login, before any stage, until it is cancelled.
 	stages = nil
 	hung, cancel := context.WithCancel(ctx)
