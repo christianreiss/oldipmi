@@ -4,16 +4,16 @@
 #include <QElapsedTimer>
 #include <QImage>
 #include <QJsonObject>
-#include <QLocalSocket>
 #include <QObject>
 #include <QPointer>
-#include <QProcess>
 #include <QVariantMap>
 #include <functional>
 #include <map>
 
-// One console connection: its own oldipmi-core child process, control/video
-// sockets, state and latest frame. Controller owns zero or more of them.
+class BackendProcess;
+
+// One console connection: its own oldipmi-core (BackendProcess), state and
+// latest frame. Controller owns zero or more of them.
 class Session : public QObject {
   Q_OBJECT
 public:
@@ -65,8 +65,7 @@ signals:
   void frameReady(QImage image);
 
 private:
-  QProcess *m_process = nullptr;
-  QLocalSocket *m_control = nullptr, *m_video = nullptr;
+  BackendProcess *m_backend = nullptr;
   ControlChannel m_controlIn;
   VideoChannel m_videoIn;
   int m_id = 0;

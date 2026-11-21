@@ -1,11 +1,8 @@
 #include "session.h"
+#include "backendprocess.h"
 #include <QColor>
-#include <QCoreApplication>
 #include <QDateTime>
 #include <QTimer>
-#include <fcntl.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
 // The message of a console that is ready, and the start of the notice of an
 // ISO that went away by itself, which a new mount retires.
@@ -45,7 +42,7 @@ void Session::failPending(const QString &why) {
     settle(entry.second, false, why);
 }
 void Session::sendDisconnect() {
-  if (m_process && m_control && !m_disconnectSent) {
+  if (m_backend && m_backend->control() && !m_disconnectSent) {
     m_disconnectSent = true;
     command({{"op", ipc::OpDisconnect}});
   }
@@ -53,21 +50,13 @@ void Session::sendDisconnect() {
 void Session::stop() {
   failPending("Connection closed.");
   lastFrame = QImage();
-  if (m_process) {
-    disconnect(m_process, nullptr, this, nullptr);
+  if (m_backend) {
+    disconnect(m_backend, nullptr, this, nullptr);
     sendDisconnect();
-    if (!m_process->waitForFinished(1500))
-      m_process->terminate();
-    if (!m_process->waitForFinished(2500)) {
-      m_process->kill();
-      m_process->waitForFinished(1000);
-    }
-    delete m_process;
-    m_process = nullptr;
+    m_backend->stop();
+    delete m_backend;
+    m_backend = nullptr;
   }
-  delete m_control;
-  delete m_video;
-  m_control = m_video = nullptr;
   m_controlIn.clear();
   m_videoIn.clear();
   mounted = false;
@@ -80,84 +69,43 @@ void Session::begin(const QString &password) {
   state = ipc::StageLoggingIn;
   setMessage("Opening console on " + profile.value("host").toString() + "…");
   emit changed();
-  int ctl[2], vid[2];
-  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, ctl) < 0) {
-    state = ipc::StateDisconnected;
-    fail("Cannot create private IPC.");
-    return;
-  }
-  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, vid) < 0) {
-    close(ctl[0]);
-    close(ctl[1]);
-    state = ipc::StateDisconnected;
-    fail("Cannot create video IPC.");
-    return;
-  }
-  // Reserve high descriptors so dup2 cannot clobber a descriptor still needed.
-  int childCtl = fcntl(ctl[1], F_DUPFD_CLOEXEC, 20),
-      childVid = fcntl(vid[1], F_DUPFD_CLOEXEC, 20);
-  close(ctl[1]);
-  close(vid[1]);
-  if (childCtl < 0 || childVid < 0) {
-    close(ctl[0]);
-    close(vid[0]);
-    if (childCtl >= 0)
-      close(childCtl);
-    if (childVid >= 0)
-      close(childVid);
-    state = ipc::StateDisconnected;
-    fail("Cannot pass private IPC descriptors.");
-    return;
-  }
-  m_control = new QLocalSocket(this);
-  m_video = new QLocalSocket(this);
-  m_control->setSocketDescriptor(ctl[0], QLocalSocket::ConnectedState, QIODevice::ReadWrite);
-  m_video->setSocketDescriptor(vid[0], QLocalSocket::ConnectedState, QIODevice::ReadOnly);
-  connect(m_control, &QLocalSocket::readyRead, this, &Session::readControl);
-  connect(m_video, &QLocalSocket::readyRead, this, &Session::readVideo);
-  m_process = new QProcess(this);
-  m_process->setChildProcessModifier([childCtl, childVid] {
-    dup2(childCtl, 3);
-    dup2(childVid, 4);
-    close(childCtl);
-    close(childVid);
-  });
-  connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+  m_backend = new BackendProcess(this);
+  connect(m_backend, &BackendProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
     state = ipc::StateDisconnected;
     if (error == QProcess::FailedToStart)
       fail("The native backend could not run. Check the application bundle.");
     else if (error == QProcess::Crashed)
       fail("The native backend crashed. Reconnect to obtain a fresh session.");
     else
-      fail("The native backend failed: " + m_process->errorString());
+      fail("The native backend failed: " + m_backend->errorString());
   });
-  connect(m_process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
-          [this](int, QProcess::ExitStatus) {
-            readControl();
-            failPending("Connection ended.");
-            lastFrame = QImage();
-            state = ipc::StateDisconnected;
-            mounted = false;
-            emit frameReady(QImage());
-            if (message.startsWith("Connected") || message.startsWith("Opening") ||
-                message.startsWith("Logging") || message.startsWith("Discovering") ||
-                message.startsWith("Connecting") || message.startsWith(isoGoneText))
-              setMessage("Connection ended. Reconnect to obtain a fresh session.");
-            emit changed();
-          });
-  // What the core logs (a Go panic, log.Printf, the AVPT trace) goes to the
-  // app's own stderr, the terminal or the journal; nothing reads its stdout.
-  // Kept by QProcess instead, it went unread and grew (C-08).
-  m_process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
-  m_process->setStandardOutputFile(QProcess::nullDevice());
-  m_process->setProgram(
-      qEnvironmentVariable("OLDIPMI_BIN_DIR", QCoreApplication::applicationDirPath()) +
-      "/oldipmi-core");
-  m_process->start();
-  bool started = m_process->waitForStarted(3000);
-  close(childCtl);
-  close(childVid);
-  if (!started)
+  connect(m_backend, &BackendProcess::finished, this, [this] {
+    readControl();
+    failPending("Connection ended.");
+    lastFrame = QImage();
+    state = ipc::StateDisconnected;
+    mounted = false;
+    emit frameReady(QImage());
+    if (message.startsWith("Connected") || message.startsWith("Opening") ||
+        message.startsWith("Logging") || message.startsWith("Discovering") ||
+        message.startsWith("Connecting") || message.startsWith(isoGoneText))
+      setMessage("Connection ended. Reconnect to obtain a fresh session.");
+    emit changed();
+  });
+  const auto started = m_backend->start();
+  if (started == BackendProcess::Start::NoControlPair || started == BackendProcess::Start::NoVideoPair ||
+      started == BackendProcess::Start::NoDescriptors) {
+    delete m_backend;
+    m_backend = nullptr;
+    state = ipc::StateDisconnected;
+    fail(started == BackendProcess::Start::NoControlPair ? "Cannot create private IPC."
+         : started == BackendProcess::Start::NoVideoPair ? "Cannot create video IPC."
+                                                         : "Cannot pass private IPC descriptors.");
+    return;
+  }
+  connect(m_backend->control(), &QLocalSocket::readyRead, this, &Session::readControl);
+  connect(m_backend->video(), &QLocalSocket::readyRead, this, &Session::readVideo);
+  if (started != BackendProcess::Start::Started)
     return;
   command({{"op", ipc::OpConnect},
            {"profile", QJsonObject::fromVariantMap(profile)},
@@ -167,7 +115,8 @@ void Session::command(QJsonObject o) { command(std::move(o), nullptr, {}); }
 void Session::command(QJsonObject o, const QObject *context, Result done) {
   Q_ASSERT(!done || context);
   Pending p{context, std::move(done)};
-  if (!m_control || m_control->state() != QLocalSocket::ConnectedState) {
+  QLocalSocket *control = m_backend ? m_backend->control() : nullptr;
+  if (!control || control->state() != QLocalSocket::ConnectedState) {
     settle(p, false, "Not connected.");
     return;
   }
@@ -175,19 +124,19 @@ void Session::command(QJsonObject o, const QObject *context, Result done) {
   o["id"] = ++m_id;
   if (p.done)
     m_pending[m_id] = std::move(p);
-  if (m_control->bytesToWrite() > 1024 * 1024) {
+  if (control->bytesToWrite() > 1024 * 1024) {
     fail("Input queue is full; disconnect and reconnect.");
-    m_process->terminate();
+    m_backend->terminate();
     failPending("Input queue is full.");
     return;
   }
-  m_control->write(ControlChannel::frame(o));
-  m_control->flush();
+  control->write(ControlChannel::frame(o));
+  control->flush();
 }
 void Session::readControl() {
-  if (!m_control)
+  if (!m_backend || !m_backend->control())
     return;
-  m_controlIn.append(m_control->readAll());
+  m_controlIn.append(m_backend->control()->readAll());
   for (ControlEvent e;;) {
     switch (m_controlIn.next(e)) {
     case ControlChannel::Status::NeedMore:
@@ -195,11 +144,11 @@ void Session::readControl() {
     case ControlChannel::Status::BadLength:
     case ControlChannel::Status::BadMessage:
       fail("Invalid backend control message.");
-      m_process->terminate();
+      m_backend->terminate();
       return;
     case ControlChannel::Status::BadVersion:
       fail("Incompatible backend version.");
-      m_process->terminate();
+      m_backend->terminate();
       return;
     case ControlChannel::Status::Event:
       break;
@@ -248,13 +197,13 @@ void Session::readControl() {
   }
 }
 void Session::readVideo() {
-  if (!m_video)
+  if (!m_backend || !m_backend->video())
     return;
-  m_videoIn.append(m_video->readAll());
+  m_videoIn.append(m_backend->video()->readAll());
   QImage latest;
   if (m_videoIn.take(latest) == VideoChannel::Status::BadFrame) {
     fail("Invalid framebuffer from backend.");
-    m_process->terminate();
+    m_backend->terminate();
     return;
   }
   if (!latest.isNull()) {
