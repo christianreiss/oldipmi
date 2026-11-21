@@ -616,145 +616,17 @@ ColumnLayout {
                     }
                 }
 
-                // Status strip: capture state, release, media and resolution. One
-                // fixed height whatever it shows, so the picture above never moves.
-                Rectangle {
+                // Status strip: capture state, release, media and resolution.
+                StatusStrip {
                     id: strip
-                    // Shorter words when the stage is narrow. Then, in order of
-                    // importance, the capture state, Release, how to release, and the
-                    // resolution: what does not fit whole is left out, not clipped.
-                    readonly property bool compact: width < Theme.gu * 24
-                    readonly property real room: width - 2 * Math.round(Theme.gu * 0.75)
-                    readonly property real gap: Math.round(Theme.gu * 0.6)
-                    // Chip, Release and the spacer after it, with the gaps between them.
-                    readonly property real essentials: Math.ceil(captureChip.implicitWidth) + gap + releaseButton.implicitWidth + gap
-                        + (isoChip.visible ? gap + Math.ceil(isoChip.implicitWidth) : 0)
-                    readonly property bool showHint: view.captured && settings.rightCtrlReleases && !compact
-                        && room >= essentials + gap + Math.ceil(hintLabel.implicitWidth)
-                    readonly property bool showResolution: !compact && resolutionLabel.text !== ""
-                        && room >= essentials + (showHint ? gap + Math.ceil(hintLabel.implicitWidth) : 0) + gap + Math.ceil(resolutionLabel.implicitWidth)
                     visible: !root.fullscreen
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                    height: Theme.stripHeight
                     radius: stage.radius
-                    color: Theme.stageBar
-                    Rectangle {
-                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                        height: parent.radius
-                        color: parent.color
-                    }
-                    Rectangle {
-                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                        height: 1
-                        color: Theme.stageLine
-                    }
-                    RowLayout {
-                        anchors {
-                            fill: parent
-                            leftMargin: Math.round(Theme.gu * 0.75)
-                            rightMargin: Math.round(Theme.gu * 0.75)
-                        }
-                        spacing: strip.gap
-                        // The capture state. While free it is also the keyboard way in:
-                        // Tab to it, then Enter or Space sends keyboard and mouse to the server.
-                        QQC2.AbstractButton {
-                            id: captureButton
-                            objectName: "captureButton"
-                            enabled: !view.captured
-                            focusPolicy: Qt.StrongFocus
-                            hoverEnabled: true
-                            padding: 0
-                            implicitWidth: captureChip.implicitWidth
-                            implicitHeight: captureChip.implicitHeight
-                            Layout.fillWidth: true
-                            Layout.maximumWidth: Math.ceil(implicitWidth)
-                            Accessible.role: view.captured ? Accessible.StaticText : Accessible.Button
-                            Accessible.name: view.captured ? captureChip.text : "Control " + root.displayName + " with keyboard and mouse"
-                            // Without the Right Ctrl release only the mouse releases: say so
-                            // before the keyboard goes to the server.
-                            Accessible.description: settings.rightCtrlReleases ? "" : root.mouseOnlyRelease
-                            QQC2.ToolTip.visible: visualFocus && !view.captured && !settings.rightCtrlReleases
-                            QQC2.ToolTip.text: root.mouseOnlyRelease
-                            Keys.onReturnPressed: captureButton.clicked()
-                            Keys.onEnterPressed: captureButton.clicked()
-                            onClicked: view.capture()
-                            HoverHandler { enabled: captureButton.enabled; cursorShape: Qt.PointingHandCursor }
-                            contentItem: Chip {
-                                id: captureChip
-                                onStage: true
-                                neutral: !view.captured
-                                tone: Theme.accent
-                                iconName: view.captured ? "input-keyboard" : "input-mouse"
-                                bold: view.captured
-                                text: view.captured ? (strip.compact ? "Captured" : "Keyboard and mouse captured")
-                                                    : (strip.compact ? "Click to control" : "Click the screen to control the server")
-                            }
-                            background: Rectangle {
-                                visible: captureButton.visualFocus
-                                anchors.fill: parent
-                                anchors.margins: -3
-                                radius: height / 2
-                                color: "transparent"
-                                border.width: 2
-                                border.color: Theme.stageTone(Theme.accent)
-                            }
-                        }
-                        QQC2.Label {
-                            id: hintLabel
-                            visible: strip.showHint
-                            text: "Tap Right Ctrl to release"
-                            color: Theme.stageMuted
-                            font.pointSize: Theme.small
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                            Layout.maximumWidth: Math.ceil(implicitWidth)
-                        }
-                        ActionButton {
-                            id: releaseButton
-                            // Always laid out, only faded in: toggling visible would
-                            // resize the strip's contents on every capture change.
-                            onStage: true
-                            tone: "secondary"
-                            text: "Release"
-                            implicitHeight: Math.round(Theme.gu * 1.45)
-                            opacity: view.captured ? 1 : 0
-                            enabled: view.captured
-                            Accessible.ignored: !view.captured
-                            onClicked: view.release()
-                        }
-                        Item { Layout.fillWidth: true }
-                        QQC2.Label {
-                            text: controller.message
-                            visible: text !== "" && !/^Connected/.test(text) && !strip.compact
-                            color: Theme.stageMuted
-                            font.pointSize: Theme.small
-                            elide: Text.ElideRight
-                            // Gives way first; hovering shows what is cut off, such
-                            // as why an ISO went away.
-                            Layout.fillWidth: true
-                            Layout.maximumWidth: Math.min(Math.ceil(implicitWidth), strip.width / 3)
-                            QQC2.ToolTip.visible: messageHover.hovered && truncated
-                            QQC2.ToolTip.text: text
-                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                            HoverHandler { id: messageHover }
-                        }
-                        Chip {
-                            id: isoChip
-                            visible: controller.mounted
-                            onStage: true
-                            tone: Theme.positive
-                            iconName: "media-optical"
-                            text: "ISO mounted"
-                        }
-                        QQC2.Label {
-                            id: resolutionLabel
-                            visible: strip.showResolution
-                            text: (controller.consoleInfo.resolution || "").replace("x", " × ")
-                            font.family: Theme.mono.family
-                            font.pointSize: Theme.small
-                            color: Theme.stageMuted
-                        }
-                    }
+                    captured: view.captured
+                    displayName: root.displayName
+                    mouseOnlyRelease: root.mouseOnlyRelease
+                    onCaptureRequested: view.capture()
+                    onReleaseRequested: view.release()
                 }
             }
 
