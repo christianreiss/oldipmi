@@ -81,62 +81,6 @@ func TestTestUnitReadyEcho(t *testing.T) {
 	}
 }
 
-// memRW is an in-memory ReadWriter backing for the write test.
-type memRW struct{ b []byte }
-
-func (m *memRW) Size() int64                              { return int64(len(m.b)) }
-func (m *memRW) ReadAt(p []byte, off int64) (int, error)  { return copy(p, m.b[off:]), nil }
-func (m *memRW) WriteAt(p []byte, off int64) (int, error) { return copy(m.b[off:], p), nil }
-
-// TestWrite10 verifies the WRITE(10) path: the host's data rides at the tail of
-// the request payload (after the command envelope) and is written at lba*512.
-func TestWrite10(t *testing.T) {
-	m := &memRW{b: make([]byte, 64*diskBlockSize)}
-	d := NewDiskRW(m)
-
-	// A writable device must NOT report write-protect, or the host mounts RO.
-	if d.modeSense6()[2]&0x80 != 0 {
-		t.Error("writable device reports write-protect")
-	}
-
-	// WRITE(10): LBA 5, 1 block. CDB at payload[9]: opcode 0x2A, LBA (BE) at
-	// [11:15] = 00 00 00 05, block count (BE) at [16:18] = 00 01.
-	env := make([]byte, 29)
-	env[opcodeOffset] = scsiWrite10
-	env[14] = 0x05 // LBA low byte
-	env[17] = 0x01 // 1 block
-	data := make([]byte, diskBlockSize)
-	for i := range data {
-		data[i] = byte(i*7 + 3)
-	}
-	req := &Packet{Payload: append(append([]byte{}, env...), data...)}
-
-	if _, err := d.Handle(req); err != nil {
-		t.Fatalf("Handle: %v", err)
-	}
-	got := m.b[5*diskBlockSize : 6*diskBlockSize]
-	for i := range data {
-		if got[i] != data[i] {
-			t.Fatalf("written byte %d = %d, want %d (wrong offset or tail extraction)", i, got[i], data[i])
-		}
-	}
-}
-
-// A read-only disk must report write-protect and ignore WRITE.
-func TestReadOnlyDiskWriteProtect(t *testing.T) {
-	d := NewDisk(patReader{size: 64 * diskBlockSize})
-	if d.modeSense6()[2]&0x80 == 0 {
-		t.Error("read-only disk should report write-protect")
-	}
-	env := make([]byte, 29)
-	env[opcodeOffset] = scsiWrite10
-	env[17] = 0x01
-	req := &Packet{Payload: append(make([]byte, 0, 29+diskBlockSize), append(env, make([]byte, diskBlockSize)...)...)}
-	if _, err := d.Handle(req); err != nil { // must not panic / error (w is nil → ignored)
-		t.Fatalf("Handle on read-only device: %v", err)
-	}
-}
-
 // TestDriveAnswers pins the data the CD-ROM sends for each command it knows,
 // as the host gets it after the echoed envelope, for a disc of 25 blocks.
 func TestDriveAnswers(t *testing.T) {
@@ -179,39 +123,6 @@ func TestDriveAnswers(t *testing.T) {
 		if got := resp[len(p):]; !bytes.Equal(got, c.want) {
 			t.Errorf("%s: % x, want % x", c.name, got, c.want)
 		}
-	}
-}
-
-// NewDisk (floppy/HD/USB) must use 512-byte Direct-Access blocks: READ CAPACITY
-// reports 512 and a READ(10) addresses 512-byte LBAs (so LBA 3 == byte 1536).
-func TestDiskProfile512(t *testing.T) {
-	d := NewDisk(patReader{size: 2880 * diskBlockSize}) // 1.44 MB floppy
-	cap := d.readCapacity()
-	if got := binary.BigEndian.Uint32(cap[4:8]); got != diskBlockSize {
-		t.Errorf("disk block size = %d, want %d", got, diskBlockSize)
-	}
-	if got := binary.BigEndian.Uint32(cap[0:4]); got != 2879 {
-		t.Errorf("last LBA = %d, want 2879", got)
-	}
-
-	// READ(10): LBA 3, 1 block → offset 1536, 512 bytes. CDB at payload[9]:
-	// opcode 0x28, LBA (BE) at [11:15] = 00 00 00 03, block count (BE) at [16:18] = 00 01.
-	req := &Packet{Payload: []byte{
-		0x00, 0x02, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-		0x01, 0x28, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00,
-		0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00,
-	}}
-	resp, err := d.Handle(req)
-	if err != nil {
-		t.Fatalf("Handle: %v", err)
-	}
-	data := resp[len(req.Payload):]
-	if len(data) != diskBlockSize {
-		t.Fatalf("read len = %d, want %d", len(data), diskBlockSize)
-	}
-	if want := byte((3*diskBlockSize + 0) % 251); data[0] != want {
-		t.Errorf("data[0] = %d, want %d (wrong 512-byte LBA scaling)", data[0], want)
 	}
 }
 

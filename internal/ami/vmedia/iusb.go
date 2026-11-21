@@ -1,6 +1,6 @@
 // Package vmedia implements the AMI MegaRAC virtual-media (IUSB) data plane:
-// it presents a local disk image to the host as a USB CD/DVD (or floppy/HD) by
-// answering the BMC's SCSI sector reads over the proprietary IUSB protocol.
+// it presents a local ISO image to the host as a USB CD/DVD drive by answering
+// the BMC's SCSI sector reads over the proprietary IUSB protocol.
 //
 // The BMC uses a client-streams-sectors model: it exposes a USB mass-storage
 // device to the host and, on demand, pulls the sectors the host reads from us
@@ -19,13 +19,6 @@ import "oldipmi/internal/ami/iusb"
 // floppy/HD codes still need verification against a capture.
 const (
 	DeviceCDROM = 5
-)
-
-// Default per-device TLS ports on the BMC.
-const (
-	PortCD = 5120
-	PortFD = 5122
-	PortHD = 5123
 )
 
 // Opcodes carried in the SCSI payload at offset opcodeOffset. The 0xF* values

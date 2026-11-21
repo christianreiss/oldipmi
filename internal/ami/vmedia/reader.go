@@ -9,22 +9,13 @@ import (
 // of a fixed-size medium. The data plane answers the BMC's SCSI reads by calling
 // ReadAt. FileReader is the one implementation outside the tests.
 //
-// Reads past End-of-medium must return io.EOF (or a short count); the SCSI layer
-// turns that into a proper sense response rather than a transport error.
+// A read past the end of the medium may return io.EOF with a short count; the
+// host gets zeros for what could not be read, and any other error is logged.
 type Reader interface {
 	// ReadAt fills p with len(p) bytes starting at off, like io.ReaderAt.
 	ReadAt(p []byte, off int64) (int, error)
 	// Size reports the medium size in bytes.
 	Size() int64
-}
-
-// ReadWriter is a writable backing (floppy / HD / USB). A backing that implements
-// it lets the data plane honour SCSI WRITE(10)/WRITE(12). CD-ROM backings are
-// read-only and need only implement Reader.
-type ReadWriter interface {
-	Reader
-	// WriteAt writes len(p) bytes at off, like io.WriterAt.
-	WriteAt(p []byte, off int64) (int, error)
 }
 
 // FileReader serves a local image file, read-only.
