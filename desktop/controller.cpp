@@ -1,16 +1,17 @@
 #include "controller.h"
 #include "families.h"
+#include "filedialogs.h"
 #include "profilestore.h"
 #include <QApplication>
 #include <QClipboard>
-#include <QFileDialog>
 #include <QStandardPaths>
 
 static QString configPath() {
   return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
          "/hosts.json";
 }
-Controller::Controller(QObject *p, Credentials *credentials, QString configFile) : QObject(p) {
+Controller::Controller(QObject *p, Credentials *credentials, QString configFile, FileDialogs *dialogs)
+    : QObject(p) {
   m_sessions = std::make_unique<SessionManager>();
   connect(m_sessions.get(), &SessionManager::changed, this, &Controller::changed);
   connect(m_sessions.get(), &SessionManager::frameReady, this, &Controller::frameReady);
@@ -21,6 +22,9 @@ Controller::Controller(QObject *p, Credentials *credentials, QString configFile)
   connect(m_profiles.get(), &ProfileStore::profilesChanged, this, &Controller::hostsChanged);
   connect(m_profiles.get(), &ProfileStore::failed, this, &Controller::fail);
   m_profiles->load();
+  if (!dialogs)
+    m_ownedDialogs = std::make_unique<FileDialogs>();
+  m_dialogs = dialogs ? dialogs : m_ownedDialogs.get();
   connect(qApp, &QGuiApplication::applicationStateChanged, this,
           [this](Qt::ApplicationState s) {
             if (s != Qt::ApplicationActive)
@@ -186,8 +190,7 @@ void Controller::mountISO() {
   // in which an agent may bring another console to the front (C-09).
   const bool any = shown();
   const QString target = any ? shown()->id : QString();
-  auto f = QFileDialog::getOpenFileName(nullptr, "Mount read-only ISO", {},
-                                        "ISO images (*.iso)");
+  auto f = m_dialogs->isoImage();
   if (auto *s = any ? m_sessions->session(target) : nullptr; s && !f.isEmpty())
     s->mount(f);
 }
@@ -202,9 +205,5 @@ void Controller::powerFor(QString id, QString action) {
   s->releaseInput();
   s->power(action);
 }
-QString Controller::chooseCertificate(bool key) {
-  return QFileDialog::getOpenFileName(
-      nullptr, key ? "Client private key" : "Client certificate", {},
-      "PEM files (*.pem *.crt *.key)");
-}
+QString Controller::chooseCertificate(bool key) { return m_dialogs->clientCertificate(key); }
 void Controller::preview() { m_sessions->preview(); }

@@ -1,7 +1,7 @@
 #include "controller.h"
+#include "filedialogs.h"
 #include <QApplication>
 #include <QClipboard>
-#include <QFileDialog>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -343,7 +343,15 @@ private slots:
     script.write(R"([{"expect": "connect"}, {"send": {"version": 1, "type": "state", "state": "connected"}}, {"expect": "mount"}])");
     script.close();
     qputenv("OLDIPMI_FAKE_SCRIPT", script.fileName().toLocal8Bit());
-    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    struct Chooser : FileDialogs {
+      std::function<void()> meanwhile; // what happens while the user chooses
+      QString iso;
+      QString isoImage() override {
+        meanwhile();
+        return iso;
+      }
+    } dialogs;
+    Controller c(nullptr, &wallet, dir.filePath("hosts.json"), &dialogs);
     for (const char *id : {"a", "b"}) { // one stand-in core each, with its own log
       qputenv("OLDIPMI_FAKE_LOG", dir.filePath(QString(id) + ".jsonl").toLocal8Bit());
       c.connectHost({{"id", id}, {"name", id}, {"host", QString(id) + ".example.net"}, {"family", "demo"}}, "");
@@ -354,28 +362,9 @@ private slots:
       return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
     };
     c.show("a");
-    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
-    QTimer agent;
-    bool accepted = false;
-    connect(&agent, &QTimer::timeout, &c, [&] {
-      auto *dialog = qobject_cast<QFileDialog *>(QApplication::activeModalWidget());
-      if (!dialog)
-        return;
-      agent.stop();
-      c.show("b"); // what an agent's connect does
-      // selectFile() leaves the file name field alone while it has the focus,
-      // which it may already have here (it has in a fresh Fedora container).
-      if (QWidget *focus = QApplication::focusWidget())
-        focus->clearFocus();
-      dialog->selectFile(iso);
-      static_cast<QDialog *>(dialog)->accept(); // QFileDialog::accept() is protected
-      accepted = dialog->result() == QDialog::Accepted;
-      if (!accepted)
-        dialog->reject(); // fail below instead of at the test's time limit
-    });
-    agent.start(20);
+    dialogs.iso = iso;
+    dialogs.meanwhile = [&c] { c.show("b"); }; // what an agent's connect does
     c.mountISO();
-    QVERIFY2(accepted, "the file dialog did not accept the ISO");
     QCOMPARE(c.shownId(), QString("b"));
     QTRY_VERIFY(received("a").contains(R"("op":"mount")"));
     QTest::qWait(100);

@@ -11,6 +11,7 @@
 #include <functional>
 #include <memory>
 
+class FileDialogs;
 class ProfileStore;
 
 class Controller : public QObject {
@@ -34,8 +35,9 @@ class Controller : public QObject {
   // Profile id of the session the console view shows; empty when none.
   Q_PROPERTY(QString shownId READ shownId NOTIFY changed)
 public:
+  // Without credentials it uses KWallet, and without dialogs QFileDialog.
   explicit Controller(QObject *parent = nullptr, Credentials *credentials = nullptr,
-                      QString configFile = {});
+                      QString configFile = {}, FileDialogs *dialogs = nullptr);
   ~Controller();
   QVariantList hosts() const;
   // The single-session properties describe the shown session (or "disconnected").
@@ -100,6 +102,8 @@ private:
   quint64 m_messageStamp = 0;
   std::unique_ptr<Credentials> m_ownedCredentials;
   std::unique_ptr<ProfileStore> m_profiles; // uses the credentials
+  std::unique_ptr<FileDialogs> m_ownedDialogs;
+  FileDialogs *m_dialogs;
   std::unique_ptr<SessionManager> m_sessions; // the last member: it goes first
   void setMessage(const QString &m);
   void fail(QString message);
