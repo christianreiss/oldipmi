@@ -32,6 +32,10 @@ jobs:
           desktop-file-utils qt6-qtbase-devel qt6-qtdeclarative-devel kf6-kwallet-devel
           kf6-kirigami-devel kf6-kirigami-addons dejavu-sans-fonts
       - uses: actions/checkout@v7
+      - name: Trust the checkout
+        # The container runs as root and the checkout belongs to the runner's
+        # user: git refuses such a repository, and go build cannot stamp it.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Build
         run: |
           cmake -S . -B build -G Ninja
