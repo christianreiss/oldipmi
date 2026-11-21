@@ -215,7 +215,8 @@ Packaging additionally uses `mksquashfs`, `patchelf`, `qmake6`, `rpm` and
 Python 3. It bundles the native executables, the Qt/KDE QML modules, the Qt
 plugins OldIPMI uses, a font and the shared libraries they need, including a
 private glibc and loader. GPU drivers remain host-provided. The private loader
-avoids Fedora Qt libraries requiring a newer host glibc.
+avoids Fedora Qt libraries requiring a newer host glibc. Outside Plasma, the
+AppImage shows the Breeze icons it brings.
 
 Every file the bundle takes from the system must belong to an installed RPM with
 a license text: the texts go to `usr/share/licenses`, and

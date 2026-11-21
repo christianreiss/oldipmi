@@ -65,6 +65,10 @@
   stay as they are.
 
 ### Fixed
+* **Icons in the AppImage outside Plasma.** Started on GNOME or in a bare
+  container, the AppImage showed most buttons without their icons. It now uses
+  the Breeze icons it brings there. On Plasma nothing changes, and an installed
+  OldIPMI keeps the desktop's icons.
 * **The AppImage brings the license of everything it bundles.** Libraries
   whose package keeps its license text in a sibling package, and the packages
   of the bundled plugins and QML modules, came without one. Now every bundled

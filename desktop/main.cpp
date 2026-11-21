@@ -34,6 +34,7 @@
 #include <QStyleHints>
 #include <QTimer>
 #include <QWindow>
+#include <dlfcn.h>
 #include <functional>
 #include <memory>
 // --self-test and its screenshot tour fail on any warning from OldIPMI's own QML
@@ -837,6 +838,14 @@ int main(int argc, char **argv) {
   bool test = std::any_of(argv + 1, argv + argc, [](const char *a) { return !strcmp(a, "--self-test"); });
   if (test)
     QStandardPaths::setTestModeEnabled(true);
+  // The AppImage also runs where the Breeze icons are missing, as on GNOME or
+  // in a bare container. KIconThemes, which it bundles, then makes its built-in
+  // Breeze icons the theme; on Plasma that does nothing. Its AppRun sets
+  // OLDIPMI_BUNDLE, so an installed OldIPMI keeps the desktop's icons.
+  if (qEnvironmentVariableIsSet("OLDIPMI_BUNDLE"))
+    if (void *themes = dlopen("libKF6IconThemes.so.6", RTLD_NOW))
+      if (auto initTheme = reinterpret_cast<void (*)()>(dlsym(themes, "_ZN10KIconTheme9initThemeEv")))
+        initTheme(); // KIconTheme::initTheme(), before the QApplication as it asks
   QApplication app(argc, argv);
   if (test) {
     s_previousHandler = qInstallMessageHandler(recordQmlWarning);
