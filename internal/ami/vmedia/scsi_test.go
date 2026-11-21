@@ -1,6 +1,7 @@
 package vmedia
 
 import (
+	"bytes"
 	"encoding/binary"
 	"testing"
 )
@@ -136,14 +137,48 @@ func TestReadOnlyDiskWriteProtect(t *testing.T) {
 	}
 }
 
-func TestReadCapacity(t *testing.T) {
-	cd := NewCDROM(patReader{size: 25 * cdBlockSize}) // 25 blocks → last LBA 24
-	cap := cd.readCapacity()
-	if got := binary.BigEndian.Uint32(cap[0:4]); got != 24 {
-		t.Errorf("last LBA = %d, want 24", got)
-	}
-	if got := binary.BigEndian.Uint32(cap[4:8]); got != cdBlockSize {
-		t.Errorf("block size = %d, want %d", got, cdBlockSize)
+// TestDriveAnswers pins the data the CD-ROM sends for each command it knows,
+// as the host gets it after the echoed envelope, for a disc of 25 blocks.
+func TestDriveAnswers(t *testing.T) {
+	cd := NewCDROM(patReader{size: 25 * cdBlockSize})
+	noSense := make([]byte, 18)
+	noSense[0], noSense[7] = 0x70, 10
+	discInfo := make([]byte, 34)
+	copy(discInfo, []byte{0, 32, 0x0e, 1, 1, 1, 1})
+	for _, c := range []struct {
+		name string
+		cdb  []byte
+		want []byte
+	}{
+		{"TEST UNIT READY", []byte{scsiTestUnitReady, 0, 0, 0, 0, 0}, nil},
+		{"INQUIRY", []byte{scsiInquiry, 0, 0, 0, 36, 0},
+			append([]byte{5, 0x80, 5, 2, 31, 0, 0, 0}, "RD450X  Virtual CD-ROM  1.0 "...)},
+		{"REQUEST SENSE: no sense", []byte{scsiRequestSense, 0, 0, 0, 18, 0}, noSense},
+		{"MODE SENSE(6): write-protected", []byte{scsiModeSense6, 0, 0x3f, 0, 4, 0}, []byte{3, 0, 0x80, 0}},
+		{"MODE SENSE(10): write-protected", []byte{scsiModeSense10, 0, 0x3f, 0, 0, 0, 0, 0, 8, 0},
+			[]byte{0, 6, 0, 0x80, 0, 0, 0, 0}},
+		{"READ CAPACITY: last block 24", []byte{scsiReadCapacity10, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			[]byte{0, 0, 0, 24, 0, 0, 8, 0}},
+		{"READ TOC: track 1, lead-out at 25", []byte{scsiReadTOC, 0, 0, 0, 0, 0, 0, 0, 20, 0},
+			[]byte{0, 18, 1, 1, 0, 0x14, 1, 0, 0, 0, 0, 0, 0, 0x14, 0xaa, 0, 0, 0, 0, 25}},
+		{"GET CONFIGURATION: CD-ROM", []byte{scsiGetConfig, 0, 0, 0, 0, 0, 0, 0, 12, 0},
+			[]byte{0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 0}},
+		{"GET EVENT STATUS: no change", []byte{scsiGetEventStatus, 1, 0, 0, 0x10, 0, 0, 0, 8, 0}, []byte{0, 2, 0, 0x10}},
+		{"READ DISC INFORMATION: finalized", []byte{scsiReadDiscInfo, 0, 0, 0, 0, 0, 0, 0, 34, 0}, discInfo},
+		{"WRITE(10): ignored", []byte{scsiWrite10, 0, 0, 0, 0, 5, 0, 0, 1, 0}, nil},
+		{"AMI control 0xF3: acknowledged", []byte{0xf3}, nil},
+		{"unknown command: nothing", []byte{0x35, 0, 0, 0, 0, 0, 0, 0, 0, 0}, nil},
+	} {
+		p := make([]byte, 29)
+		copy(p[opcodeOffset:], c.cdb)
+		resp, err := cd.Handle(&Packet{Payload: p})
+		if err != nil {
+			t.Errorf("%s: %v", c.name, err)
+			continue
+		}
+		if got := resp[len(p):]; !bytes.Equal(got, c.want) {
+			t.Errorf("%s: % x, want % x", c.name, got, c.want)
+		}
 	}
 }
 
