@@ -4,6 +4,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import "families.js" as Families
+import "stages.js" as Stages
 
 // Editor for one connection profile ("New connection" / "Edit connection").
 AppDialog {
@@ -13,7 +14,7 @@ AppDialog {
     property var original: ({})
     readonly property bool editing: !!original.id
     // Connecting an open profile only brings it to the front, so its edits would not be saved.
-    readonly property bool openNow: editing && (controller.sessions[original.id] || {state: "disconnected"}).state !== "disconnected"
+    readonly property bool openNow: editing && Stages.isOpen(controller.sessions, original.id)
     // The chosen family's tile; -1 keeps a stored family this version does not know.
     property int familyIndex: 0
     property string certPath: ""

@@ -1,11 +1,13 @@
-// The error page's hints (desktop/qml/families.js): which next step each kind of
+// The error page's hints (desktop/qml/stages.js): which next step each kind of
 // backend failure gets. The messages are shaped like those oldipmi-core sends.
-// And the family helpers there, which answer from the family table.
+// And the family helpers (families.js), which answer from the family table, and
+// the other helpers of stages.js and format.js.
 #include "families.h"
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QSet>
 #include <QJSEngine>
 #include <QtTest>
@@ -19,16 +21,22 @@ class FamiliesTest : public QObject {
   }
 private slots:
   void initTestCase() {
-    QFile f(FAMILIES_JS);
-    QVERIFY2(f.open(QIODevice::ReadOnly), FAMILIES_JS);
-    // A QML JavaScript library; without its pragma and import it is plain
-    // JavaScript, given the family table the way the app registers it.
-    QString source = QString::fromUtf8(f.readAll()).replace(".pragma library", "").replace(".import OldIPMI 1.0 as App", "");
+    // QML JavaScript libraries; without their pragma and imports they are plain
+    // JavaScript, given the family table the way the app registers it. They
+    // share the global object here, so a library's qualifier is that object.
     QJSValue app = m_engine.newObject();
     app.setProperty("FamilyTable", familyTableScript(&m_engine));
     m_engine.globalObject().setProperty("App", app);
-    QJSValue loaded = m_engine.evaluate(source, FAMILIES_JS);
-    QVERIFY2(!loaded.isError(), qPrintable(loaded.toString()));
+    m_engine.globalObject().setProperty("Format", m_engine.globalObject());
+    for (const char *name : {"format.js", "stages.js", "families.js"}) {
+      const QString path = QString(QML_DIR) + "/" + name;
+      QFile f(path);
+      QVERIFY2(f.open(QIODevice::ReadOnly), qPrintable(path));
+      QString source = QString::fromUtf8(f.readAll());
+      source.remove(QRegularExpression("^\\.(pragma|import) .*$", QRegularExpression::MultilineOption));
+      QJSValue loaded = m_engine.evaluate(source, path);
+      QVERIFY2(!loaded.isError(), qPrintable(loaded.toString()));
+    }
   }
   void errorHint_data() {
     QTest::addColumn<QString>("message");
@@ -150,6 +158,23 @@ private slots:
     QCOMPARE(call("errorDetail", "Login failed: dial tcp: lookup x: no such host"),
              QString("Dial tcp: lookup x: no such host"));
     QCOMPARE(call("errorDetail", "Backend crashed"), QString("Backend crashed"));
+  }
+  void stepLabelCountsFromOne() {
+    QCOMPARE(m_engine.evaluate("stepLabel(0)").toString(), QString("Step 1 of 3 · Logging in"));
+    QCOMPARE(m_engine.evaluate("stepLabel(2)").toString(), QString("Step 3 of 3 · Connecting"));
+  }
+  // Open is a listed session that is not disconnected, as Controller::isOpen says.
+  void isOpenNeedsALiveSession() {
+    QVERIFY(!m_engine.evaluate("isOpen({}, 'a')").toBool());
+    QVERIFY(!m_engine.evaluate("isOpen({a: {state: 'disconnected'}}, 'a')").toBool());
+    QVERIFY(m_engine.evaluate("isOpen({a: {state: 'logging_in'}}, 'a')").toBool());
+    QVERIFY(m_engine.evaluate("isOpen({a: {state: 'connected'}}, 'a')").toBool());
+  }
+  void elapsedInMinutesOrHours() {
+    QCOMPARE(m_engine.evaluate("elapsed(0, 5000)").toString(), QString()); // no start
+    QCOMPARE(m_engine.evaluate("elapsed(1000, 66000)").toString(), QString("1:05"));
+    QCOMPARE(m_engine.evaluate("elapsed(1000, 3662000)").toString(), QString("1:01:01"));
+    QCOMPARE(m_engine.evaluate("elapsed(5000, 1000)").toString(), QString("0:00")); // a clock behind
   }
 };
 QTEST_GUILESS_MAIN(FamiliesTest)

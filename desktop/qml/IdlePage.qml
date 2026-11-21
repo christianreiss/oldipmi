@@ -4,6 +4,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import "families.js" as Families
+import "format.js" as Format
 import "shortcuts.js" as Shortcuts
 
 // The selected connection, ready to open: what it is, how it logs in, and one
@@ -19,7 +20,7 @@ Item {
     signal deleteRequested()
     signal duplicateRequested()
 
-    readonly property string exceptions: Families.exceptions(page.profile)
+    readonly property string exceptions: Format.exceptions(page.profile)
     readonly property bool wide: card.width >= Theme.gu * 30
     // A page too short for the whole card (large text on a small screen): no
     // picture, and Connect right below the name and address, before the details.
@@ -27,7 +28,6 @@ Item {
     readonly property bool compact: Theme.gu + cardGrid.anchors.margins * 2
         + (wide ? Math.max(disc.side, info.implicitHeight) : disc.side + cardGrid.rowSpacing + info.implicitHeight)
         > flick.height
-    function capitalized(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : "" }
 
     Flickable {
         id: flick
@@ -142,7 +142,7 @@ Item {
                             Repeater {
                                 model: [
                                     {label: "Account", value: page.profile.username || (Families.needsAccount(page.profile.family) ? "Not set" : "Not needed"), mono: !!page.profile.username},
-                                    {label: "Last connected", value: page.capitalized(Families.relativeTime(page.profile.lastConnected, Theme.minuteNow))},
+                                    {label: "Last connected", value: Format.capitalized(Format.relativeTime(page.profile.lastConnected, Theme.minuteNow))},
                                     {label: "Password", value: !Families.needsAccount(page.profile.family) ? "Not needed"
                                                                 : page.profile.remember ? "Kept in KWallet" : "Asked for on connect"},
                                     {label: "Security", value: page.exceptions !== "" ? "Exceptions enabled" : "No exceptions", warn: page.exceptions !== ""}

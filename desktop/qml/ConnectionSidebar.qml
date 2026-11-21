@@ -5,6 +5,8 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import OldIPMI 1.0
 import "families.js" as Families
+import "format.js" as Format
+import "stages.js" as Stages
 import "shortcuts.js" as Shortcuts
 
 // Connection manager: open consoles first (with a live picture), then every
@@ -28,7 +30,7 @@ Rectangle {
 
     // Sessions are read once per change here; rows look themselves up in it.
     readonly property var sess: controller.sessions
-    function isOpen(id) { const s = sess[id]; return !!s && s.state !== "disconnected" }
+    function isOpen(id) { return Stages.isOpen(sess, id) }
     // The list model changes only when the profiles, the filter or the set of
     // open consoles changes; controller.changed fires for every pointer ack.
     readonly property string openKey: Object.keys(sess).filter(id => isOpen(id)).sort().join("\n")
@@ -220,7 +222,7 @@ Rectangle {
                     readonly property var profile: modelData.profile
                     readonly property bool open: modelData.open
                     readonly property var sess: root.sess[profile.id] || ({state: "disconnected", errorStage: ""})
-                    readonly property bool active: sess.state !== "disconnected"
+                    readonly property bool active: root.isOpen(profile.id)
                     readonly property bool failed: !active && (sess.errorStage || "") !== ""
                     // The context menu from the keyboard, below the row instead of at the pointer.
                     function openMenu() { contextMenu.popup(row, Kirigami.Units.largeSpacing * 2, row.height) }
@@ -229,10 +231,10 @@ Rectangle {
                     readonly property bool current: ListView.isCurrentItem
                     readonly property bool firstOfGroup: index === 0 || root.rows[index - 1].open !== open
                     // The state in words: never colour alone.
-                    readonly property string stateText: failed ? Families.failedTitle(sess.errorStage)
+                    readonly property string stateText: failed ? Stages.failedTitle(sess.errorStage)
                         : sess.state === "connected" ? "Connected"
-                        : active ? (Families.stages[Math.max(0, Families.stageIndex(sess.state))] || {name: "Connecting"}).name
-                                   + (sess.startedAt ? " · " + Theme.elapsed(sess.startedAt) : "")
+                        : active ? (Stages.stages[Math.max(0, Stages.stageIndex(sess.state))] || {name: "Connecting"}).name
+                                   + (sess.startedAt ? " · " + Format.elapsed(sess.startedAt, Theme.now) : "")
                         : ""
                     readonly property color stateColor: failed ? Theme.negative : sess.state === "connected" ? Theme.positive : Theme.accent
                     width: ListView.view.width
@@ -365,14 +367,14 @@ Rectangle {
                                 Layout.alignment: Qt.AlignVCenter
                                 Kirigami.Icon {
                                     anchors.centerIn: parent
-                                    visible: !entry.open && !row.showActions && Families.exceptions(entry.profile) !== ""
+                                    visible: !entry.open && !row.showActions && Format.exceptions(entry.profile) !== ""
                                     width: Kirigami.Units.iconSizes.small
                                     height: width
                                     source: "security-medium"
                                     color: Theme.toneText(Theme.warning, Theme.sidebar)
                                     isMask: true
                                     QQC2.ToolTip.visible: exceptionsHover.hovered
-                                    QQC2.ToolTip.text: "Security exceptions: " + Families.exceptions(entry.profile)
+                                    QQC2.ToolTip.text: "Security exceptions: " + Format.exceptions(entry.profile)
                                     HoverHandler { id: exceptionsHover }
                                 }
                                 IconButton {

@@ -156,12 +156,4 @@ Item {
     }
     // The same on the dark stage.
     function stageTone(c) { return mix(c, white, 0.62) }
-    // Elapsed time as m:ss (or h:mm:ss).
-    function elapsed(since) {
-        if (!since) return "";
-        const s = Math.max(0, Math.floor((now - since) / 1000));
-        const pad = n => (n < 10 ? "0" : "") + n;
-        return s >= 3600 ? Math.floor(s / 3600) + ":" + pad(Math.floor(s / 60) % 60) + ":" + pad(s % 60)
-                         : Math.floor(s / 60) + ":" + pad(s % 60);
-    }
 }

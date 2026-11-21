@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "families.js" as Families
+import "stages.js" as Stages
 
 // A setup stage failed: which one, the likely fix, the technical detail, and
 // what to do next. Transport errors can be long, so the page scrolls.
@@ -17,9 +17,9 @@ Rectangle {
     signal retryRequested()
     signal editRequested()
 
-    readonly property int stage: Families.stageIndex(errorStage)
-    readonly property string hint: Families.errorHint(message, errorCode)
-    readonly property string detail: Families.errorDetail(message)
+    readonly property int stage: Stages.stageIndex(errorStage)
+    readonly property string hint: Stages.errorHint(message, errorCode)
+    readonly property string detail: Stages.errorDetail(message)
     // A short page (large text on a small screen): no picture, a smaller title and
     // tighter spacing, so both buttons are in view.
     readonly property bool compact: flick.height < Theme.gu * 20
@@ -52,21 +52,21 @@ Rectangle {
                 Layout.preferredWidth: side
                 Layout.preferredHeight: side
                 Layout.alignment: Qt.AlignHCenter
-                source: Families.errorImage
+                source: "qrc:/images/error-state.png"
                 sourceSize.width: side * 2
                 sourceSize.height: side * 2
                 fillMode: Image.PreserveAspectFit
                 smooth: true
             }
             Chip {
-                visible: page.stage >= 0 && page.stage < Families.stages.length
+                visible: page.stage >= 0 && page.stage < Stages.stages.length
                 tone: Theme.negative
                 iconName: "dialog-error-symbolic"
-                text: visible ? "Step " + (page.stage + 1) + " of " + Families.stages.length + " · " + Families.stages[page.stage].name : ""
+                text: visible ? Stages.stepLabel(page.stage) : ""
                 Layout.alignment: Qt.AlignHCenter
             }
             QQC2.Label {
-                text: Families.failedTitle(page.errorStage)
+                text: Stages.failedTitle(page.errorStage)
                 font.pointSize: page.compact ? Theme.display * 0.85 : Theme.display
                 font.weight: Font.Bold
                 horizontalAlignment: Text.AlignHCenter

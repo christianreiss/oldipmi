@@ -108,7 +108,7 @@ target_link_libraries(console_tests PRIVATE oldipmi_desktop Qt6::Test)
 add_test(NAME console_input COMMAND ${ISOLATED} $<TARGET_FILE:console_tests>)
 set_tests_properties(console_input PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 qt_add_executable(families_tests desktop/families_test.cpp)
-target_compile_definitions(families_tests PRIVATE FAMILIES_JS="${CMAKE_SOURCE_DIR}/desktop/qml/families.js" IPC_FIXTURES="${CMAKE_SOURCE_DIR}/testdata/ipc")
+target_compile_definitions(families_tests PRIVATE QML_DIR="${CMAKE_SOURCE_DIR}/desktop/qml" IPC_FIXTURES="${CMAKE_SOURCE_DIR}/testdata/ipc")
 target_link_libraries(families_tests PRIVATE oldipmi_desktop Qt6::Test)
 add_test(NAME error_hints COMMAND ${ISOLATED} $<TARGET_FILE:families_tests>)
 # The tests whose code reads the family table (families.cpp).

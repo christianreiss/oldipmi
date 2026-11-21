@@ -3,7 +3,8 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import "families.js" as Families
+import "format.js" as Format
+import "stages.js" as Stages
 
 // A console being opened: the three setup stages, how long it has taken, Cancel.
 Rectangle {
@@ -14,7 +15,7 @@ Rectangle {
     property double startedAt: 0
     signal cancelRequested()
 
-    readonly property int current: Families.stageIndex(connState)
+    readonly property int current: Stages.stageIndex(connState)
     readonly property bool waiting: connState === "connected"
     // A short page (large text on a small screen): a small ring, a smaller title
     // and the current stage as one line instead of the stepper, so the stage and
@@ -121,7 +122,7 @@ Rectangle {
                     }
                     QQC2.Label {
                         visible: page.startedAt > 0
-                        text: "· " + Theme.elapsed(page.startedAt) + " elapsed"
+                        text: "· " + Format.elapsed(page.startedAt, Theme.now) + " elapsed"
                         color: Theme.muted
                     }
                 }
@@ -129,9 +130,9 @@ Rectangle {
 
             // The current stage on a short page, instead of the stepper.
             Chip {
-                visible: page.compact && page.current >= 0 && page.current < Families.stages.length
+                visible: page.compact && page.current >= 0 && page.current < Stages.stages.length
                 dot: true
-                text: visible ? "Step " + (page.current + 1) + " of " + Families.stages.length + " · " + Families.stages[page.current].name : ""
+                text: visible ? Stages.stepLabel(page.current) : ""
                 Layout.alignment: Qt.AlignHCenter
                 Layout.maximumWidth: content.width
             }
@@ -144,7 +145,7 @@ Rectangle {
                 Layout.maximumWidth: Theme.gu * 28
                 Layout.alignment: Qt.AlignHCenter
                 Repeater {
-                    model: Families.stages
+                    model: Stages.stages
                     delegate: RowLayout {
                         id: step
                         required property var modelData

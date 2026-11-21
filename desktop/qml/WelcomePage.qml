@@ -43,7 +43,7 @@ Item {
                 Layout.preferredHeight: side
                 Layout.alignment: Qt.AlignHCenter
                 // Bundled: themed icons are missing when OldIPMI is not installed.
-                source: page.hasHosts ? "qrc:/oldipmi.svg" : Families.emptyImage
+                source: page.hasHosts ? "qrc:/oldipmi.svg" : "qrc:/images/empty-state.png"
                 sourceSize.width: side * 2
                 sourceSize.height: side * 2
                 fillMode: Image.PreserveAspectFit
