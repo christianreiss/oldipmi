@@ -92,8 +92,11 @@ private:
   // the client may leave (B-06).
   std::vector<std::shared_ptr<Client>> m_clients;
   QList<Entry> m_activity;
-  QString m_passwordFor; // profile name whose password prompt is open after an agent connect
-  QString m_requesting;  // profile name while an agent's connectHost() call runs
+  // The profile whose password the window asks for after an agent's connect
+  // opened the prompt; empty when it does not.
+  QVariantMap m_prompt;
+  QString promptId() const { return m_prompt.value("id").toString(); }
+  QString m_requesting; // the profile id while an agent's connectHost() call runs
   void accept();
   void readClient(Client *c);
   void dropClient(Client *c);

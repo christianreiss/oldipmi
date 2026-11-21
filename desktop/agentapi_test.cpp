@@ -385,6 +385,52 @@ private slots:
     QVERIFY(run(api, "disconnect").ok);
     QVERIFY(!run(api, "status").value.toObject()["passwordRequired"].toBool());
   }
+  // The prompt an agent's connect opened belongs to its profile, by id:
+  // another console, or another profile of the same name, neither reports nor
+  // dismisses it (B-07).
+  void thePasswordPromptBelongsToItsProfile() {
+    QTemporaryDir dir; NoCredentials w;
+    const QString hosts = dir.filePath("hosts.json");
+    QFile f(hosts);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(R"({"version":1,"defaultsVersion":1,"profiles":[
+      {"id":"demo-1","name":"Demo","host":"demo","family":"demo","username":"","remember":false},
+      {"id":"twin-a","name":"Twin","host":"a.invalid","family":"ami","username":"x","remember":false},
+      {"id":"twin-b","name":"Twin","host":"b.invalid","family":"ami","username":"x","remember":false}]})");
+    f.close();
+    Controller c(nullptr, &w, hosts);
+    AgentApi api(&c, dir.filePath("s"));
+    QVERIFY(run(api, "connect", {{"profile", "Demo"}}).ok);
+    QTRY_VERIFY_WITH_TIMEOUT(c.session("demo-1") && c.session("demo-1")->connected(), 10000);
+    QVERIFY(run(api, "connect", {{"profile", "twin-a"}}).value["passwordRequired"].toBool());
+    auto asks = [&](const QJsonObject &args) { return run(api, "status", args).value["passwordRequired"].toBool(); };
+    QVERIFY(asks({{"profile", "twin-a"}}));
+    QVERIFY(!asks({{"profile", "twin-b"}}));
+    auto st = run(api, "status").value.toObject(); // about the only open console, Demo
+    QVERIFY(!st["passwordRequired"].toBool());
+    QCOMPARE(st["passwordProfile"].toString(), QString("Twin"));
+    // Neither the other profile of the same name nor the open console takes the prompt along.
+    QVERIFY(!run(api, "disconnect", {{"profile", "twin-b"}}).value["promptDismissed"].toBool());
+    QVERIFY(!run(api, "disconnect").value["promptDismissed"].toBool()); // closes Demo
+    QCOMPARE(c.pendingProfile().value("id").toString(), QString("twin-a"));
+    QVERIFY(asks({{"profile", "twin-a"}}));
+    QVERIFY(asks({})); // no console is open: any prompt counts
+    // With no console open, disconnect dismisses the prompt, in the window too.
+    QVERIFY(run(api, "disconnect").value["promptDismissed"].toBool());
+    QVERIFY(c.pendingProfile().isEmpty());
+    QVERIFY(!asks({}));
+    // A prompt the user opens in the window for another profile is not the agent's.
+    QVERIFY(run(api, "connect", {{"profile", "twin-a"}}).value["passwordRequired"].toBool());
+    QVariantMap twinB;
+    for (const auto &v : c.hosts())
+      if (v.toMap().value("id") == "twin-b")
+        twinB = v.toMap();
+    c.connectHost(twinB, "");
+    QCOMPARE(c.pendingProfile().value("id").toString(), QString("twin-b"));
+    st = run(api, "status").value.toObject();
+    QVERIFY(!st["passwordRequired"].toBool());
+    QVERIFY(!st.contains("passwordProfile"));
+  }
   void twoConsolesAtOnce() {
     QTemporaryDir dir; NoCredentials w;
     QFile pf(dir.filePath("hosts.json"));

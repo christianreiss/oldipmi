@@ -90,8 +90,11 @@ No arguments. `profiles` lists the saved connections: `id`, `name`, `host`, `fam
 
 * `sessions`: the open consoles, and failed ones until they are closed or opened again, sorted by
   name, each with `id`, `name`, `host`, `family` and `state`.
-* `passwordRequired`: whether OldIPMI's window asks the user for a password; then
-  `passwordProfile` names the profile.
+* `passwordRequired`: whether OldIPMI's window asks the user for the password of the chosen
+  profile, the one named or the only open console's, after a `connect` asked for it; with no
+  profile named and no console open, whether it asks for any.
+* `passwordProfile`, while the window asks for a password after a `connect`: the name of the
+  profile it asks for, whichever console the request is about.
 
 For the chosen console, or with none open, it also has:
 
@@ -120,7 +123,8 @@ password; `failed` when the console could not be started, with the reason.
 ### `disconnect`
 
 Closes the chosen console, or cancels one that is being set up; a password prompt for it is
-dismissed. With `all: true` it closes every console and dismisses any prompt.
+dismissed, and with no profile named and no console open, the open prompt. A prompt for another
+profile stays open. With `all: true` it closes every console and dismisses any prompt.
 
 The result has `state` (`disconnected`) and `stillOpen`, the profiles of the consoles that are
 still open. With `all` it also has `closed` (the profiles closed) and `promptDismissed`. Otherwise

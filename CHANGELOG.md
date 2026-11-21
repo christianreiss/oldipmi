@@ -25,6 +25,14 @@
   buttons it pressed.
 
 ### Fixed
+* **A password prompt that an agent opened belongs to its profile.** While
+  OldIPMI asked for the password of a profile after an agent's `connect`,
+  `status` reported `passwordRequired` for every console, and `disconnect` of
+  another console, or of another profile of the same name, said that it had
+  dismissed the prompt, which stayed open in the window. Both now go by the
+  profile's id: `status` reports the prompt for its profile, and `disconnect`
+  dismisses it for its profile, or, with no profile named, when no console is
+  open.
 * **A garbled message from the backend says so.** A control message from
   `oldipmi-core` that was not a JSON object ended the console with
   "Incompatible backend version.", which only a backend of another version

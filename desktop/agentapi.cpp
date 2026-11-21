@@ -59,12 +59,12 @@ AgentApi::AgentApi(Controller *c, QString path, QObject *parent)
   });
   connect(&m_server, &QLocalServer::newConnection, this, &AgentApi::accept);
   connect(m_c, &Controller::passwordRequired, this, [this] {
-    if (!m_requesting.isEmpty())
-      m_passwordFor = m_requesting;
+    if (!m_requesting.isEmpty() && m_c->pendingProfile().value("id").toString() == m_requesting)
+      m_prompt = m_c->pendingProfile();
   });
   connect(m_c, &Controller::changed, this, [this] {
-    if (!m_passwordFor.isEmpty() && m_c->pendingProfile().isEmpty())
-      m_passwordFor.clear(); // the prompt was answered or dismissed
+    if (!m_prompt.isEmpty() && m_c->pendingProfile().value("id").toString() != promptId())
+      m_prompt.clear(); // the prompt was answered, dismissed or replaced by another
     // A session that is no longer connected has nothing held; a new one starts clean.
     for (auto &cl : m_clients)
       for (auto it = cl->held.begin(); it != cl->held.end();) {
@@ -444,9 +444,17 @@ void AgentApi::opStatus(Call &c) {
     j["state"] = o->stateName();
     sessions.append(j);
   }
-  QJsonObject st{{"sessions", sessions}, {"passwordRequired", !m_passwordFor.isEmpty()}};
-  if (!m_passwordFor.isEmpty())
-    st["passwordProfile"] = m_passwordFor;
+  // The prompt counts for the profile status is about: the console's, else
+  // the one named; with neither, any prompt counts.
+  QString about;
+  if (s)
+    about = s->id;
+  else if (auto key = c.args.value("profile").toString(); !key.isEmpty())
+    about = findProfile(key).value("id").toString();
+  QJsonObject st{{"sessions", sessions},
+                 {"passwordRequired", !m_prompt.isEmpty() && (about.isEmpty() || about == promptId())}};
+  if (!m_prompt.isEmpty())
+    st["passwordProfile"] = m_prompt.value("name").toString();
   if (s) {
     st["state"] = s->stateName();
     st["message"] = s->message;
@@ -489,12 +497,12 @@ void AgentApi::opConnect(Call &c) {
                                          "' is open in OldIPMI. Wait until the user answers or cancels it.");
   // Always ask again: the user may have dismissed an earlier password prompt.
   audit(c.who(), "connect", "Open console '" + name + "'", "opening " + name);
-  m_requesting = name;
+  m_requesting = id;
   m_c->connectHost(p, "");
   m_requesting.clear();
   auto *s = m_c->session(id);
   if (!s || s->state == Session::State::Disconnected) {
-    if (m_passwordFor == name) {
+    if (promptId() == id) {
       log(c.who(), "connect", "Waiting for the user to enter the password for '" + name + "'");
       return c.succeed(QJsonObject{{"state", ipc::StateDisconnected}, {"passwordRequired", true}, {"profile", profileJson(p)}});
     }
@@ -516,15 +524,18 @@ void AgentApi::opDisconnect(Call &c) {
       if (o->state != Session::State::Disconnected)
         closed.append(profileJson(o->profile));
     r["closed"] = closed;
-    r["promptDismissed"] = !m_passwordFor.isEmpty();
-    if (!closed.isEmpty() || !m_passwordFor.isEmpty())
+    r["promptDismissed"] = !m_prompt.isEmpty();
+    if (!closed.isEmpty() || !m_prompt.isEmpty())
       audit(c.who(), "connect", "Disconnect all consoles", "disconnect all");
-    m_passwordFor.clear();
+    m_prompt.clear();
     m_c->disconnectAll();
   } else {
     auto prof = explicitProfile ? findProfile(c.args.value("profile").toString()) : QVariantMap{};
-    bool promptHere = !m_passwordFor.isEmpty() &&
-                      (!explicitProfile || prof.value("name").toString() == m_passwordFor);
+    // The prompt goes with its own profile: the one named, or, with none
+    // named, the console closed; when no console is open, it is the setup
+    // being cancelled.
+    bool promptHere = !m_prompt.isEmpty() && (explicitProfile ? prof.value("id").toString() == promptId()
+                                                              : !s || s->id == promptId());
     bool open = s && s->state != Session::State::Disconnected;
     r["previous"] = s ? s->stateName() : QString(ipc::StateDisconnected);
     r["promptDismissed"] = promptHere;
@@ -539,10 +550,10 @@ void AgentApi::opDisconnect(Call &c) {
       target = s->id;
     else if (explicitProfile)
       target = prof.value("id").toString();
-    else if (m_passwordFor.isEmpty())
+    else if (m_prompt.isEmpty())
       target = m_c->shownId();
     if (promptHere)
-      m_passwordFor.clear();
+      m_prompt.clear();
     m_c->disconnectProfile(target);
   }
   r["state"] = ipc::StateDisconnected;
