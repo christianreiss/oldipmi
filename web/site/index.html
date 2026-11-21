@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OldIPMI · the console of older servers, native on Linux</title>
+  <meta name="description" content="OldIPMI opens the remote console of older servers' BMCs (Supermicro ATEN, AMI MegaRAC, Dell iDRAC/Avocent, Cisco IMC) in a native Linux window. No Java, no browser, no VNC bridge. Free software under the GPL.">
+  <link rel="canonical" href="https://oldipmi.uggs.io/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/assets/site.css">
+  <link rel="preload" href="/assets/fonts/display-900.woff2" as="font" type="font/woff2" crossorigin>
+  <meta name="theme-color" content="#1c2234">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://oldipmi.uggs.io/">
+  <meta property="og:title" content="OldIPMI: the console of older servers, native on Linux">
+  <meta property="og:description" content="Supermicro ATEN, AMI MegaRAC, Dell iDRAC (Avocent) and Cisco IMC consoles in one native window. No Java, no browser.">
+  <meta property="og:image" content="https://oldipmi.uggs.io/assets/img/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="OldIPMI with the demo console open">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="bezel">
+  <div class="wrap">
+    <div class="top rise">
+      <a class="brand" href="/" aria-label="OldIPMI home">
+        <img src="/assets/logo.svg" alt="" width="38" height="38">
+        OldIPMI
+        <span class="led" title="Powered on"></span>
+      </a>
+      <nav aria-label="Sections">
+        <ul>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#bmcs">BMCs</a></li>
+          <li><a href="#agents">AI agents</a></li>
+          <li><a href="#download">Download</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="https://github.com/christianreiss/oldipmi">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+
+    <div class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow rise d1">Remote console&nbsp;· KVM over&nbsp;IP</p>
+        <h1 class="rise d2">The console of older servers, <span>native on Linux.</span></h1>
+        <p class="console-line rise d3"><b>&gt;</b> no&nbsp;java · no&nbsp;browser · no&nbsp;vnc&nbsp;bridge</p>
+        <p class="lede rise d3">Many servers that still run fine have a BMC whose console wants a Java
+          applet or a browser from another decade. OldIPMI speaks their protocols itself and
+          shows the screen in a Qt&nbsp;6 window on your desktop.</p>
+        <div class="actions rise d4">
+          <a class="button primary" href="https://github.com/christianreiss/oldipmi/releases/download/v0.4.0/OldIPMI-0.4.0-x86_64.AppImage">Download AppImage <small>0.4.0 · 92&nbsp;MB</small></a>
+          <a class="button ghost" href="https://github.com/christianreiss/oldipmi">Source on GitHub</a>
+        </div>
+      </div>
+      <div class="shot-hero rise d5">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" type="image/webp"
+                  srcset="/assets/img/console-dark-1280.webp 1280w, /assets/img/console-dark-2560.webp 2560w"
+                  sizes="(max-width: 1200px) 100vw, 1160px">
+          <img src="/assets/img/console-light-1280.webp"
+               srcset="/assets/img/console-light-1280.webp 1280w, /assets/img/console-light-2560.webp 2560w"
+               sizes="(max-width: 1200px) 100vw, 1160px" width="1280" height="800"
+               alt="The OldIPMI window: the connection list on the left, the demo console on the right with its console information">
+        </picture>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="after-hero">
+  <section id="features" class="wrap" aria-labelledby="features-title">
+    <p class="unit" data-u="U01">Features</p>
+    <h2 id="features-title">One window for every BMC</h2>
+    <p class="intro">Saved connections on the left, the console on the right. Open as many as you
+      like: each runs in its own process, and a live miniature shows what every screen is doing.</p>
+    <div class="grid features">
+      <article class="card">
+        <h3>Keyboard, mouse, power</h3>
+        <p>Type and point as if you sat at the server, send key combinations such as
+          Ctrl+Alt+Del, and switch the power on, off or reset it where the BMC offers that.</p>
+      </article>
+      <article class="card">
+        <h3>An ISO as a CD-ROM</h3>
+        <p>Mount a read-only ISO image as the server's virtual CD-ROM, where the firmware
+          offers virtual media, and install from it.</p>
+      </article>
+      <article class="card">
+        <h3>Safe by default</h3>
+        <p>Passwords stay in KWallet, TLS certificates are verified. Old TLS, HTTP login and
+          unencrypted transport are explicit exceptions, per connection.</p>
+      </article>
+      <article class="card">
+        <h3>Clear failures</h3>
+        <p>Every connection shows its stage. A failed one says why, with a hint what to check:
+          the address, the account, the network.</p>
+      </article>
+      <article class="card">
+        <h3>Find and connect</h3>
+        <p>Ctrl+F filters the list; an address you type there becomes a new connection.
+          A built-in demo console shows everything without any BMC.</p>
+      </article>
+      <article class="card">
+        <h3>Free software</h3>
+        <p>GPL-3.0-or-later. A Go engine for the protocols, Qt&nbsp;6 and Kirigami for the
+          window, no vendor code inside.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="bmcs" class="wrap" aria-labelledby="bmcs-title">
+    <p class="unit" data-u="U02">Supported BMCs</p>
+    <h2 id="bmcs-title">Four console families</h2>
+    <p class="intro">Choose the console type when you add a server. On Supermicro boards, OldIPMI
+      reads the login page first and sends exactly the form that firmware expects, so it logs in
+      with a single attempt.</p>
+    <div class="grid families">
+      <article class="card family">
+        <img src="/assets/img/family-aten.webp" alt="" width="132" height="132">
+        <h3>Supermicro (ATEN)</h3>
+        <p>X9 to X11 and most X8 boards, Java iKVM or HTML5 console; X12/X13 through Redfish
+          (experimental).</p>
+        <span class="chip ok">verified: HTML5 console</span>
+      </article>
+      <article class="card family">
+        <img src="/assets/img/family-ami.webp" alt="" width="132" height="132">
+        <h3>AMI MegaRAC</h3>
+        <p>Older AMI boards such as the Supermicro X8DTU. Newer AMI/ASPEED firmware is
+          implemented but not yet tested on hardware.</p>
+        <span class="chip ok">verified: X8DTU</span>
+      </article>
+      <article class="card family">
+        <img src="/assets/img/family-avocent.webp" alt="" width="132" height="132">
+        <h3>Dell iDRAC (Avocent)</h3>
+        <p>Dell PowerEdge servers of the R420 generation. Virtual media is not available for
+          this family yet.</p>
+        <span class="chip ok">verified: PowerEdge R420</span>
+      </article>
+      <article class="card family">
+        <img src="/assets/img/family-cisco.webp" alt="" width="132" height="132">
+        <h3>Cisco IMC</h3>
+        <p>Older Cisco UCS C-series servers. Their text-mode screens are not drawn yet.</p>
+        <span class="chip ok">verified: graphics mode</span>
+      </article>
+    </div>
+    <p class="fineprint"><b>Verified</b> means real video from that hardware was decoded and checked.
+      Keyboard input has been verified live on the ATEN HTML5 console; pointer,
+      ISO and power so far only against test doubles and the demo console. The exact evidence for
+      every path is in the
+      <a href="https://github.com/christianreiss/oldipmi#compatibility-and-acceptance">README</a>.
+      Your BMC is not listed or behaves oddly?
+      <a href="https://github.com/christianreiss/oldipmi/issues/new?template=bmc_report.yml">Tell us about it</a>.</p>
+  </section>
+
+  <section id="screens" class="wrap" aria-labelledby="screens-title">
+    <p class="unit" data-u="U03">Screenshots</p>
+    <h2 id="screens-title">What it looks like</h2>
+    <p class="intro">OldIPMI follows your desktop's light or dark colour scheme, and so do these
+      pictures.</p>
+    <div class="grid gallery">
+      <figure>
+        <div class="frame">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" type="image/webp"
+                    srcset="/assets/img/selected-dark-1280.webp 1280w, /assets/img/selected-dark-2560.webp 2560w" sizes="(max-width: 860px) 100vw, 570px">
+            <img src="/assets/img/selected-light-1280.webp" loading="lazy"
+                 srcset="/assets/img/selected-light-1280.webp 1280w, /assets/img/selected-light-2560.webp 2560w" sizes="(max-width: 860px) 100vw, 570px"
+                 width="1280" height="800" alt="A saved connection with its address, account and last connection time">
+          </picture>
+        </div>
+        <figcaption><b>A saved server</b>: everything about it at a glance, one click to connect.</figcaption>
+      </figure>
+      <figure>
+        <div class="frame">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" type="image/webp"
+                    srcset="/assets/img/new-connection-dark-1280.webp 1280w, /assets/img/new-connection-dark-2560.webp 2560w" sizes="(max-width: 860px) 100vw, 570px">
+            <img src="/assets/img/new-connection-light-1280.webp" loading="lazy"
+                 srcset="/assets/img/new-connection-light-1280.webp 1280w, /assets/img/new-connection-light-2560.webp 2560w" sizes="(max-width: 860px) 100vw, 570px"
+                 width="1280" height="800" alt="The New connection dialog with the console types Supermicro, AMI MegaRAC, Dell iDRAC, Cisco IMC and Demo">
+          </picture>
+        </div>
+        <figcaption><b>A new connection</b>: pick the console type, enter address and account.</figcaption>
+      </figure>
+      <figure>
+        <div class="frame">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" type="image/webp"
+                    srcset="/assets/img/error-dark-1280.webp 1280w, /assets/img/error-dark-2560.webp 2560w" sizes="(max-width: 860px) 100vw, 570px">
+            <img src="/assets/img/error-light-1280.webp" loading="lazy"
+                 srcset="/assets/img/error-light-1280.webp 1280w, /assets/img/error-light-2560.webp 2560w" sizes="(max-width: 860px) 100vw, 570px"
+                 width="1280" height="800" alt="A failed login: step 1 of 3, the BMC did not answer, with Try again and Edit connection buttons and the technical details">
+          </picture>
+        </div>
+        <figcaption><b>A clear failure</b>: the stage, the reason, what to check, and the details to copy.</figcaption>
+      </figure>
+      <figure>
+        <div class="frame">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" type="image/webp"
+                    srcset="/assets/img/console-light-1280.webp 1280w, /assets/img/console-light-2560.webp 2560w" sizes="(max-width: 860px) 100vw, 570px">
+            <img src="/assets/img/console-dark-1280.webp" loading="lazy"
+                 srcset="/assets/img/console-dark-1280.webp 1280w, /assets/img/console-dark-2560.webp 2560w" sizes="(max-width: 860px) 100vw, 570px"
+                 width="1280" height="800" alt="The demo console in the other colour scheme">
+          </picture>
+        </div>
+        <figcaption><b>The other scheme</b>: the console in the colours you are not using right now.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="agents" class="wrap" aria-labelledby="agents-title">
+    <p class="unit" data-u="U04">AI agents</p>
+    <h2 id="agents-title">Let an agent sit at the console</h2>
+    <div class="split">
+      <div>
+        <p>OldIPMI ships <code>oldipmi-mcp</code>, an MCP server for AI agents such as Claude Code.
+          It drives the running window, so you watch everything the agent does.</p>
+        <ul class="ticks">
+          <li>It sees the screen and waits until it changes or settles.</li>
+          <li>It types, presses keys and clicks, for example through a BIOS setup.</li>
+          <li>It can switch the power and mount an ISO.</li>
+          <li>The window names the connected agent and lists its recent actions; typed text is
+            never recorded.</li>
+        </ul>
+        <p>From the AppImage, copy <code>oldipmi-mcp</code> to a stable place such as
+          <code>~/.local/bin</code> first: the settings page shows where it is. Only programs of
+          your own user reach it. Turn it off in Settings or start OldIPMI with
+          <code>--no-agent-api</code>.</p>
+      </div>
+      <pre><code><span class="c"># Settings → AI agents shows the exact path</span>
+<span class="p">$ </span>claude mcp add oldipmi -- ~/.local/bin/oldipmi-mcp
+
+<span class="c"># then, for example:</span>
+<span class="c"># "Open the console of lab-ami, go into the BIOS</span>
+<span class="c">#  and check that it boots from the CD-ROM first."</span></code></pre>
+    </div>
+  </section>
+
+  <section id="download" class="wrap" aria-labelledby="download-title">
+    <p class="unit" data-u="U05">Download</p>
+    <h2 id="download-title">Get OldIPMI</h2>
+    <div class="download">
+      <div>
+        <h3>AppImage for x86_64 Linux</h3>
+        <p class="meta">Version 0.4.0 · 21 November 2026 · 92 MB</p>
+        <div class="get">
+          <a class="button primary" href="https://github.com/christianreiss/oldipmi/releases/download/v0.4.0/OldIPMI-0.4.0-x86_64.AppImage">Download AppImage</a>
+        </div>
+      </div>
+      <div>
+        <dl class="sum">
+          <dt>SHA-256</dt>
+          <dd>742ab6ba3f5e068a64f797eecb6596de93dbb4b115d025f7ee65a7281a330773</dd>
+        </dl>
+        <p class="tested">It brings its own Qt and KDE libraries. Its self-test passed on Fedora 43,
+          Ubuntu 22.04 and 24.04 and Debian 12 and 13.</p>
+      </div>
+      <div class="run">
+        <p class="how">Run this in the directory with the AppImage. It checks the file against the
+          SHA-256 above and starts OldIPMI only if the check prints OK. If it says FAILED, nothing
+          starts: delete that file, download the AppImage again under its original name and run
+          the command once more.</p>
+        <pre><code><span class="p">$ </span>printf '%s  %s\n' \
+    742ab6ba3f5e068a64f797eecb6596de93dbb4b115d025f7ee65a7281a330773 \
+    OldIPMI-0.4.0-x86_64.AppImage | sha256sum -c &amp;&amp;
+    chmod +x OldIPMI-0.4.0-x86_64.AppImage &amp;&amp;
+    ./OldIPMI-0.4.0-x86_64.AppImage</code></pre>
+        <p class="how">Without FUSE, the same with one more option:</p>
+        <pre><code><span class="p">$ </span>printf '%s  %s\n' \
+    742ab6ba3f5e068a64f797eecb6596de93dbb4b115d025f7ee65a7281a330773 \
+    OldIPMI-0.4.0-x86_64.AppImage | sha256sum -c &amp;&amp;
+    chmod +x OldIPMI-0.4.0-x86_64.AppImage &amp;&amp;
+    ./OldIPMI-0.4.0-x86_64.AppImage --appimage-extract-and-run</code></pre>
+        <p class="alt">The checksum file <code>SHA256SUMS</code>, the list of bundled packages and all
+          earlier versions are on the <a href="https://github.com/christianreiss/oldipmi/releases">releases
+          page</a>. To build it yourself (Qt&nbsp;6.6 or newer, KDE Frameworks&nbsp;6, Go), follow the
+          <a href="https://github.com/christianreiss/oldipmi#build-and-run">README</a>; a Fedora RPM
+          builds with <code>packaging/fedora/build-rpm.sh</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="security" class="wrap" aria-labelledby="security-title">
+    <p class="unit" data-u="U06">Security</p>
+    <h2 id="security-title">Careful with old hardware</h2>
+    <div class="grid security">
+      <article class="card">
+        <h3>Passwords</h3>
+        <p>Kept in KWallet or only for the session. Never in profiles, logs, the window or the
+          agent interface; the backend gets them over a private socket.</p>
+      </article>
+      <article class="card">
+        <h3>Transport</h3>
+        <p>Certificates are verified. A connection the policy refuses sends no credentials, and
+          every exception is visible on its connection.</p>
+      </article>
+      <article class="card">
+        <h3>Your BMC stays as it is</h3>
+        <p>OldIPMI changes no BMC setting, firmware, clock or TLS configuration, and never the
+          BMC's Java or HTML5 preference.</p>
+      </article>
+      <article class="card">
+        <h3>Old BMCs, own network</h3>
+        <p>These controllers often have flaws that will never be fixed. Keep their management
+          ports on a separate network.</p>
+      </article>
+    </div>
+    <p class="fineprint">Found a vulnerability? Please report it
+      <a href="https://github.com/christianreiss/oldipmi/security/advisories/new">privately on GitHub</a>,
+      not in a public issue.</p>
+  </section>
+
+  <section id="faq" class="wrap" aria-labelledby="faq-title">
+    <p class="unit" data-u="U07">Questions</p>
+    <h2 id="faq-title">Frequently asked</h2>
+    <div class="faq">
+      <details>
+        <summary>Does OldIPMI need Java after all?</summary>
+        <p>No. It reads the BMC's Java launch file only to learn the console's address and
+          session token, then speaks the protocol itself. No Java, JAR or vendor library is
+          downloaded or run.</p>
+      </details>
+      <details>
+        <summary>Which Linux does it run on?</summary>
+        <p>The AppImage runs on current x86_64 distributions; it brings its libraries and was
+          tested on Fedora, Ubuntu and Debian. It feels most at home on KDE Plasma, where it also
+          keeps passwords in KWallet.</p>
+      </details>
+      <details>
+        <summary>My BMC is not in the list. Will it work?</summary>
+        <p>If it is one of the four families, quite possibly. Try it with the matching console
+          type; if it fails, the error page shows the stage and the message. A
+          <a href="https://github.com/christianreiss/oldipmi/issues/new?template=bmc_report.yml">BMC report</a>
+          with these helps to support it.</p>
+      </details>
+      <details>
+        <summary>Can I try it without a server?</summary>
+        <p>Yes: choose the console type Demo. The demo console runs inside OldIPMI and echoes what
+          you type and click.</p>
+      </details>
+      <details>
+        <summary>Is it a web service?</summary>
+        <p>No. OldIPMI is a desktop program that talks to your BMCs directly. Nothing goes through
+          this website or any other server, and this website sets no cookies and tracks nobody.</p>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer class="bezel foot">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="/">
+        <img src="/assets/logo.svg" alt="" width="38" height="38">
+        OldIPMI
+      </a>
+      <p>Free software under the GNU General Public License, version 3 or later. No cookies, no
+        tracking, no external resources.</p>
+    </div>
+    <ul>
+      <li><a href="https://github.com/christianreiss/oldipmi">Source code</a></li>
+      <li><a href="https://github.com/christianreiss/oldipmi/issues">Issues</a></li>
+      <li><a href="https://github.com/christianreiss/oldipmi/releases">Releases</a></li>
+      <li><a href="https://github.com/christianreiss/oldipmi/blob/main/CHANGELOG.md">Changelog</a></li>
+    </ul>
+    <ul>
+      <li><a href="https://github.com/christianreiss/oldipmi/blob/main/LICENSE">License</a></li>
+      <li><a href="https://github.com/christianreiss/oldipmi/blob/main/SECURITY.md">Security policy</a></li>
+      <li><a href="/assets/fonts/LICENSES.txt">Font licenses</a></li>
+      <li class="small">Version 0.4.0</li>
+    </ul>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- OldIPMI: a server front with a console prompt. Plain shapes and gradients only (QtSvg). -->
+  <defs>
+    <linearGradient id="top" x1="0" y1="18" x2="0" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9aa3c2"/>
+      <stop offset="1" stop-color="#76829f"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="28" x2="0" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#636e8f"/>
+      <stop offset="1" stop-color="#4a5473"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="32" x2="0" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2f3e61"/>
+      <stop offset="1" stop-color="#1b2746"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="62" cy="57" r="36" gradientUnits="userSpaceOnUse" gradientTransform="translate(62 57) scale(1 0.62) translate(-62 -57)">
+      <stop offset="0" stop-color="#1fb8f2" stop-opacity="0.3"/>
+      <stop offset="0.55" stop-color="#1fb8f2" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#1fb8f2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- top of the case, seen from slightly above, and the front panel -->
+  <path d="M22 19h84q2.5 0 3.8 2.1L116 31H12l6.2-9.9Q19.5 19 22 19z" fill="url(#top)" stroke="#c4c0e6" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="13" y="29" width="102" height="82" rx="6" fill="url(#body)" stroke="#c8c3e8" stroke-width="2"/>
+  <!-- screen with the prompt and its glow -->
+  <rect x="18.75" y="32.75" width="90.5" height="46.5" rx="4" fill="url(#screen)" stroke="#262d43" stroke-width="1.5"/>
+  <rect x="19.5" y="33.5" width="89" height="45" rx="3.25" fill="url(#glow)"/>
+  <path d="M42 45l17 11-17 11M65 67h21" fill="none" stroke="#1fb8f2" stroke-width="11.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.16"/>
+  <path d="M42 45l17 11-17 11" fill="none" stroke="#1fc6f8" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M65 67h21" fill="none" stroke="#1fc6f8" stroke-width="6.5" stroke-linecap="round"/>
+  <!-- power button, drive bays, vents and slots -->
+  <rect x="14" y="82" width="100" height="1.5" fill="#7d88ab"/>
+  <rect x="15.5" y="89" width="8.5" height="8.5" rx="2.5" fill="#1d2232"/>
+  <rect x="17" y="90.5" width="5.5" height="5.5" rx="1.5" fill="#1fc6f8"/>
+  <rect x="26" y="85" width="76" height="17" rx="2.5" fill="#23293b"/>
+  <g fill="#2c3247" stroke="#59648a">
+    <rect x="28" y="87" width="7.25" height="13" rx="1.5"/>
+    <rect x="37.25" y="87" width="7.25" height="13" rx="1.5"/>
+    <rect x="46.5" y="87" width="7.25" height="13" rx="1.5"/>
+    <rect x="55.75" y="87" width="7.25" height="13" rx="1.5"/>
+    <rect x="65" y="87" width="7.25" height="13" rx="1.5"/>
+    <rect x="74.25" y="87" width="7.25" height="13" rx="1.5"/>
+    <rect x="83.5" y="87" width="7.25" height="13" rx="1.5"/>
+    <rect x="92.75" y="87" width="7.25" height="13" rx="1.5"/>
+  </g>
+  <g fill="#1fc6f8">
+    <circle cx="30.4" cy="97" r="0.85" fill="#161a26"/><circle cx="32.85" cy="97" r="0.85" fill="#161a26"/>
+    <circle cx="39.65" cy="97" r="0.85"/><circle cx="42.1" cy="97" r="0.85"/>
+    <circle cx="48.9" cy="97" r="0.85"/><circle cx="51.35" cy="97" r="0.85"/>
+    <circle cx="58.15" cy="97" r="0.85" fill="#161a26"/><circle cx="60.6" cy="97" r="0.85" fill="#161a26"/>
+    <circle cx="67.4" cy="97" r="0.85"/><circle cx="69.85" cy="97" r="0.85"/>
+    <circle cx="76.65" cy="97" r="0.85"/><circle cx="79.1" cy="97" r="0.85"/>
+    <circle cx="85.9" cy="97" r="0.85"/><circle cx="88.35" cy="97" r="0.85"/>
+    <circle cx="95.15" cy="97" r="0.85"/><circle cx="97.6" cy="97" r="0.85"/>
+  </g>
+  <g fill="#23293b">
+    <rect x="105" y="86.5" width="6.5" height="2" rx="1"/>
+    <rect x="105" y="90.5" width="6.5" height="2" rx="1"/>
+    <rect x="105" y="94.5" width="6.5" height="2" rx="1"/>
+    <rect x="105" y="98.5" width="6.5" height="2" rx="1"/>
+    <rect x="18" y="104.5" width="30" height="3" rx="1.5"/>
+    <rect x="80" y="104.5" width="30" height="3" rx="1.5"/>
+  </g>
+</svg>
