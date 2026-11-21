@@ -67,5 +67,4 @@ private:
   QPointer<QQuickWindow> m_watched; // every key event passes the window before an item
   void watch(QQuickWindow *);
   void pointer(QPointF, int, int);
-  int usage(QKeyEvent *) const;
 };
