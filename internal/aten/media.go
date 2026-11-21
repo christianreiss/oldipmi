@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/scsi"
 	"oldipmi/internal/transport"
 	"os"
 	"sync"
@@ -69,7 +70,7 @@ func (s *mediaSession) serve() error {
 			return fmt.Errorf("invalid USB command wrapper")
 		}
 		alloc := binary.LittleEndian.Uint32(p[8:])
-		if alloc > 1<<20 {
+		if alloc > scsi.MaxTransfer {
 			return fmt.Errorf("ISO transfer exceeds 1 MiB")
 		}
 		// Data-out commands are rejected; drain their bounded payload before status.
@@ -95,76 +96,47 @@ func (s *mediaSession) serve() error {
 		}
 	}
 }
+
+// drive is what the virtual CD-ROM tells the host in its INQUIRY data.
+var drive = scsi.Identity{Format: 0x21, Vendor: "OldIPMI ", Product: "Virtual CD-ROM  ", Revision: "0001"}
+
+// scsi answers one command of the host with its data and status. A failed
+// command keeps its sense data for the next REQUEST SENSE.
 func (s *mediaSession) scsi(c []byte, alloc int) ([]byte, byte) {
 	fail := func(key, asc byte) ([]byte, byte) { s.sense = [3]byte{key, asc, 0}; return nil, 1 }
 	if len(c) < 16 {
-		return fail(5, 0x24)
+		return fail(scsi.KeyIllegalRequest, scsi.ASCInvalidField)
 	}
 	switch c[0] {
-	case 0, 0x1b, 0x1e:
+	case scsi.TestUnitReady, scsi.StartStopUnit, scsi.PreventAllow:
 		return nil, 0
-	case 3:
-		b := make([]byte, 18)
-		b[0] = 0x70
-		b[2] = s.sense[0]
-		b[7] = 10
-		b[12] = s.sense[1]
-		b[13] = s.sense[2]
+	case scsi.RequestSense:
+		b := scsi.Sense(s.sense[0], s.sense[1], s.sense[2])
 		s.sense = [3]byte{}
 		return b[:min(len(b), int(c[4]))], 0
-	case 0x12:
-		b := make([]byte, 36)
-		copy(b, []byte{5, 128, 0, 0x21, 31})
-		copy(b[8:], "OldIPMI Virtual CD-ROM  0001")
-		return b[:min(36, int(c[4]))], 0
-	case 0x1a:
-		return []byte{3, 0, 128, 0}, 0
-	case 0x5a:
-		return []byte{0, 6, 0, 128, 0, 0, 0, 0}, 0
-	case 0x25:
-		b := make([]byte, 8)
-		binary.BigEndian.PutUint32(b, s.blocks-1)
-		binary.BigEndian.PutUint32(b[4:], 2048)
-		return b, 0
-	case 0x28, 0xa8:
-		lba := uint64(binary.BigEndian.Uint32(c[2:]))
-		n := uint64(binary.BigEndian.Uint16(c[7:]))
-		if c[0] == 0xa8 {
-			n = uint64(binary.BigEndian.Uint32(c[6:]))
+	case scsi.Inquiry:
+		b := drive.Inquiry()
+		return b[:min(len(b), int(c[4]))], 0
+	case scsi.ModeSense6:
+		return scsi.ModeHeader6(), 0
+	case scsi.ModeSense10:
+		return scsi.ModeHeader10(), 0
+	case scsi.ReadCapacity10:
+		return scsi.Capacity(s.blocks - 1), 0
+	case scsi.Read10, scsi.Read12:
+		lba, n := scsi.Transfer(c)
+		if uint64(lba)+uint64(n) > uint64(s.blocks) {
+			return fail(scsi.KeyIllegalRequest, scsi.ASCLBAOutOfRange)
 		}
-		if lba+n > uint64(s.blocks) {
-			return fail(5, 0x21)
-		}
-		size := min(n*2048, uint64(alloc))
-		b := make([]byte, size)
-		if _, e := s.file.ReadAt(b, int64(lba*2048)); e != nil {
-			return fail(3, 0x11)
+		b := make([]byte, min(uint64(n)*scsi.BlockSize, uint64(alloc)))
+		if _, e := s.file.ReadAt(b, int64(lba)*scsi.BlockSize); e != nil {
+			return fail(scsi.KeyMediumError, scsi.ASCUnrecoveredRead)
 		}
 		return b, 0
-	case 0x43:
-		b := make([]byte, 20)
-		b[1] = 18
-		b[2] = 1
-		b[3] = 1
-		b[5] = 0x14
-		b[6] = 1
-		b[13] = 0x14
-		b[14] = 0xaa
-		for _, v := range []struct {
-			o int
-			l uint32
-		}{{8, 0}, {16, s.blocks}} {
-			if c[1]&2 == 0 {
-				binary.BigEndian.PutUint32(b[v.o:], v.l)
-			} else {
-				f := v.l + 150
-				b[v.o+1] = byte(f / 4500)
-				b[v.o+2] = byte(f / 75 % 60)
-				b[v.o+3] = byte(f % 75)
-			}
-		}
+	case scsi.ReadTOC:
+		b := scsi.TOC(s.blocks, c[1]&2 != 0)
 		return b[:min(len(b), int(binary.BigEndian.Uint16(c[7:])))], 0
 	default:
-		return fail(5, 0x20)
+		return fail(scsi.KeyIllegalRequest, scsi.ASCInvalidOpcode)
 	}
 }
