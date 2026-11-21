@@ -15,7 +15,7 @@ func main() {
 		fmt.Print(mcp.Instructions(self()))
 		return
 	}
-	s := mcp.NewServer(&mcp.Client{Path: mcp.SocketPath()}, oldipmi.Version, mcp.Instructions(self()))
+	s := mcp.NewServer(&mcp.Client{Path: mcp.SocketPath(), Version: oldipmi.Version}, oldipmi.Version, mcp.Instructions(self()))
 	if err := s.Serve(os.Stdin, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, strings.TrimSpace(err.Error()))
 		os.Exit(1)

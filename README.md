@@ -240,7 +240,8 @@ claude mcp add oldipmi -- /path/to/oldipmi-mcp
 ```
 
 From the AppImage the bundled path changes on every run: copy `oldipmi-mcp` (a static binary) to a
-stable place such as `~/.local/bin`; the settings page then shows that path.
+stable place such as `~/.local/bin`; the settings page then shows that path. Copy it again after
+an update: the settings page warns while an agent uses an `oldipmi-mcp` of another version.
 
 Several consoles can be open at once. Every tool except `list_profiles`, `list_keys`,
 `wait` and `connect` takes an optional `profile` (name, id or host); it may be left out

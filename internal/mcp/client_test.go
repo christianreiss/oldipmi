@@ -266,3 +266,57 @@ func TestClientRefusesAnotherUsersSocket(t *testing.T) {
 		}
 	}
 }
+
+// The client tells the app its version and does not send an operation the
+// app does not offer: it names both versions instead (B-01). An app from
+// before the version check gets every operation, and one warning.
+func TestClientChecksTheAppsOperations(t *testing.T) {
+	app := func(hello string) *fakeApp {
+		return newFakeApp(t, func(_ int, req map[string]any) []string {
+			if req["op"] == "hello" {
+				return []string{answer(req, hello)}
+			}
+			return []string{answer(req, `{}`)}
+		})
+	}
+	var log strings.Builder
+	a := app(`{"app":"OldIPMI","version":"0.4.0","api":1,"ops":["hello","status"]}`)
+	c := &Client{Path: a.path, Version: "0.5.0", Log: &log}
+	c.Hello("fixture-agent", "1.0", "2025-06-18")
+	if _, err := c.Call(opStatus, map[string]any{}); err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	_, err := c.Call(opPower, map[string]any{"action": "soft"})
+	if want := `OldIPMI 0.4.0 does not offer the operation "power" that oldipmi-mcp 0.5.0 uses: start the oldipmi-mcp of OldIPMI 0.4.0, or update OldIPMI`; err == nil || err.Error() != want {
+		t.Fatalf("power: %v, want %q", err, want)
+	}
+	want := [][]string{{
+		`{"args":{"mcpVersion":"0.5.0","name":"fixture-agent","protocol":"2025-06-18","version":"1.0"},"id":1,"op":"hello"}`,
+		`{"args":{},"id":2,"op":"status"}`,
+	}}
+	if got := a.requests(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("the app received\n%q\nwant\n%q", got, want)
+	}
+	// An app that speaks a newer agent API gets nothing.
+	a = app(`{"app":"OldIPMI","version":"9.0.0","api":2,"ops":["hello","status"]}`)
+	c = &Client{Path: a.path, Version: "0.5.0", Log: &log}
+	c.Hello("fixture-agent", "1.0", "2025-06-18")
+	if _, err := c.Call(opStatus, map[string]any{}); err == nil || !strings.Contains(err.Error(), "OldIPMI 9.0.0 speaks agent API 2, this oldipmi-mcp 0.5.0 only 1") {
+		t.Fatalf("newer API: %v", err)
+	}
+	if log.Len() != 0 {
+		t.Errorf("warned: %s", log.String())
+	}
+	// Before the version check: no api, no ops.
+	a = app(`{"app":"OldIPMI","version":"0.4.0"}`)
+	c = &Client{Path: a.path, Version: "0.5.0", Log: &log}
+	c.Hello("fixture-agent", "1.0", "2025-06-18")
+	for range 2 {
+		if _, err := c.Call(opPower, map[string]any{"action": "soft"}); err != nil {
+			t.Fatalf("power from an older app: %v", err)
+		}
+	}
+	if w := log.String(); strings.Count(w, "\n") != 1 || !strings.Contains(w, "oldipmi-mcp 0.5.0: OldIPMI 0.4.0 does not list its operations") {
+		t.Errorf("warning: %q", w)
+	}
+}

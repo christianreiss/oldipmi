@@ -20,4 +20,9 @@ inline constexpr char OpPower[] = "power";
 inline constexpr char OpMount[] = "mount";
 inline constexpr char OpEject[] = "eject";
 
+// The version of the agent API that the reply to hello reports, beside the
+// ops the app offers. It changes only with a change that an older
+// oldipmi-mcp would misread; new ops and keys leave it as it is.
+inline constexpr int Api = 1;
+
 } // namespace agentops

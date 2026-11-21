@@ -34,6 +34,9 @@ class AgentApi : public QObject {
   // "name version" of the connected MCP client(s) as announced on initialize, comma-separated;
   // "unidentified client" for one that did not say hello; empty when none is connected.
   Q_PROPERTY(QString clientName READ clientName NOTIFY clientsChanged)
+  // A warning while a connected agent's oldipmi-mcp, as its hello says, is not
+  // of this OldIPMI's version or from before the version check; empty otherwise.
+  Q_PROPERTY(QString versionNote READ versionNote NOTIFY clientsChanged)
   // Last 20 agent actions, newest first: {time (QDateTime), client, text}. Never contains
   // typed characters, key names or passwords; keyboard input is only counted.
   Q_PROPERTY(QVariantList activity READ activity NOTIFY activityChanged)
@@ -53,6 +56,7 @@ public:
   void setMcpPath(QString path) { m_mcpPath = std::move(path); }
   int clientCount() const { return int(m_clients.size()); }
   QString clientName() const;
+  QString versionNote() const;
   QVariantList activity() const;
   Q_INVOKABLE void clearActivity();
   Q_INVOKABLE QString mcpInstructions() const;

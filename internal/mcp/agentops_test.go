@@ -15,7 +15,10 @@ import (
 // and every entry of the file is one; desktop/ipc_test.cpp does the same for
 // agentops.h. exchanges.json, which both sides replay, records every op.
 func TestAgentNames(t *testing.T) {
-	var n struct{ Ops map[string]string }
+	var n struct {
+		Ops map[string]string
+		API int
+	}
 	b, err := os.ReadFile("../../testdata/agent/names.json")
 	if err != nil {
 		t.Fatal(err)
@@ -26,9 +29,19 @@ func TestAgentNames(t *testing.T) {
 	if got := testkit.StringConsts(t, ".", "op"); len(n.Ops) == 0 || !maps.Equal(got, n.Ops) {
 		t.Errorf("op* constants are %v, names.json has %v", got, n.Ops)
 	}
+	if agentAPI != n.API {
+		t.Errorf("agentAPI is %d, names.json has api %d", agentAPI, n.API)
+	}
 	seen := map[string]bool{}
 	for _, x := range allExchanges(t) {
 		seen[x.Op] = true
+		// The app's hello lists every op and the API version.
+		if x.Op == opHello && x.OK {
+			h, err := readReply[helloReply](opHello, x.Result)
+			if err != nil || h.API != n.API || !slices.Equal(slices.Sorted(slices.Values(h.Ops)), slices.Sorted(maps.Values(n.Ops))) {
+				t.Errorf("the recorded hello reply %s does not list api %d and the ops of names.json (%v)", x.Result, n.API, err)
+			}
+		}
 	}
 	for _, op := range slices.Sorted(maps.Values(n.Ops)) {
 		if !seen[op] {

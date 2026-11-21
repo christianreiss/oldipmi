@@ -2,6 +2,7 @@
     "exchanges": [
         {
             "args": {
+                "mcpVersion": "1.0",
                 "name": "fixture-agent",
                 "protocol": "2025-06-18",
                 "version": "1.0"
@@ -9,7 +10,22 @@
             "ok": true,
             "op": "hello",
             "result": {
+                "api": 1,
                 "app": "OldIPMI",
+                "ops": [
+                    "hello",
+                    "list_profiles",
+                    "status",
+                    "connect",
+                    "disconnect",
+                    "screenshot",
+                    "key",
+                    "pointer",
+                    "release",
+                    "power",
+                    "mount",
+                    "eject"
+                ],
                 "version": ""
             },
             "vary": [

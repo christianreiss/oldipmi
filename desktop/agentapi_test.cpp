@@ -1,4 +1,5 @@
 #include "agentapi.h"
+#include "agentops.h"
 #include <QBuffer>
 #include <QImage>
 #include <QJsonArray>
@@ -167,6 +168,42 @@ private slots:
       f.write(QJsonDocument(fixture).toJson());
       qInfo("recorded %s", qPrintable(f.fileName()));
     }
+  }
+  // The reply to hello names the agent API and every op of names.json; the
+  // settings warn while an agent's oldipmi-mcp is of another version (B-01).
+  void helloTellsTheContractAndNotesOtherVersions() {
+    QCoreApplication::setApplicationVersion("0.5.0");
+    auto restore = qScopeGuard([] { QCoreApplication::setApplicationVersion({}); });
+    QTemporaryDir dir; NoCredentials w;
+    Controller c(nullptr, &w, dir.filePath("hosts.json"));
+    AgentApi api(&c, dir.filePath("agent.sock"));
+    QVERIFY(api.start());
+    QLocalSocket s;
+    s.connectToServer(api.socketPath());
+    QTRY_COMPARE(s.state(), QLocalSocket::ConnectedState);
+    auto o = request(s, "{\"id\":1,\"op\":\"hello\",\"args\":{\"name\":\"a\",\"version\":\"1\",\"mcpVersion\":\"0.5.0\"}}");
+    QVERIFY(o["ok"].toBool());
+    const QJsonObject r = o["result"].toObject();
+    QCOMPARE(r["api"].toInt(), agentops::Api);
+    QCOMPARE(r["version"].toString(), QString("0.5.0"));
+    QFile names(QStringLiteral(AGENT_FIXTURES "/names.json"));
+    QVERIFY(names.open(QIODevice::ReadOnly));
+    QStringList want, got = r["ops"].toVariant().toStringList();
+    for (const auto &v : QJsonDocument::fromJson(names.readAll()).object()["ops"].toObject())
+      want << v.toString();
+    want.sort();
+    got.sort();
+    QCOMPARE(got, want);
+    QCOMPARE(api.versionNote(), QString());
+    // Another version, or none, as from an oldipmi-mcp before the version check.
+    QVERIFY(request(s, "{\"id\":2,\"op\":\"hello\",\"args\":{\"name\":\"a\",\"mcpVersion\":\"0.4.0\"}}")["ok"].toBool());
+    QVERIFY2(api.versionNote().startsWith("An agent uses oldipmi-mcp 0.4.0, not the one of OldIPMI 0.5.0:"), qPrintable(api.versionNote()));
+    QVERIFY(request(s, "{\"id\":3,\"op\":\"hello\",\"args\":{\"name\":\"a\"}}")["ok"].toBool());
+    QVERIFY2(api.versionNote().startsWith("An agent uses an oldipmi-mcp from an older OldIPMI, not the one of OldIPMI 0.5.0:"),
+             qPrintable(api.versionNote()));
+    // The warning goes with the agent.
+    s.disconnectFromServer();
+    QTRY_COMPARE(api.versionNote(), QString());
   }
   // The whole chain an agent uses: MCP requests on the stdin of a real
   // oldipmi-mcp, which finds this AgentApi's socket through XDG_RUNTIME_DIR

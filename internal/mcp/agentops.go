@@ -28,11 +28,25 @@ const (
 	opEject        = "eject"
 )
 
+// agentAPI is the version of the agent API this oldipmi-mcp speaks
+// (names.json, "api"). It changes only with a change that an older side
+// would misread; new ops and keys leave it as it is.
+const agentAPI = 1
+
 // The replies the tools read, one type per op, with the keys they read. The
 // app always sends the keys tagged agent:"required" (exchanges.json records
 // them). readReply refuses a reply without one of them, or with a value of the
 // wrong type, instead of reading zero values; other keys are ignored, so the
 // app may add some.
+
+// helloReply answers hello: the app and its version, and since the version
+// check its agent API and the ops it offers.
+type helloReply struct {
+	App     string   `json:"app" agent:"required"`
+	Version string   `json:"version" agent:"required"`
+	API     int      `json:"api"`
+	Ops     []string `json:"ops"`
+}
 
 // statusReply answers status: one console's, or a closed one's without any.
 type statusReply struct {

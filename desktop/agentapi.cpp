@@ -21,7 +21,8 @@ static constexpr qint64 CoalesceMs = 5000;         // merge repeated input into 
 struct AgentApi::Client {
   QPointer<QLocalSocket> sock;
   QByteArray buf;
-  QString name, version;
+  QString name, version, mcpVersion; // of the MCP client, and of the oldipmi-mcp it runs
+  bool greeted = false;                // said hello
   struct Held { // what this client pressed on one session and has not released
     QSet<int> keys;
     int buttons = 0, x = 0, y = 0;
@@ -34,6 +35,14 @@ struct AgentApi::Client {
     return version.isEmpty() ? name : name + " " + version;
   }
 };
+
+// The ops dispatch answers, which the reply to hello lists: those of
+// testdata/agent/names.json.
+static QJsonArray offeredOps() {
+  return {agentops::OpHello,      agentops::OpListProfiles, agentops::OpStatus, agentops::OpConnect,
+          agentops::OpDisconnect, agentops::OpScreenshot,   agentops::OpKey,    agentops::OpPointer,
+          agentops::OpRelease,    agentops::OpPower,        agentops::OpMount,  agentops::OpEject};
+}
 
 static QString clean(const QString &s, int max = 64) {
   QString out;
@@ -175,6 +184,26 @@ QString AgentApi::clientName() const {
     if (!names.contains(c->label()))
       names << c->label();
   return names.join(", ");
+}
+QString AgentApi::versionNote() const {
+  const QString app = QCoreApplication::applicationVersion();
+  QStringList other;
+  bool older = false;
+  for (auto &c : m_clients) {
+    if (!c->greeted || c->mcpVersion == app)
+      continue;
+    if (c->mcpVersion.isEmpty())
+      older = true;
+    else if (!other.contains(c->mcpVersion))
+      other << c->mcpVersion;
+  }
+  if (other.isEmpty() && !older)
+    return {};
+  QString which = other.isEmpty() ? "an oldipmi-mcp from an older OldIPMI" : "oldipmi-mcp " + other.join(", ");
+  if (older && !other.isEmpty())
+    which += " and an older one";
+  return "An agent uses " + which + ", not the one of OldIPMI " + app +
+         ": tools may be missing or fail. Update the oldipmi-mcp the agent starts to this version.";
 }
 QVariantList AgentApi::activity() const {
   QVariantList out;
@@ -359,10 +388,13 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     if (client) {
       client->name = clean(a.value("name").toString());
       client->version = clean(a.value("version").toString(), 32);
+      client->mcpVersion = clean(a.value("mcpVersion").toString(), 32);
+      client->greeted = true;
       log(label(client), "client", "Agent identified itself");
       emit clientsChanged();
     }
-    reply(true, QJsonObject{{"app", "OldIPMI"}, {"version", QCoreApplication::applicationVersion()}});
+    reply(true, QJsonObject{{"app", "OldIPMI"}, {"version", QCoreApplication::applicationVersion()},
+                            {"api", agentops::Api}, {"ops", offeredOps()}});
   } else if (op == agentops::OpListProfiles) {
     QJsonArray list;
     for (const auto &v : m_c->hosts()) {

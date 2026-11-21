@@ -26,6 +26,15 @@ FormCard.FormCardPage {
                 : "Agent control is off."
     }
 
+    Kirigami.InlineMessage {
+        Layout.fillWidth: true
+        Layout.margins: Kirigami.Units.gridUnit
+        Layout.bottomMargin: 0
+        visible: text !== ""
+        type: Kirigami.MessageType.Warning
+        text: agent.versionNote
+    }
+
     FormCard.FormHeader { title: "Control socket" }
     FormCard.FormCard {
         FormCard.FormSwitchDelegate {

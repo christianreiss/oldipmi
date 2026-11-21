@@ -87,6 +87,7 @@ func readsRecorded[T any](t *testing.T, op string) {
 }
 
 func TestRepliesReadRecordedKeys(t *testing.T) {
+	readsRecorded[helloReply](t, opHello)
 	readsRecorded[statusReply](t, opStatus)
 	readsRecorded[connectReply](t, opConnect)
 	readsRecorded[disconnectReply](t, opDisconnect)

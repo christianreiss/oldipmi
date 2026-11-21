@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+* **OldIPMI and oldipmi-mcp check each other's version.** oldipmi-mcp tells
+  the app its version, and the app answers with the operations it offers. An
+  operation the running OldIPMI lacks now fails with both versions named
+  instead of "Unknown operation", and Settings → AI agents warns while an
+  agent uses an oldipmi-mcp of another version, such as an old copy in
+  `~/.local/bin` after an update of the AppImage.
+
 ### Fixed
 * **A garbled message from the backend says so.** A control message from
   `oldipmi-core` that was not a JSON object ended the console with
