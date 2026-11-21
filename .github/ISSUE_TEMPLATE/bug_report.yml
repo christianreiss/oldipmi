@@ -1,0 +1,47 @@
+name: Bug report
+description: Something in OldIPMI does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Please never post passwords, real BMC addresses, serial numbers or packet
+        captures. Report security problems privately instead (see SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: OldIPMI version
+      description: Shown in Settings → About.
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installed from
+      options:
+        - AppImage
+        - Fedora RPM
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Distribution and desktop
+      placeholder: Fedora 43, KDE Plasma 6 on Wayland
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: messages
+    attributes:
+      label: Messages
+      description: The message OldIPMI shows and relevant terminal output, with addresses and names removed.
+      render: text

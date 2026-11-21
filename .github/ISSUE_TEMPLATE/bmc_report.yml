@@ -1,0 +1,49 @@
+name: BMC report
+description: A BMC that does not work with OldIPMI, or works with quirks.
+labels: [bmc]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Thank you. Please leave out passwords, real addresses, serial numbers and
+        MAC addresses.
+  - type: input
+    id: hardware
+    attributes:
+      label: Server or mainboard
+      placeholder: Supermicro X9DRi-LN4F+
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: BMC firmware version
+  - type: dropdown
+    id: family
+    attributes:
+      label: Console family chosen in OldIPMI
+      options:
+        - Supermicro (ATEN)
+        - AMI MegaRAC
+        - Dell iDRAC (Avocent)
+        - Cisco IMC
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: OldIPMI version
+      description: Shown in Settings → About.
+  - type: textarea
+    id: result
+    attributes:
+      label: What happens
+      description: The stage where the connection stops and the message OldIPMI shows.
+    validations:
+      required: true
+  - type: textarea
+    id: elsewhere
+    attributes:
+      label: What works elsewhere
+      description: For example the vendor's Java viewer or the BMC's own HTML5 console.

@@ -1,0 +1,42 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  go:
+    name: Go (format, vet, race tests)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l cmd internal)
+          [ -z "$unformatted" ] || { echo "not formatted with gofmt:"; echo "$unformatted"; exit 1; }
+      - run: go vet ./...
+      - run: go mod tidy -diff
+      - run: go test -race ./...
+  desktop:
+    name: Desktop (Fedora build and tests)
+    runs-on: ubuntu-24.04
+    container: registry.fedoraproject.org/fedora:43
+    steps:
+      - name: Build dependencies
+        run: >-
+          dnf install -y --setopt=install_weak_deps=False git cmake ninja-build gcc-c++ golang
+          desktop-file-utils qt6-qtbase-devel qt6-qtdeclarative-devel kf6-kwallet-devel
+          kf6-kirigami-devel kf6-kirigami-addons dejavu-sans-fonts
+      - uses: actions/checkout@v7
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja
+          cmake --build build
+      - name: Tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure

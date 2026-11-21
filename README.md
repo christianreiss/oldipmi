@@ -1,8 +1,72 @@
-# OldIPMI — native Linux BMC console
+# OldIPMI
 
-OldIPMI is a Go protocol engine with a Qt 6/Kirigami desktop interface for KDE
-Plasma. Video is decoded directly into the native window. It needs no Java,
-Docker, Podman, browser, web server, or VNC bridge.
+**The remote console of older servers, native on the Linux desktop. No Java.**
+
+[![CI](https://github.com/christianreiss/oldipmi/actions/workflows/ci.yml/badge.svg)](https://github.com/christianreiss/oldipmi/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/christianreiss/oldipmi)](https://github.com/christianreiss/oldipmi/releases/latest)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/console-dark.png">
+  <img alt="OldIPMI with the demo console open" src="docs/screenshots/console-light.png">
+</picture>
+
+Many servers that still run fine have a BMC whose console wants a Java applet
+or a browser from another decade. OldIPMI opens these consoles directly: a Go
+engine speaks the vendors' protocols and decodes the video into a Qt 6/Kirigami
+window. It needs no Java, browser, container or VNC bridge.
+
+[Deutsch](README.de.md) · [Website](https://oldipmi.uggs.io) ·
+[Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+
+## Features
+
+* **One window for every BMC:** saved connections, any number of open consoles
+  with live miniatures, and a filter (Ctrl+F) that turns an address you type
+  into a new connection.
+* **Full control:** keyboard and mouse, key combinations such as Ctrl+Alt+Del,
+  power on, off and reset, and a read-only ISO image as a virtual CD-ROM where
+  the firmware offers one.
+* **Safe by default:** passwords stay in KWallet and TLS certificates are
+  verified. HTTP login, old TLS and unencrypted transport are explicit
+  exceptions, per connection.
+* **Clear failures:** every connection shows its stage, and a failed one says
+  why and what to check.
+* **AI agents:** with `oldipmi-mcp`, an agent such as Claude Code can look at
+  the screen and type, for example to walk through a BIOS setup.
+
+| | |
+|---|---|
+| ![A saved connection](docs/screenshots/selected-light.png) | ![A new connection](docs/screenshots/new-connection-light.png) |
+| ![A failed login with its hint](docs/screenshots/error-light.png) | ![The demo console, dark](docs/screenshots/console-dark.png) |
+
+## Supported BMCs
+
+| Console type | Typical hardware |
+|---|---|
+| Supermicro (ATEN) | X9 to X11 boards and most X8 boards (Java iKVM or HTML5 console); X12/X13 through Redfish (experimental) |
+| AMI MegaRAC | Older AMI boards such as the Supermicro X8DTU |
+| Dell iDRAC (Avocent) | Dell PowerEdge servers of the R420 generation |
+| Cisco IMC | Older Cisco UCS C-series servers |
+
+Which paths were verified on real hardware, and which only with synthetic data,
+is listed under [Compatibility and acceptance](#compatibility-and-acceptance).
+A built-in demo console shows the window without any BMC.
+
+## Install
+
+* **AppImage** for x86_64 Linux: download `OldIPMI-<version>-x86_64.AppImage`
+  and `SHA256SUMS` from the
+  [latest release](https://github.com/christianreiss/oldipmi/releases/latest),
+  check it with `sha256sum -c --ignore-missing SHA256SUMS`, make it executable
+  and start it. It brings its own Qt and KDE libraries and passed its self-test
+  on Fedora 43, Ubuntu 22.04 and 24.04 and Debian 12 and 13. Without FUSE, start
+  it with `--appimage-extract-and-run`.
+* **From source**, on Fedora or any distribution with Qt 6.6 or newer and KDE
+  Frameworks 6: see [Build and run](#build-and-run). An RPM for Fedora is built
+  with `packaging/fedora/build-rpm.sh` ([Fedora RPM](#fedora-rpm)).
+
+## About
 
 This is a new implementation, not the old launcher repackaged. The previous
 container version is recoverable at Git commit `a5b5b9b`.

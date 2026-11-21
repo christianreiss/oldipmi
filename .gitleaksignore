@@ -1,0 +1,5 @@
+# The fixed RC4 key of the AST2100 video protocol (decodeKeys in
+# internal/video/ast/rc4.go, formerly internal/ami/codec/rc4.go), a public
+# protocol constant and no secret: as added in history, and as it is now.
+7cfdb7a64ff45797cf518ab31564266b596cf469:internal/ami/codec/rc4.go:generic-api-key:13
+internal/video/ast/rc4.go:generic-api-key:13
