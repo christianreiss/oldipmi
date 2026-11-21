@@ -16,6 +16,9 @@ type Tool struct {
 	Title       string
 	Description string
 	Schema      map[string]any
+	// Global tools are not tied to one console, so they take no profile
+	// selector; connect takes a profile of its own.
+	Global bool
 	// ReadOnly tools never change the console; Destructive tools may affect the host irreversibly.
 	ReadOnly, Destructive, Idempotent bool
 	Run                               func(ctx context.Context, b Backend, args map[string]any) ([]Content, error)
@@ -301,8 +304,7 @@ func (s scoped) Call(op string, args map[string]any) (json.RawMessage, error) {
 // sessionBound adds the optional profile argument to a tool and routes all its
 // backend calls (status polls, key events, cleanup) to that console.
 func sessionBound(t Tool) Tool {
-	switch t.Name {
-	case "list_profiles", "list_keys", "wait", "connect": // not tied to one console (connect takes its own profile)
+	if t.Global {
 		return t
 	}
 	props := map[string]any{}
@@ -370,7 +372,7 @@ var (
 
 func rawTools() []Tool {
 	return []Tool{
-		simple(Tool{Name: "list_profiles", Title: "List BMC profiles", ReadOnly: true,
+		simple(Tool{Name: "list_profiles", Title: "List BMC profiles", Global: true, ReadOnly: true,
 			Description: "List the BMC profiles saved in OldIPMI: id, name, host, family, username and whether a password is saved. Never returns passwords.",
 			Schema:      obj(map[string]any{})}, opListProfiles),
 		simple(Tool{Name: "status", Title: "Console status", ReadOnly: true,
@@ -493,7 +495,7 @@ func rawTools() []Tool {
 				}
 				return text(fmt.Sprintf("Not stable for %d ms within %d ms (last change %d ms ago).", q, t, s.MSSinceChange)), nil
 			}},
-		{Name: "wait", Title: "Wait", ReadOnly: true, Idempotent: true,
+		{Name: "wait", Title: "Wait", Global: true, ReadOnly: true, Idempotent: true,
 			Description: "Pause for a fixed time, e.g. while a host boots.",
 			Schema:      params(msArg),
 			Run: func(ctx context.Context, _ Backend, a map[string]any) ([]Content, error) {
@@ -506,7 +508,7 @@ func rawTools() []Tool {
 				}
 				return text(fmt.Sprintf("Waited %d ms.", ms)), nil
 			}},
-		{Name: "list_keys", Title: "List key names", ReadOnly: true,
+		{Name: "list_keys", Title: "List key names", Global: true, ReadOnly: true,
 			Description: "All key names accepted by key, key_combo, key_down and key_up, grouped, with aliases.",
 			Schema:      obj(map[string]any{}),
 			Run: func(context.Context, Backend, map[string]any) ([]Content, error) {
@@ -869,7 +871,7 @@ var (
 )
 
 func connectTool() Tool {
-	return Tool{Name: "connect", Title: "Open console", Idempotent: true,
+	return Tool{Name: "connect", Title: "Open console", Global: true, Idempotent: true,
 		Description: "Open the console of a saved profile (by name, id or host) and wait until it is connected with a first frame, or report the failing stage. " +
 			"Uses the password saved in KWallet. If none is saved, OldIPMI asks the USER for it in its window; this tool keeps waiting for that (password_wait_ms) — tell the user to type it there. " +
 			"Other consoles that are already open stay open (several can be open at once; address each with the profile argument of the other tools). " +

@@ -10,8 +10,8 @@ import (
 )
 
 // The instructions an agent reads (instructions.md) and the README name every
-// tool, and their rule about the profile argument names exactly the tools
-// that do not take it as the console to act on (B-17).
+// tool, and their rule about the profile argument names exactly the Global
+// tools, the ones that do not take it as the console to act on (B-17).
 func TestDocsNameEveryTool(t *testing.T) {
 	readme, err := os.ReadFile("../../README.md")
 	if err != nil {
@@ -20,9 +20,12 @@ func TestDocsNameEveryTool(t *testing.T) {
 	var names, global []string
 	for _, tool := range tools() {
 		names = append(names, tool.Name)
-		props := tool.Schema["properties"].(map[string]any)
-		if !reflect.DeepEqual(props["profile"], profileArg.schema()) {
+		if tool.Global {
 			global = append(global, tool.Name)
+		}
+		props := tool.Schema["properties"].(map[string]any)
+		if selects := reflect.DeepEqual(props["profile"], profileArg.schema()); selects == tool.Global {
+			t.Errorf("%s: Global is %v, but its profile argument is %v", tool.Name, tool.Global, props["profile"])
 		}
 	}
 	// The part of a document from the first line that starts with from up to
