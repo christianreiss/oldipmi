@@ -207,22 +207,33 @@ paths are limited to about 107 bytes). Only one OldIPMI runs per user session (l
 
 ```sh
 python3 packaging/bundle.py
-./dist/OldIPMI-x86_64.AppImage
+./dist/OldIPMI-$(cat VERSION)-x86_64.AppImage
+packaging/smoke-test.sh
 ```
 
-Packaging additionally uses `mksquashfs`, `patchelf`, `qmake6` and
-Python 3. It bundles the native executables, Qt/KDE QML modules, platform plugins,
-fonts and shared-library dependencies, including a private glibc and loader.
-GPU drivers remain host-provided. The private loader avoids Fedora Qt libraries
-requiring a newer host glibc. The last bundle, of 0.2.0 (with Kirigami Addons),
-was checked offscreen on the Fedora build host only; the 0.1 bundle also passed an
-offscreen check in a clean Ubuntu 24.04 userspace. A full Ubuntu desktop
-session has not been tested. The checksum of a bundle is in `dist/SHA256SUMS`.
+Packaging additionally uses `mksquashfs`, `patchelf`, `qmake6`, `rpm` and
+Python 3. It bundles the native executables, the Qt/KDE QML modules, the Qt
+plugins OldIPMI uses, a font and the shared libraries they need, including a
+private glibc and loader. GPU drivers remain host-provided. The private loader
+avoids Fedora Qt libraries requiring a newer host glibc.
+
+Every file the bundle takes from the system must belong to an installed RPM with
+a license text: the texts go to `usr/share/licenses`, and
+`usr/share/doc/OldIPMI/runtime-packages.txt` names the source RPM of each
+package. Without them no AppImage is built; `packaging/licenses` keeps the texts
+of the few Fedora packages that install none. Timestamps inside the image are
+`SOURCE_DATE_EPOCH`, or the time of the last commit, and the checksum is in
+`dist/SHA256SUMS`.
+
+`packaging/smoke-test.sh` runs the AppImage's `--self-test` offscreen on the
+build host and in Podman containers with Ubuntu 22.04 and 24.04 and Debian 12
+and 13, which have no Qt or KDE of their own. The bundle of 2026-11-21 passed
+it; a full desktop session on another distribution has not been tested.
 
 Without FUSE, use `--appimage-extract-and-run`, or `--appimage-extract` and run
 `squashfs-root/AppRun`. `dist/OldIPMI.AppDir/AppRun` is the unpacked equivalent.
 KWallet requires the host desktop's wallet service; without it use a session-only
-password. Runtime license texts and an inventory of file checksums are included.
+password. An inventory of file checksums is included.
 
 ## Fedora RPM
 

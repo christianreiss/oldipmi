@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+* **`packaging/smoke-test.sh`** runs the AppImage's self-test offscreen on the
+  build host and in Podman containers with Ubuntu 22.04 and 24.04 and Debian 12
+  and 13, which have no Qt or KDE of their own.
 * **Copy screen image** in the console toolbar and the full-screen bar, and
   Ctrl+Shift+C while the console is released: puts the remote screen on the
   clipboard as an image at its own resolution, without the stage around it, and
@@ -20,6 +23,12 @@
   rest have no name yet, so the list says nothing about them.
 
 ### Changed
+* **The AppImage is smaller and names its version:**
+  `OldIPMI-<version>-x86_64.AppImage`, 92 MB instead of 119 MB (234 MB instead
+  of 296 MB unpacked). It carries only the Qt plugins OldIPMI uses: no readers
+  for PDF, AVIF, JPEG XL, HEIF or OpenEXR images any more, and no TLS plugin,
+  as the application itself opens no TLS connection. New is Qt's plugin for
+  title bars where the compositor draws none, as GNOME does on Wayland.
 * **New app id `io.uggs.OldIPMI`** (`net.alpha_labs.OldIPMI` before). The
   desktop file is now `io.uggs.OldIPMI.desktop`, and the window reports this id
   to the desktop. A launcher pinned to the task bar or the favourites with an
@@ -56,6 +65,13 @@
   stay as they are.
 
 ### Fixed
+* **The AppImage brings the license of everything it bundles.** Libraries
+  whose package keeps its license text in a sibling package, and the packages
+  of the bundled plugins and QML modules, came without one. Now every bundled
+  file must belong to an installed package with a license text, or no AppImage
+  is built, and `runtime-packages.txt` names the source of each package. The
+  runtime it downloads is cached only once its checksum matched, and its
+  timestamps follow `SOURCE_DATE_EPOCH`.
 * **The packages carry every license of the Go programs.** `oldipmi-core` and
   `oldipmi-mcp` contain the Go standard library; its license and the patent
   grant of Go and of the `golang.org/x` modules now come with the RPM and the
