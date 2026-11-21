@@ -30,7 +30,7 @@ void IpcNames::headerMatchesNamesJson() {
   const QJsonObject fixture = QJsonDocument::fromJson(names.readAll()).object();
   // The constants of ipc.h by group, read from its text.
   static const QRegularExpression constant(
-      R"re(^inline constexpr char (Op|Event|State|Stage|Power|Code)(\w+)\[\] = "([^"]*)";)re");
+      R"re(^inline constexpr char (Op|Event|State|Stage|Power|Code|Feature)(\w+)\[\] = "([^"]*)";)re");
   static const QRegularExpression limit(R"re(^inline constexpr unsigned (MaxFrame)(\w+) = (\d+);)re");
   QMap<QString, QVariantMap> got;
   for (const QString &line : QString::fromUtf8(header.readAll()).split('\n')) {
@@ -45,7 +45,7 @@ void IpcNames::headerMatchesNamesJson() {
   const QMap<QString, QString> groups{{"Op", "ops"},       {"Event", "events"},
                                       {"State", "states"}, {"Stage", "stages"},
                                       {"Power", "powerActions"}, {"Code", "codes"},
-                                      {"MaxFrame", "maxFrame"}};
+                                      {"Feature", "features"}, {"MaxFrame", "maxFrame"}};
   for (auto it = groups.cbegin(); it != groups.cend(); ++it) {
     const QVariantMap want = fixture.value(it.value()).toObject().toVariantMap();
     QVERIFY2(!want.isEmpty(), qPrintable("names.json has no " + it.value()));

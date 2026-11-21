@@ -49,6 +49,10 @@ inline constexpr char CodeAuth[] = "auth";
 inline constexpr char CodeTextMode[] = "text_mode";
 inline constexpr char CodePlainConsole[] = "plain_console";
 
+// Features: what a console supports, by name, in its info's features. Only
+// media is named so far; the list says nothing about what has no name yet.
+inline constexpr char FeatureMedia[] = "media"; // an ISO can be mounted
+
 // The largest video frame the core sends (internal/video/raster); the desktop
 // refuses a larger one.
 inline constexpr unsigned MaxFrameWidth = 4096;

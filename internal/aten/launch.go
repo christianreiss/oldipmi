@@ -51,6 +51,7 @@ func (l Launch) ConsoleInfo(p protocol.Profile) protocol.ConsoleInfo {
 		// The native ATEN media adapter uses plain TCP.
 		info.Endpoints = append(info.Endpoints, protocol.ConsoleEndpoint("Media (advertised)", p.Host, l.CDPort, false))
 		info.Capabilities = append(info.Capabilities, "Read-only ISO")
+		info.Features = append(info.Features, protocol.FeatureMedia)
 	}
 	return info
 }

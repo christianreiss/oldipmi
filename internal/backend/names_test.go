@@ -65,9 +65,9 @@ func consts(t *testing.T, dir, prefix string) map[string]string {
 
 func TestIPCNames(t *testing.T) {
 	var n struct {
-		Ops, Events, States, Stages, PowerActions, Codes map[string]string
-		MaxFrame                                         map[string]int
-		Fields                                           map[string][]string
+		Ops, Events, States, Stages, PowerActions, Codes, Features map[string]string
+		MaxFrame                                                   map[string]int
+		Fields                                                     map[string][]string
 	}
 	fixture(t, "names.json", &n)
 	for _, c := range []struct {
@@ -80,6 +80,7 @@ func TestIPCNames(t *testing.T) {
 		{"../protocol", "Stage", n.Stages},
 		{"../protocol", "Power", n.PowerActions},
 		{"../protocol", "Code", n.Codes},
+		{"../protocol", "Feature", n.Features},
 	} {
 		if got := consts(t, c.dir, c.prefix); len(c.want) == 0 || !maps.Equal(got, c.want) {
 			t.Errorf("%s* constants are %v, names.json has %v", c.prefix, got, c.want)

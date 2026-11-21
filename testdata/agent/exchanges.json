@@ -162,6 +162,9 @@
                             "transport": "none"
                         }
                     ],
+                    "features": [
+                        "media"
+                    ],
                     "legacyTLS": false,
                     "protocol": "OldIPMI demo (synthetic, no network)",
                     "resolution": "1024 × 768"
@@ -367,6 +370,9 @@
                             "transport": "none"
                         }
                     ],
+                    "features": [
+                        "media"
+                    ],
                     "legacyTLS": false,
                     "protocol": "OldIPMI demo (synthetic, no network)",
                     "resolution": "1024 × 768"
@@ -461,6 +467,9 @@
                             "role": "Video / input",
                             "transport": "none"
                         }
+                    ],
+                    "features": [
+                        "media"
                     ],
                     "legacyTLS": false,
                     "protocol": "OldIPMI demo (synthetic, no network)",

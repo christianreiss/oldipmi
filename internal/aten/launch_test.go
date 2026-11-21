@@ -70,7 +70,7 @@ func TestConsoleInfoPerLaunch(t *testing.T) {
 	}{
 		{"Java", Launch{Token: "secret", PasswordToken: "secret", Port: 5900, Secure: true, CDPort: 623}, false,
 			protocol.ConsoleInfo{Protocol: "ATEN RFB", Endpoints: []protocol.Endpoint{ep("Video / input", "bmc.example.net:5900", "TLS"), ep("Media (advertised)", "bmc.example.net:623", "Plain TCP")},
-				Capabilities: []string{"Video", "Keyboard", "Pointer", "Read-only ISO"}}},
+				Capabilities: []string{"Video", "Keyboard", "Pointer", "Read-only ISO"}, Features: []string{protocol.FeatureMedia}}},
 		{"HTML5", Launch{HTML5: true, Token: "secret", Cookie: "secret", Port: 443, Secure: true}, false,
 			protocol.ConsoleInfo{Protocol: "ATEN HTML5 (AST2100 over WebSocket)", Endpoints: []protocol.Endpoint{ep("Video / input", "bmc.example.net:443", "TLS (WebSocket)")},
 				Capabilities: []string{"Video", "Keyboard", "Pointer", "Power"}}},

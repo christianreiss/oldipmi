@@ -13,13 +13,19 @@ type ConsoleInfo struct {
 	Protocol     string     `json:"protocol"`
 	Endpoints    []Endpoint `json:"endpoints"`
 	Capabilities []string   `json:"capabilities"`
-	// What the console supports, by name, next to the Capabilities shown to
-	// the user. Not sent yet; defined here once for what follows.
+	// What the console supports, by name (Feature*), next to the
+	// Capabilities shown to the user.
 	Features        []string `json:"features,omitempty"`
 	ProtocolVersion string   `json:"protocolVersion,omitempty"`
 	Companion       bool     `json:"companion,omitempty"`
 	LegacyTLS       bool     `json:"legacyTLS"`
 }
+
+// FeatureMedia in ConsoleInfo.Features: an ISO can be mounted on the console
+// (testdata/ipc/names.json, features). It is the only name so far, so a
+// console's list says nothing about what has none yet, such as power control.
+const FeatureMedia = "media"
+
 type Endpoint struct {
 	Role      string `json:"role"`
 	Address   string `json:"address"`

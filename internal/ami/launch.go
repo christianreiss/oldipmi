@@ -37,6 +37,7 @@ func (l Launch) ConsoleInfo(p protocol.Profile) protocol.ConsoleInfo {
 	if l.CDPort > 0 && l.CDPort <= 65535 {
 		info.Endpoints = append(info.Endpoints, protocol.ConsoleEndpoint("Media (advertised)", p.Host, l.CDPort, l.MediaSecure))
 		info.Capabilities = append(info.Capabilities, "Read-only ISO")
+		info.Features = append(info.Features, protocol.FeatureMedia)
 	}
 	return info
 }

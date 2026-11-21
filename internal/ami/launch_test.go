@@ -34,13 +34,13 @@ func TestConsoleInfoPerLaunch(t *testing.T) {
 	}{
 		{"AMI IVTP", Launch{Token: "secret", Cookie: "secret", Port: 7578, Secure: true, CDPort: 5120, MediaSecure: true}, false,
 			protocol.ConsoleInfo{Protocol: "AMI IVTP", Endpoints: []protocol.Endpoint{ep("Video / input", "bmc.example.net:7578", "TLS"), ep("Media (advertised)", "bmc.example.net:5120", "TLS")},
-				Capabilities: []string{"Video", "Keyboard", "Pointer", "Read-only ISO"}}},
+				Capabilities: []string{"Video", "Keyboard", "Pointer", "Read-only ISO"}, Features: []string{protocol.FeatureMedia}}},
 		{"AMI IVTP, plain, no media", Launch{Token: "secret", Port: 7578}, true,
 			protocol.ConsoleInfo{Protocol: "AMI IVTP", Endpoints: []protocol.Endpoint{ep("Video / input", "bmc.example.net:7578", "Plain TCP")},
 				Capabilities: []string{"Video", "Keyboard", "Pointer"}, LegacyTLS: true}},
 		{"AMI MegaRAC VSC", Launch{Legacy: true, Token: "secret", Port: 7578, HIDPort: 7582, CDPort: 5120}, false,
 			protocol.ConsoleInfo{Protocol: "AMI MegaRAC VSC", Endpoints: []protocol.Endpoint{ep("Video", "bmc.example.net:7578", "Plain TCP"), ep("Input", "bmc.example.net:7582", "TLS"),
-				ep("Media (advertised)", "bmc.example.net:5120", "Plain TCP")}, Capabilities: []string{"Video", "Keyboard", "Pointer", "Read-only ISO"}}},
+				ep("Media (advertised)", "bmc.example.net:5120", "Plain TCP")}, Capabilities: []string{"Video", "Keyboard", "Pointer", "Read-only ISO"}, Features: []string{protocol.FeatureMedia}}},
 	} {
 		q := p
 		q.LegacyTLS = c.legacy

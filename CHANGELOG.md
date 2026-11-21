@@ -14,6 +14,10 @@
 * **Two more demo addresses:** `demo-hang` keeps the login waiting until you
   cancel it, and `demo-unreachable` fails like a BMC that does not answer, with
   its hint. Like the other demo variants, neither needs a network.
+* **Agents can tell by name what a console supports:** `consoleInfo` in
+  `status` lists `features` next to the capabilities shown in the window. So
+  far it names only `media`, when an ISO can be mounted; power control and the
+  rest have no name yet, so the list says nothing about them.
 
 ### Changed
 * **One version number, in `VERSION`.** CMake, both Go programs and the RPM build

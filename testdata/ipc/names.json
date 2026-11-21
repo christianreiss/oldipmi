@@ -1,5 +1,5 @@
 {
-  "about": "The names of the desktop-core IPC, by the rest of their constant name: Go has backend.Op*, Event*, State* and protocol.Stage*, Power*, Code*; desktop/ipc.h has ipc::Op* and so on. A console's state is one of states or stages. maxFrame is the largest video frame in pixels: Go has video/raster.MaxWidth and MaxHeight, desktop/ipc.h has ipc::MaxFrameWidth and MaxFrameHeight. A media event reports the ISO's state in mounted and, when the ISO failed, why in message. An error event without id, which ends the setup or the console, names the stage it ended in stage (only the setup's) and its class, one of codes, in code if the class is known; errors.json has examples. fields lists the JSON keys of each message part; the profile's keys are those of connect.json.",
+  "about": "The names of the desktop-core IPC, by the rest of their constant name: Go has backend.Op*, Event*, State* and protocol.Stage*, Power*, Code*, Feature*; desktop/ipc.h has ipc::Op* and so on. A console's state is one of states or stages. maxFrame is the largest video frame in pixels: Go has video/raster.MaxWidth and MaxHeight, desktop/ipc.h has ipc::MaxFrameWidth and MaxFrameHeight. A media event reports the ISO's state in mounted and, when the ISO failed, why in message. An error event without id, which ends the setup or the console, names the stage it ended in stage (only the setup's) and its class, one of codes, in code if the class is known; errors.json has examples. A console's info names what the console supports, of features, in features: so far only media (an ISO can be mounted), so the list says nothing about what has no name yet, such as power control. fields lists the JSON keys of each message part; the profile's keys are those of connect.json.",
   "ops": {
     "Connect": "connect",
     "Disconnect": "disconnect",
@@ -42,6 +42,9 @@
     "Auth": "auth",
     "TextMode": "text_mode",
     "PlainConsole": "plain_console"
+  },
+  "features": {
+    "Media": "media"
   },
   "maxFrame": {
     "Width": 4096,
