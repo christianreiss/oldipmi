@@ -515,6 +515,20 @@ static int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, C
       for (auto *w : visibleWindows()) // what it looked like, for the report
         shots->append(w->grabWindow());
     }
+    // No picture is loaded far larger than shown. An Image whose sourceSize
+    // follows its own width loads it again at twice the size each time, until
+    // a layout sets that width; one that stays hidden ends at 8192 px (256 MiB).
+    for (auto *w : visibleWindows())
+      for (auto *o : objectsOf(w))
+        if (auto *image = qobject_cast<QQuickItem *>(o); image && image->inherits("QQuickImage")) {
+          const QSize source = image->property("sourceSize").toSize();
+          if (std::max({image->implicitWidth(), image->implicitHeight(), qreal(source.width()),
+                        qreal(source.height())}) > 2048)
+            problem(QString("%1: %2 is loaded at %3x%4 (sourceSize %5x%6)")
+                        .arg(step.name, image->property("source").toUrl().fileName())
+                        .arg(image->implicitWidth()).arg(image->implicitHeight())
+                        .arg(source.width()).arg(source.height()));
+        }
     (*next)();
   };
   *next = [=, &app] {

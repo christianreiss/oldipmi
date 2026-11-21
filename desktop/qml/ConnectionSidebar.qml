@@ -70,8 +70,10 @@ Rectangle {
                 Layout.preferredWidth: Math.round(Theme.gu * 1.45)
                 Layout.preferredHeight: Layout.preferredWidth
                 source: "qrc:/oldipmi.svg"
-                sourceSize.width: width * 2
-                sourceSize.height: height * 2
+                // From the layout's size: width follows the picture until the layout
+                // has run, so a sourceSize from width would double it on every load.
+                sourceSize.width: Layout.preferredWidth * 2
+                sourceSize.height: Layout.preferredHeight * 2
             }
             QQC2.Label {
                 text: "OldIPMI"
@@ -324,8 +326,10 @@ Rectangle {
                                 Layout.preferredHeight: Layout.preferredWidth
                                 Layout.alignment: Qt.AlignVCenter
                                 source: Families.image(entry.profile.family)
-                                sourceSize.width: width * 2
-                                sourceSize.height: height * 2
+                                // From the layout's size: width follows the picture until the layout
+                                // has run, so a sourceSize from width would double it on every load.
+                                sourceSize.width: Layout.preferredWidth * 2
+                                sourceSize.height: Layout.preferredHeight * 2
                                 fillMode: Image.PreserveAspectFit
                                 smooth: true
                             }

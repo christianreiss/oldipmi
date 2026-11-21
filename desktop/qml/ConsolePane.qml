@@ -86,8 +86,10 @@ ColumnLayout {
                 Layout.preferredWidth: Math.round(Theme.gu * 1.9)
                 Layout.preferredHeight: Layout.preferredWidth
                 source: Families.image(root.shown.family)
-                sourceSize.width: width * 2
-                sourceSize.height: height * 2
+                // From the layout's size: width follows the picture until the layout
+                // has run, so a sourceSize from width would double it on every load.
+                sourceSize.width: Layout.preferredWidth * 2
+                sourceSize.height: Layout.preferredHeight * 2
                 fillMode: Image.PreserveAspectFit
                 smooth: true
             }
@@ -501,8 +503,10 @@ ColumnLayout {
                                 Layout.preferredHeight: Layout.preferredWidth
                                 Layout.leftMargin: 4
                                 source: Families.image(root.shown.family)
-                                sourceSize.width: width * 2
-                                sourceSize.height: height * 2
+                                // From the layout's size: width follows the picture until the layout
+                                // has run, so a sourceSize from width would double it on every load.
+                                sourceSize.width: Layout.preferredWidth * 2
+                                sourceSize.height: Layout.preferredHeight * 2
                                 fillMode: Image.PreserveAspectFit
                             }
                             QQC2.Label {

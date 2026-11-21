@@ -51,6 +51,15 @@
   stay as they are.
 
 ### Fixed
+* **The window is ready within a second again, and OldIPMI needs far less
+  memory.** While the window was being laid out, five pictures took their size
+  from their own width: the sidebar's logo, the family picture of each
+  connection, those on the welcome page, and the one in the console's header and
+  full-screen bar. Each was loaded again at twice the size, up to 8192 × 8192
+  pixels, and those not on screen kept that size. In a measurement with 17
+  connections the window took 12 seconds to be ready and OldIPMI held up to
+  900 MiB; now it is ready after half a second and holds about 130 MiB. The
+  pictures look the same.
 * **A wrong account or password gets its hint on Supermicro (ATEN), Avocent
   and Cisco consoles too.** The error page suggests checking the username and
   password when the BMC rejects them, but it did not recognise how these
