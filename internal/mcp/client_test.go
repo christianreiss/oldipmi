@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -115,7 +116,10 @@ func TestClientRequestsAndReplies(t *testing.T) {
 			answer(req, `{"state":"connected"}`),
 		}
 	})
-	c := &Client{Path: a.path}
+	// The app answers hello as OldIPMI 0.4.0 did. The warning that follows is
+	// checked in TestClientChecksTheAppsOperations; here it would only clutter
+	// the test output.
+	c := &Client{Path: a.path, Log: io.Discard}
 	c.Hello("fixture-agent", "1.0", "2025-06-18")
 	raw, err := c.Call("status", map[string]any{"profile": "Demo"})
 	if err != nil || string(raw) != `{"state":"connected"}` {
