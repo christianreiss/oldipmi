@@ -13,7 +13,10 @@
 // transport/handshake/framing are Java and reproduced here).
 package vmedia
 
-import "oldipmi/internal/ami/iusb"
+import (
+	"oldipmi/internal/ami/iusb"
+	"oldipmi/internal/scsi"
+)
 
 // Device types (IUSBHeader.deviceType). Only CD-ROM is confirmed from the RE;
 // floppy/HD codes still need verification against a capture.
@@ -21,14 +24,12 @@ const (
 	DeviceCDROM = 5
 )
 
-// Opcodes carried in the SCSI payload at offset opcodeOffset. The 0xF* values
-// are AMI's redirection-control opcodes; 0x1B is the standard SCSI START STOP
-// UNIT (used by the host to eject).
+// AMI's redirection-control opcodes, carried in the SCSI payload at offset
+// opcodeOffset like a command code; they are not SCSI commands.
 const (
-	OpAuth          = 0xF2 // client→server: session-token authentication
-	OpRedirectAck   = 0xF1 // server→client: redirection acknowledgement
-	OpKillRedir     = 0xF6 // server→client: terminate this redirection
-	OpStartStopUnit = 0x1B // SCSI START STOP UNIT (eject when CDB[4] low nibble == 2)
+	OpAuth        = 0xF2 // client→server: session-token authentication
+	OpRedirectAck = 0xF1 // server→client: redirection acknowledgement
+	OpKillRedir   = 0xF6 // server→client: terminate this redirection
 )
 
 // Offsets inside the IUSB payload (after the 32-byte header). The SCSI CDB
@@ -69,7 +70,7 @@ func (p *Packet) Opcode() int {
 // IsEject reports whether this is a START STOP UNIT eject request (opcode 0x1B,
 // CDB[4] low bits == 2), matching JViewer's detection.
 func (p *Packet) IsEject() bool {
-	return p.Opcode() == OpStartStopUnit &&
+	return p.Opcode() == scsi.StartStopUnit &&
 		len(p.Payload) > ejectByteOffset && p.Payload[ejectByteOffset]&0x03 == 2
 }
 

@@ -380,8 +380,9 @@ its `Open`; the core's driver registry (`internal/backend/drivers.go`) maps the
 family's id to it, one line per family. `Open` returns a `protocol.Console`
 (video, keyboard and pointer); a console with virtual media or chassis power
 control also implements `protocol.Media` or `protocol.Power` (IPMI power can be
-embedded from `internal/power`), and the core refuses those commands for one
-without. Its console info lists `protocol.FeatureMedia` in `features` when an
+embedded from `internal/power`, and a virtual CD-ROM builds its answers to the
+host's SCSI commands from `internal/scsi`), and the core refuses those commands
+for one without. Its console info lists `protocol.FeatureMedia` in `features` when an
 ISO can be mounted, which the desktop's ISO action asks for, and an error only
 the driver can classify, such as a rejected login, gets its class with
 `protocol.Mark` for the error page's hint, with a row in

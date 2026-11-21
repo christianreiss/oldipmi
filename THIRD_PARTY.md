@@ -18,6 +18,8 @@ The native application contains no vendor Java code, JARs or shared libraries.
   `0ace71a6ae1cb12e8dd1ee802fb751822d650aed`.
   Local changes add strict bounds, explicit transport policy, private IPC and Go
   lifecycle management. License: `licenses/ATENtion-MIT.txt`.
+* `internal/scsi` gathers the SCSI answers of `internal/ami/vmedia` and of the
+  ATEN adapter's virtual media, so it derives from both projects above.
 * The older MegaRAC VSC adapter is an independent implementation based on
   protocol facts observed from the owner's BMC and local inspection of its
   publicly served JViewer. Neither vendor binaries nor disassembly are included.

@@ -2,6 +2,7 @@ package vmedia
 
 import (
 	"oldipmi/internal/ami/iusb"
+	"oldipmi/internal/scsi"
 	"testing"
 )
 
@@ -75,7 +76,7 @@ func TestAckStatus(t *testing.T) {
 
 func TestPacketClassifiers(t *testing.T) {
 	eject := make([]byte, 16)
-	eject[opcodeOffset] = OpStartStopUnit
+	eject[opcodeOffset] = scsi.StartStopUnit
 	eject[ejectByteOffset] = 2
 	if !(&Packet{Payload: eject}).IsEject() {
 		t.Error("IsEject = false for START STOP UNIT with loej=2")

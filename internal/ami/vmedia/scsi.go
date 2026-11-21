@@ -5,30 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log"
-)
 
-// cdBlockSize is the CD-ROM's logical block; the host issues LBAs in these units.
-const cdBlockSize = 2048
-
-// SCSI / MMC opcodes we emulate for a read-only CD-ROM.
-const (
-	scsiTestUnitReady  = 0x00
-	scsiRequestSense   = 0x03
-	scsiInquiry        = 0x12
-	scsiModeSelect6    = 0x15
-	scsiModeSense6     = 0x1A
-	scsiStartStopUnit  = 0x1B
-	scsiPreventAllow   = 0x1E
-	scsiReadCapacity10 = 0x25
-	scsiRead10         = 0x28
-	scsiWrite10        = 0x2A
-	scsiReadTOC        = 0x43
-	scsiGetConfig      = 0x46
-	scsiGetEventStatus = 0x4A
-	scsiReadDiscInfo   = 0x51
-	scsiModeSense10    = 0x5A
-	scsiRead12         = 0xA8
-	scsiWrite12        = 0xAA
+	"oldipmi/internal/scsi"
 )
 
 // amiControlOpcodeMin is the low end of AMI's redirection-control opcode range
@@ -37,6 +15,10 @@ const (
 // 0xF4 SET_HARDDISK_TYPE, 0xF6 kill. JViewer routes every opcode through its native
 // SCSI handler, which simply acks these; we match that with an empty echo-envelope.
 const amiControlOpcodeMin = 0xF0
+
+// drive is what the CD-ROM tells the host in its INQUIRY data (SPC-3, response
+// data format 2); the BMC firmware mostly answers INQUIRY itself.
+var drive = scsi.Identity{Version: 0x05, Format: 0x02, Vendor: "RD450X  ", Product: "Virtual CD-ROM  ", Revision: "1.0 "}
 
 // Device emulates a read-only USB CD-ROM backed by a Reader, answering the BMC's
 // IUSB-wrapped SCSI commands: 2048-byte blocks and the MMC probes (READ TOC /
@@ -53,19 +35,15 @@ type Device struct {
 // NewCDROM builds a read-only CD-ROM emulator over r.
 func NewCDROM(r Reader) *Device {
 	last := uint32(0)
-	if n := r.Size() / cdBlockSize; n > 0 {
+	if n := r.Size() / scsi.BlockSize; n > 0 {
 		last = uint32(n - 1)
 	}
 	return &Device{r: r, lastLBA: last}
 }
 
-// maxRead is the most data one READ may ask for, as on the ATEN console; the
-// host's requests stay far below it.
-const maxRead = 1 << 20
-
 // cdbLen is the length of the commands whose fields Handle reads at fixed
 // offsets; a shorter one from the BMC ends the session.
-var cdbLen = map[byte]int{scsiRead10: 10, scsiWrite10: 10, scsiRead12: 12, scsiWrite12: 12}
+var cdbLen = map[byte]int{scsi.Read10: 10, scsi.Write10: 10, scsi.Read12: 12, scsi.Write12: 12}
 
 // Handle dispatches one IUSB SCSI request, returning the response payload. An
 // error means the BMC sent a request that cannot be answered.
@@ -78,60 +56,50 @@ func (c *Device) Handle(req *Packet) ([]byte, error) {
 		return nil, fmt.Errorf("SCSI command 0x%02X is %d bytes long, not %d", cdb[0], len(cdb), n)
 	}
 	switch cdb[0] {
-	case scsiTestUnitReady, scsiPreventAllow, scsiStartStopUnit, scsiModeSelect6:
+	case scsi.TestUnitReady, scsi.PreventAllow, scsi.StartStopUnit, scsi.ModeSelect6:
 		// Status-only commands: acknowledge with no data. (Eject — START STOP
 		// UNIT with loej bits — is reported by Packet.IsEject for the loop to act
 		// on; we still ack it here.)
 		return c.buildResponse(req, nil), nil
 
-	case scsiInquiry:
-		return c.buildResponse(req, c.inquiry(allocLen(cdb, 3, 4))), nil
+	case scsi.Inquiry:
+		return c.buildResponse(req, clip(drive.Inquiry(), allocLen(cdb, 3, 4))), nil
 
-	case scsiRequestSense:
-		return c.buildResponse(req, senseFixed(0, 0, 0)), nil // no sense
+	case scsi.RequestSense:
+		return c.buildResponse(req, scsi.Sense(0, 0, 0)), nil // no sense
 
-	case scsiReadCapacity10:
-		return c.buildResponse(req, c.readCapacity()), nil
+	case scsi.ReadCapacity10:
+		return c.buildResponse(req, scsi.Capacity(c.lastLBA)), nil
 
-	case scsiRead10, scsiRead12:
-		lba := binary.BigEndian.Uint32(cdb[2:6])
-		blocks := uint32(binary.BigEndian.Uint16(cdb[7:9]))
-		if cdb[0] == scsiRead12 {
-			blocks = binary.BigEndian.Uint32(cdb[6:10])
-		}
-		data, err := c.read(lba, blocks)
+	case scsi.Read10, scsi.Read12:
+		data, err := c.read(scsi.Transfer(cdb))
 		if err != nil {
 			return nil, err
 		}
 		return c.buildResponse(req, data), nil
 
-	case scsiWrite10:
-		lba := binary.BigEndian.Uint32(cdb[2:6])
-		blocks := uint32(binary.BigEndian.Uint16(cdb[7:9]))
-		c.write(lba, blocks)
+	case scsi.Write10, scsi.Write12:
+		// A CD-ROM is read-only: the write is ignored.
+		if lba, blocks := scsi.Transfer(cdb); blocks != 0 {
+			log.Printf("vmedia: WRITE lba=%d blocks=%d on a read-only device — ignored", lba, blocks)
+		}
 		return c.buildResponse(req, nil), nil
 
-	case scsiWrite12:
-		lba := binary.BigEndian.Uint32(cdb[2:6])
-		blocks := binary.BigEndian.Uint32(cdb[6:10])
-		c.write(lba, blocks)
-		return c.buildResponse(req, nil), nil
+	case scsi.ModeSense6:
+		return c.buildResponse(req, scsi.ModeHeader6()), nil
 
-	case scsiModeSense6:
-		return c.buildResponse(req, c.modeSense6()), nil
-
-	case scsiModeSense10:
-		return c.buildResponse(req, c.modeSense10()), nil
+	case scsi.ModeSense10:
+		return c.buildResponse(req, scsi.ModeHeader10()), nil
 
 	// The MMC (CD-ROM) probes.
-	case scsiReadTOC:
-		return c.buildResponse(req, c.readTOC(cdb)), nil
-	case scsiGetConfig:
-		return c.buildResponse(req, c.getConfiguration()), nil
-	case scsiGetEventStatus:
-		return c.buildResponse(req, getEventStatusNoChange(cdb)), nil
-	case scsiReadDiscInfo:
-		return c.buildResponse(req, c.readDiscInfo()), nil
+	case scsi.ReadTOC:
+		return c.buildResponse(req, scsi.TOC(c.lastLBA+1, false)), nil
+	case scsi.GetConfiguration:
+		return c.buildResponse(req, scsi.Configuration()), nil
+	case scsi.GetEventStatus:
+		return c.buildResponse(req, scsi.NoEvent(cdb)), nil
+	case scsi.ReadDiscInfo:
+		return c.buildResponse(req, scsi.DiscInfo()), nil
 
 	default:
 		// AMI redirection-control opcodes (0xF0–0xFF) are not SCSI; they only need an
@@ -173,92 +141,19 @@ func (c *Device) buildResponse(req *Packet, data []byte) []byte {
 	return out
 }
 
-// read returns blocks*cdBlockSize bytes starting at lba, zero-filling any short
-// read past end-of-medium. More than maxRead is an error.
+// read returns blocks*scsi.BlockSize bytes starting at lba, zero-filling any
+// short read past end-of-medium. More than scsi.MaxTransfer is an error.
 func (c *Device) read(lba, blocks uint32) ([]byte, error) {
-	n := int64(blocks) * cdBlockSize
-	if n > maxRead {
-		return nil, fmt.Errorf("READ of %d blocks exceeds %d KiB", blocks, maxRead>>10)
+	n := int64(blocks) * scsi.BlockSize
+	if n > scsi.MaxTransfer {
+		return nil, fmt.Errorf("READ of %d blocks exceeds %d KiB", blocks, scsi.MaxTransfer>>10)
 	}
 	buf := make([]byte, n)
-	off := int64(lba) * cdBlockSize
+	off := int64(lba) * scsi.BlockSize
 	if _, err := c.r.ReadAt(buf, off); err != nil && err != io.EOF {
 		log.Printf("vmedia: read lba=%d blocks=%d off=%d: %v", lba, blocks, off, err)
 	}
 	return buf, nil
-}
-
-// write ignores a WRITE(10)/WRITE(12): a CD-ROM is read-only.
-func (c *Device) write(lba, blocks uint32) {
-	if blocks != 0 {
-		log.Printf("vmedia: WRITE lba=%d blocks=%d on a read-only device — ignored", lba, blocks)
-	}
-}
-
-// readCapacity returns the 8-byte READ CAPACITY(10) response: last LBA and block
-// size, both big-endian.
-func (c *Device) readCapacity() []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint32(b[0:4], c.lastLBA)
-	binary.BigEndian.PutUint32(b[4:8], cdBlockSize)
-	return b
-}
-
-// inquiry returns standard INQUIRY data, trimmed to the allocation length the host
-// asked for. (Rarely used: the BMC firmware answers INQUIRY itself.)
-func (c *Device) inquiry(alloc int) []byte {
-	b := make([]byte, 36)
-	b[0] = 0x05 // peripheral device type: CD/DVD
-	copy(b[16:32], "Virtual CD-ROM  ")
-	b[1] = 0x80               // RMB: removable
-	b[2] = 0x05               // version: SPC-3
-	b[3] = 0x02               // response data format
-	b[4] = 31                 // additional length (36-5)
-	copy(b[8:16], "RD450X  ") // vendor id (8)
-	copy(b[32:36], "1.0 ")    // revision (4)
-	return clip(b, alloc)
-}
-
-// readTOC returns a minimal single-data-track TOC (formatted, MSF=0).
-func (c *Device) readTOC(cdb []byte) []byte {
-	// TOC response: 2-byte data length + first/last track, then track descriptors.
-	// One data track (track 1) plus the lead-out (0xAA).
-	track := func(no byte, lba uint32) []byte {
-		d := make([]byte, 8)
-		d[1] = 0x14 // ADR/control: data track
-		d[2] = no
-		binary.BigEndian.PutUint32(d[4:8], lba)
-		return d
-	}
-	body := append(track(1, 0), track(0xAA, c.lastLBA+1)...)
-	out := make([]byte, 4+len(body))
-	binary.BigEndian.PutUint16(out[0:2], uint16(len(body)+2))
-	out[2] = 1 // first track
-	out[3] = 1 // last track
-	copy(out[4:], body)
-	return out
-}
-
-// getConfiguration returns a minimal GET CONFIGURATION feature header advertising
-// a CD-ROM profile.
-func (c *Device) getConfiguration() []byte {
-	out := make([]byte, 12)
-	// Feature header: data length (4) + reserved (2) + current profile (2).
-	binary.BigEndian.PutUint32(out[0:4], uint32(len(out)-4))
-	binary.BigEndian.PutUint16(out[6:8], 0x0008) // current profile: CD-ROM
-	return out
-}
-
-// readDiscInfo returns a minimal READ DISC INFORMATION response (finalized disc).
-func (c *Device) readDiscInfo() []byte {
-	out := make([]byte, 34)
-	binary.BigEndian.PutUint16(out[0:2], uint16(len(out)-2))
-	out[2] = 0x0E // disc status: finalized, last session complete
-	out[3] = 1    // first track
-	out[4] = 1    // sessions (LSB)
-	out[5] = 1    // first track in last session
-	out[6] = 1    // last track in last session
-	return out
 }
 
 // --- small SCSI helpers ------------------------------------------------------
@@ -283,44 +178,6 @@ func allocLen(cdb []byte, off, size int) int {
 		return int(cdb[off])
 	}
 	return 0
-}
-
-// senseFixed builds an 18-byte fixed-format REQUEST SENSE response.
-func senseFixed(key, asc, ascq byte) []byte {
-	b := make([]byte, 18)
-	b[0] = 0x70 // current error, fixed format
-	b[2] = key & 0x0F
-	b[7] = 10 // additional sense length
-	b[12] = asc
-	b[13] = ascq
-	return b
-}
-
-// getEventStatusNoChange answers GET EVENT STATUS NOTIFICATION with "no change".
-func getEventStatusNoChange(cdb []byte) []byte {
-	out := make([]byte, 4)
-	binary.BigEndian.PutUint16(out[0:2], 2)
-	out[2] = 0x00 // NEA=0, event class 0 (no requested classes)
-	if len(cdb) > 4 {
-		out[3] = cdb[4] // supported event classes echo
-	}
-	return out
-}
-
-func (c *Device) modeSense6() []byte {
-	// Mode parameter header (4 bytes): mode data length, medium type, device-
-	// specific params (WP), block descriptor length.
-	b := make([]byte, 4)
-	b[0] = 3    // mode data length (excludes this byte)
-	b[2] = 0x80 // write-protected
-	return b
-}
-
-func (c *Device) modeSense10() []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint16(b[0:2], 6) // mode data length
-	b[3] = 0x80                           // write-protected
-	return b
 }
 
 // clip trims b to at most n bytes (n<=0 means no allocation limit was given).
