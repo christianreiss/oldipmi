@@ -30,9 +30,9 @@ var (
 // console; the deadline still ends a session whose GUI stopped reading altogether.
 const writeTimeout = 30 * time.Second
 
-// The time limits of the slow commands. Both stay below the 60 seconds that
-// oldipmi-mcp waits for an answer (internal/mcp/client.go), so that an agent
-// hears about a stuck BMC too. Tests shorten them.
+// The time limits of the slow commands. Both stay below the time oldipmi-mcp
+// waits for their answer (replyWithin in internal/mcp/client.go), so that an
+// agent hears about a stuck BMC too. Tests shorten them.
 var (
 	mountTimeout = 30 * time.Second
 	powerTimeout = 15 * time.Second

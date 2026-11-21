@@ -4,15 +4,19 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // fakeApp stands in for the desktop's agent socket, in a temporary directory.
@@ -180,6 +184,113 @@ func TestClientReconnects(t *testing.T) {
 	}
 	if got := a.requests(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("the app received\n%q\nwant\n%q", got, want)
+	}
+}
+
+// The client waits for a reply only as long as the operation can take, then
+// gives up but keeps the connection, and skips the reply that comes too late
+// (B-05).
+func TestClientGivesUpOnALateReply(t *testing.T) {
+	a := newFakeApp(t, func(_ int, req map[string]any) []string {
+		if req["op"] == "power" {
+			return []string{} // its reply comes with the next one
+		}
+		late := fmt.Sprintf(`{"id":%v,"ok":true,"result":{"late":true}}`, req["id"].(float64)-1)
+		return []string{late, answer(req, `{"state":"connected"}`)}
+	})
+	c := &Client{Path: a.path, limit: func(string) time.Duration { return 50 * time.Millisecond }}
+	_, err := c.Call(context.Background(), "power", map[string]any{"action": "soft"})
+	if err == nil || err.Error() != "OldIPMI did not answer power within 50ms; the operation may or may not have run" {
+		t.Fatalf("power: %v", err)
+	}
+	if raw, err := c.Call(context.Background(), "status", map[string]any{}); err != nil || string(raw) != `{"state":"connected"}` {
+		t.Fatalf("status: %s, %v", raw, err)
+	}
+	if n := len(a.requests()); n != 1 {
+		t.Fatalf("the client opened %d connections, want 1", n)
+	}
+}
+
+// A hello without a reply in time leaves no half-greeted connection: the call
+// that sent it says why it failed, and the next call connects anew and says
+// hello again.
+func TestClientRepeatsAHelloWithoutAnswer(t *testing.T) {
+	a := newFakeApp(t, func(n int, req map[string]any) []string {
+		switch {
+		case req["op"] == "hello" && n < 2:
+			return []string{} // no answer on the first two connections
+		case req["op"] == "hello":
+			return []string{answer(req, `{"app":"OldIPMI","version":"0.5.0","api":1,"ops":["hello","status"]}`)}
+		}
+		return []string{answer(req, `{}`)}
+	})
+	c := &Client{Path: a.path, Version: "0.5.0", limit: func(string) time.Duration { return 50 * time.Millisecond }}
+	c.Hello("fixture-agent", "1.0", "2025-06-18")
+	if _, err := c.Call(context.Background(), opStatus, map[string]any{}); err == nil || err.Error() != "OldIPMI did not answer the hello within 50ms" {
+		t.Fatalf("status: %v", err)
+	}
+	if _, err := c.Call(context.Background(), opStatus, map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(a.requests()); n != 3 {
+		t.Fatalf("the client opened %d connections, want 3", n)
+	}
+	if _, err := c.Call(context.Background(), opPower, map[string]any{"action": "soft"}); err == nil || !strings.Contains(err.Error(), "does not offer") {
+		t.Fatalf("power: %v; want it refused, as the second hello's reply does not list it", err)
+	}
+}
+
+// A cancelled call stops waiting at once and keeps the connection; a call
+// whose context has ended is not sent at all.
+func TestClientStopsWaitingWhenCancelled(t *testing.T) {
+	a := newFakeApp(t, func(_ int, req map[string]any) []string {
+		if req["op"] == "mount" {
+			return []string{} // the BMC takes its time
+		}
+		return []string{answer(req, `{}`)}
+	})
+	c := &Client{Path: a.path}
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(20*time.Millisecond, cancel)
+	start := time.Now()
+	if _, err := c.Call(ctx, "mount", map[string]any{"path": "/srv/x.iso"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("mount: %v, want context.Canceled", err)
+	}
+	if d := time.Since(start); d > 5*time.Second {
+		t.Fatalf("the cancelled call waited %v", d)
+	}
+	if _, err := c.Call(ctx, "key", map[string]any{"usage": 4, "down": true}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("key: %v, want context.Canceled", err)
+	}
+	if _, err := c.Call(context.Background(), "status", map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{`{"args":{"path":"/srv/x.iso"},"id":1,"op":"mount"}`, `{"args":{},"id":2,"op":"status"}`}}
+	if got := a.requests(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("the app received\n%q\nwant\n%q", got, want)
+	}
+}
+
+// The client waits longer for power and mount than the core lets them take,
+// so that an agent hears why a slow BMC failed.
+func TestReplyLimitsCoverTheCoresLimits(t *testing.T) {
+	src, err := os.ReadFile("../backend/server.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := regexp.MustCompile(`(?m)^\s*(mount|power)Timeout = (\d+) \* time\.Second$`).FindAllStringSubmatch(string(src), -1)
+	if len(found) != 2 {
+		t.Fatalf("found %d limits in internal/backend/server.go, want mountTimeout and powerTimeout", len(found))
+	}
+	for _, m := range found {
+		secs, _ := strconv.Atoi(m[2])
+		op := map[string]string{"mount": opMount, "power": opPower}[m[1]]
+		if core := time.Duration(secs) * time.Second; replyWithin(op) <= core {
+			t.Errorf("oldipmi-mcp waits %v for %s, the core %v", replyWithin(op), op, core)
+		}
+	}
+	if replyWithin(opEject) < replyWithin(opMount) || replyWithin(opConnect) < replyWithin(opMount) || replyWithin(opStatus) > replyWithin(opPower) {
+		t.Errorf("eject and connect wait at least as long as mount, status no longer than power")
 	}
 }
 

@@ -14,6 +14,16 @@
   `not_connected`, `no_profile` or `ambiguous`, so that a program using the
   socket can tell the errors apart without reading the message.
 
+### Changed
+* **oldipmi-mcp waits for each operation only as long as it can take.** It
+  waited 60 seconds for any reply of OldIPMI and then closed its connection,
+  which also let go of every key the agent held down. It now waits at most 10
+  seconds for an operation that OldIPMI answers at once, 20 for `power`, 35 for
+  `mount_iso` and `eject_iso` and 60 for `connect`. When that time runs out, or
+  the agent cancels the tool, it stops waiting and keeps the connection; a
+  cancelled tool sends nothing more, except what lets go of the keys and
+  buttons it pressed.
+
 ### Fixed
 * **A garbled message from the backend says so.** A control message from
   `oldipmi-core` that was not a JSON object ended the console with

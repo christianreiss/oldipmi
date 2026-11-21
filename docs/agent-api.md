@@ -192,9 +192,12 @@ New codes may come; a client should treat an unknown one like `failed`.
 ## Time limits
 
 OldIPMI answers most operations at once. `power` and `mount` wait for the BMC, at most 15 and 30
-seconds; `eject` has no limit of its own. `oldipmi-mcp` waits 60 seconds for any reply. When that
-time runs out, it closes the connection, so OldIPMI lets go of what it held, and it tells the agent
-that the operation may or may not have run.
+seconds; `eject` has no limit of its own. `oldipmi-mcp` waits for a reply at most 10 seconds, 20 for
+`power`, 35 for `mount` and `eject`, and 60 for `connect`, which may wait while the wallet asks the
+user to unlock it. When that time runs out, it tells the agent that the operation may or may not
+have run. When the agent cancels the tool call, it stops waiting at once and sends nothing more for
+it, except what lets go of the keys and buttons the call pressed. Either way it keeps the
+connection and skips the late reply by its `id`.
 
 ## Changing the agent API
 
