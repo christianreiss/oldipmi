@@ -23,6 +23,8 @@
   rest have no name yet, so the list says nothing about them.
 
 ### Changed
+* **OldIPMI is also listed under Internet** (the `Network` category) in the
+  application menu, next to System, as remote access tools usually are.
 * **The AppImage is smaller and names its version:**
   `OldIPMI-<version>-x86_64.AppImage`, 92 MB instead of 119 MB (234 MB instead
   of 296 MB unpacked). It carries only the Qt plugins OldIPMI uses: no readers
