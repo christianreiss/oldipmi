@@ -404,7 +404,8 @@ plays them must send exactly their commands.
 [docs/agent-api.md](docs/agent-api.md) describes: requests as `oldipmi-mcp`
 sends them and the replies the app gave on its demo console. The `agent_api`
 test replays them (`UPDATE_GOLDEN=1` records the replies anew), and the MCP
-tools are tested on those replies.
+tools are tested on those replies. `internal/mcp/testdata/tools.json` holds the
+tool list as agents see it (`UPDATE_GOLDEN=1` writes it anew).
 
 CTest runs every test with a fresh, private home and runtime directory
 (`tools/isolated.sh`), so it never touches your settings, wallet, `~/.qttest` or

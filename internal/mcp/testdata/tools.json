@@ -1,0 +1,791 @@
+[
+  {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true,
+      "title": "List BMC profiles"
+    },
+    "description": "List the BMC profiles saved in OldIPMI: id, name, host, family, username and whether a password is saved. Never returns passwords.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_profiles",
+    "title": "List BMC profiles"
+  },
+  {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true,
+      "title": "Console status"
+    },
+    "description": "Several consoles can be open at once. Always lists them in sessions (profile, state). For one console (the profile argument, or the only open one): connection state (disconnected, logging_in, discovering, connecting, connected), status message, profile, console info, mounted ISO, framebuffer size and screen-change counters. Also whether a password prompt is waiting for the user. With several open and no profile this is an error that names them.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "status",
+    "title": "Console status"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Open console"
+    },
+    "description": "Open the console of a saved profile (by name, id or host) and wait until it is connected with a first frame, or report the failing stage. Uses the password saved in KWallet. If none is saved, OldIPMI asks the USER for it in its window; this tool keeps waiting for that (password_wait_ms) — tell the user to type it there. Other consoles that are already open stay open (several can be open at once; address each with the profile argument of the other tools). Calling connect again for the profile that is already connecting or connected just waits for it.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "password_wait_ms": {
+          "description": "Time to wait for the user to enter a missing password in the OldIPMI window, default 60000; 0 = do not wait",
+          "maximum": 300000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "profile": {
+          "description": "Profile name, id or host (see list_profiles)",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "description": "Time allowed for login and console setup, default 45000",
+          "maximum": 300000,
+          "minimum": 1000,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "profile"
+      ],
+      "type": "object"
+    },
+    "name": "connect",
+    "title": "Open console"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Disconnect console"
+    },
+    "description": "Close one console session (profile argument, or the only open one), or cancel one that is being set up (also dismisses a pending password prompt). all=true closes every open console. Other consoles stay open.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "description": "Close every open console instead of one",
+          "type": "boolean"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "disconnect",
+    "title": "Disconnect console"
+  },
+  {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true,
+      "title": "Screenshot"
+    },
+    "description": "PNG image of the remote screen (returned as MCP image content). Optional crop region in framebuffer pixels, and downscaling: scale (0.1..1) and/or max_size (longest image side, default 1568; 0 = full resolution). The text block states the exact mapping; all other tools always take FRAMEBUFFER coordinates.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "description": "Region height",
+          "maximum": 4096,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_size": {
+          "description": "Longest side of the returned image in pixels, default 1568; 0 = no limit",
+          "maximum": 4096,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        },
+        "scale": {
+          "description": "Downscale factor, default 1",
+          "maximum": 1,
+          "minimum": 0.1,
+          "type": "number"
+        },
+        "width": {
+          "description": "Region width",
+          "maximum": 4096,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "x": {
+          "description": "Region left",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Region top",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "screenshot",
+    "title": "Screenshot"
+  },
+  {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true,
+      "title": "Wait for screen change"
+    },
+    "description": "Block until the remote screen content changes, or until the timeout. Use after an action whose effect takes time (boot, menu redraw).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "description": "default 10000",
+          "maximum": 300000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "wait_for_change",
+    "title": "Wait for screen change"
+  },
+  {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true,
+      "title": "Wait for stable screen"
+    },
+    "description": "Block until the remote screen has not changed for quiet_ms, or until the timeout. Use after input before taking a screenshot.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        },
+        "quiet_ms": {
+          "description": "default 500",
+          "maximum": 300000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timeout_ms": {
+          "description": "default 10000",
+          "maximum": 300000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "wait_for_stable",
+    "title": "Wait for stable screen"
+  },
+  {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true,
+      "title": "Wait"
+    },
+    "description": "Pause for a fixed time, e.g. while a host boots.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "ms": {
+          "description": "milliseconds",
+          "maximum": 300000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ms"
+      ],
+      "type": "object"
+    },
+    "name": "wait",
+    "title": "Wait"
+  },
+  {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true,
+      "title": "List key names"
+    },
+    "description": "All key names accepted by key, key_combo, key_down and key_up, grouped, with aliases.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_keys",
+    "title": "List key names"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Type text"
+    },
+    "description": "Type text on the remote keyboard as a US-layout keyboard would: every printable ASCII character (Shift added where needed), newline = Enter, tab = Tab. The remote OS keymap must be US for symbols to come out right; CapsLock on the remote inverts letter case.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "delay_ms": {
+          "description": "Pause after each key event, default 8; use 30-50 for slow BIOS screens",
+          "maximum": 2000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        },
+        "text": {
+          "description": "Up to 4096 characters",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
+    "name": "type_text",
+    "title": "Type text"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Press key"
+    },
+    "description": "Press and release one key or a '+'-joined combination, e.g. Enter, Esc, F2, Down, PageDown, Delete, KP_Enter, ctrl+alt+delete, alt+sysrq+b, ctrl+alt+f1. Optional repeat. Call list_keys for all names.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "hold_ms": {
+          "description": "How long the key is held, default 50",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Key name or combination",
+          "type": "string"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        },
+        "repeat": {
+          "description": "Times to press, default 1",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "name": "key",
+    "title": "Press key"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Press key combination"
+    },
+    "description": "Press keys together in the given order and release them in reverse, e.g. [\"ctrl\",\"alt\",\"delete\"], [\"alt\",\"sysrq\",\"b\"], [\"ctrl\",\"alt\",\"f2\"], [\"shift\",\"f10\"].",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "hold_ms": {
+          "description": "How long the full combination is held, default 50",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "keys": {
+          "description": "Key names",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "type": "array"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "keys"
+      ],
+      "type": "object"
+    },
+    "name": "key_combo",
+    "title": "Press key combination"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Hold key"
+    },
+    "description": "Press and HOLD keys (e.g. Shift while clicking, or a key that must stay down). They stay down until key_up, release_input, disconnect, or this MCP server exits.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "keys": {
+          "description": "Key names",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "type": "array"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "keys"
+      ],
+      "type": "object"
+    },
+    "name": "key_down",
+    "title": "Hold key"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Release key"
+    },
+    "description": "Release keys previously held with key_down.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "keys": {
+          "description": "Key names",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "type": "array"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "keys"
+      ],
+      "type": "object"
+    },
+    "name": "key_up",
+    "title": "Release key"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Release all input"
+    },
+    "description": "Release every held key and mouse button on the remote side (also the user's). Use when keys seem stuck.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "release_input",
+    "title": "Release all input"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Move pointer"
+    },
+    "description": "Move the pointer to a framebuffer pixel (absolute).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        },
+        "x": {
+          "description": "Framebuffer X",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Framebuffer Y",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "name": "mouse_move",
+    "title": "Move pointer"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Click"
+    },
+    "description": "Move to a framebuffer pixel and click. Optional modifier keys are held during the click (e.g. [\"shift\"], [\"ctrl\"]).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "button": {
+          "description": "Mouse button, default left",
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ],
+          "type": "string"
+        },
+        "modifiers": {
+          "description": "Keys held during the click",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "type": "array"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        },
+        "x": {
+          "description": "Framebuffer X",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Framebuffer Y",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "name": "mouse_click",
+    "title": "Click"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Double-click"
+    },
+    "description": "Move to a framebuffer pixel and double-click.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "button": {
+          "description": "Mouse button, default left",
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ],
+          "type": "string"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        },
+        "x": {
+          "description": "Framebuffer X",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Framebuffer Y",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "name": "mouse_double_click",
+    "title": "Double-click"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Drag"
+    },
+    "description": "Press a button at (x,y), move in steps to (to_x,to_y) and release there.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "button": {
+          "description": "Mouse button, default left",
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ],
+          "type": "string"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        },
+        "to_x": {
+          "description": "Target X",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "to_y": {
+          "description": "Target Y",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "description": "Start X",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Start Y",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "to_x",
+        "to_y"
+      ],
+      "type": "object"
+    },
+    "name": "mouse_drag",
+    "title": "Drag"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Scroll"
+    },
+    "description": "Move to a pixel and turn the mouse wheel; positive amount scrolls up, negative down.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "description": "Wheel steps, -20..20, not 0",
+          "maximum": 20,
+          "minimum": -20,
+          "type": "integer"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        },
+        "x": {
+          "description": "Framebuffer X",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "description": "Framebuffer Y",
+          "maximum": 4095,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "amount"
+      ],
+      "type": "object"
+    },
+    "name": "mouse_scroll",
+    "title": "Scroll"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Chassis power"
+    },
+    "description": "Chassis power control: on, off (hard), reset (hard), soft (ACPI shutdown request). Takes effect IMMEDIATELY with no confirmation and may destroy unsaved work on the host; prefer soft over off. Only with the user's consent.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "on",
+            "off",
+            "reset",
+            "soft"
+          ],
+          "type": "string"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    "name": "power",
+    "title": "Chassis power"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Mount ISO"
+    },
+    "description": "Attach a local ISO file read-only as virtual CD/DVD (AMI and ATEN Java-protocol consoles; not Avocent/Cisco or ATEN HTML5). The host sees it until eject_iso or disconnect.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "Absolute path to a readable .iso file on this computer",
+          "type": "string"
+        },
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "name": "mount_iso",
+    "title": "Mount ISO"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Eject ISO"
+    },
+    "description": "Detach the mounted virtual media.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "description": "Which open console to act on: profile name, id or host. Optional while exactly one console is open; required when several are (see status → sessions).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "eject_iso",
+    "title": "Eject ISO"
+  }
+]
