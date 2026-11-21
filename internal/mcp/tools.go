@@ -83,77 +83,6 @@ var sleep = func(ctx context.Context, d time.Duration) error {
 	}
 }
 
-func obj(props map[string]any, required ...string) map[string]any {
-	s := map[string]any{"type": "object", "properties": props, "additionalProperties": false}
-	if len(required) > 0 {
-		s["required"] = required
-	}
-	return s
-}
-func prop(typ, desc string) map[string]any { return map[string]any{"type": typ, "description": desc} }
-func intProp(desc string, lo, hi int) map[string]any {
-	return map[string]any{"type": "integer", "description": desc, "minimum": lo, "maximum": hi}
-}
-
-func argInt(a map[string]any, k string, def, lo, hi int) (int, error) {
-	v, ok := a[k]
-	if !ok || v == nil {
-		return def, nil
-	}
-	f, ok := v.(float64)
-	if !ok || f != float64(int(f)) || int(f) < lo || int(f) > hi {
-		return 0, fmt.Errorf("%s must be an integer in %d..%d", k, lo, hi)
-	}
-	return int(f), nil
-}
-func argReqInt(a map[string]any, k string, lo, hi int) (int, error) {
-	if v, ok := a[k]; !ok || v == nil {
-		return 0, fmt.Errorf("%s is required", k)
-	}
-	return argInt(a, k, 0, lo, hi)
-}
-func argBool(a map[string]any, k string) (bool, error) {
-	v, ok := a[k]
-	if !ok || v == nil {
-		return false, nil
-	}
-	b, ok := v.(bool)
-	if !ok {
-		return false, fmt.Errorf("%s must be true or false", k)
-	}
-	return b, nil
-}
-
-// argEnum reads one of values, in any case, as values spells it; without a
-// value it is def, or required when def is "".
-func argEnum(a map[string]any, k string, values []string, def string) (string, error) {
-	v, ok := a[k]
-	if !ok || v == nil {
-		if def == "" {
-			return "", fmt.Errorf("%s is required", k)
-		}
-		return def, nil
-	}
-	if s, ok := v.(string); ok {
-		for _, w := range values {
-			if strings.EqualFold(s, w) {
-				return w, nil
-			}
-		}
-	}
-	return "", fmt.Errorf("%s must be %s or %s", k, strings.Join(values[:len(values)-1], ", "), values[len(values)-1])
-}
-func argStr(a map[string]any, k string) (string, error) {
-	v, ok := a[k]
-	if !ok || v == nil {
-		return "", fmt.Errorf("%s is required", k)
-	}
-	s, ok := v.(string)
-	if !ok || s == "" {
-		return "", fmt.Errorf("%s must be a non-empty string", k)
-	}
-	return s, nil
-}
 func text(s string) []Content { return []Content{{Type: "text", Text: s}} }
 
 func call(b Backend, op string, args map[string]any) (json.RawMessage, error) {
@@ -279,52 +208,21 @@ func inputTool(t Tool, run func(in *input, a map[string]any) (string, error)) To
 	return t
 }
 
-var buttonProp = map[string]any{"type": "string", "enum": []string{"left", "right", "middle"}, "description": "Mouse button, default left"}
-
 func buttonMask(a map[string]any) (int, error) {
-	b, err := argEnum(a, "button", []string{"left", "right", "middle"}, "left")
+	b, err := buttonArg.get(a)
 	return map[string]int{"left": 1, "right": 2, "middle": 4}[b], err
 }
 
-func coords(a map[string]any, kx, ky string) (int, int, error) {
-	x, err := argReqInt(a, kx, 0, 4095)
+func coords(a map[string]any, xs, ys intSpec) (int, int, error) {
+	x, err := xs.get(a)
 	if err != nil {
 		return 0, 0, err
 	}
-	y, err := argReqInt(a, ky, 0, 4095)
+	y, err := ys.get(a)
 	if err != nil {
 		return 0, 0, err
 	}
 	return x, y, nil
-}
-
-// keyList reads a list of min..max key names as HID usages; a missing list
-// is an empty one.
-func keyList(a map[string]any, k string, min, max int) ([]int, error) {
-	bad := fmt.Errorf("%s must list %d..%d key names", k, min, max)
-	if min == 0 {
-		bad = fmt.Errorf("%s must list up to %d key names", k, max)
-	}
-	arr, ok := a[k].([]any)
-	if a[k] == nil {
-		arr, ok = nil, true
-	}
-	if !ok || len(arr) < min || len(arr) > max {
-		return nil, bad
-	}
-	var us []int
-	for _, v := range arr {
-		n, ok := v.(string)
-		if !ok {
-			return nil, bad
-		}
-		u, err := hid.Usage(n)
-		if err != nil {
-			return nil, err
-		}
-		us = append(us, u)
-	}
-	return us, nil
 }
 
 // pressCombo presses usages in order, holds, and releases in reverse order.
@@ -377,10 +275,10 @@ func poll(ctx context.Context, timeoutMS int, check func() (bool, error)) (bool,
 	}
 }
 
-// profileProp is the optional selector every session-bound tool takes: several
+// profileArg is the optional selector every session-bound tool takes: several
 // consoles can be open at once, so a call names the one it means.
-var profileProp = prop("string", "Which open console to act on: profile name, id or host. "+
-	"Optional while exactly one console is open; required when several are (see status → sessions).")
+var profileArg = strSpec{Key: "profile", Desc: "Which open console to act on: profile name, id or host. " +
+	"Optional while exactly one console is open; required when several are (see status → sessions)."}
 
 // scoped sends every call with args.profile set, unless the call names one itself.
 type scoped struct {
@@ -411,7 +309,7 @@ func sessionBound(t Tool) Tool {
 	for k, v := range t.Schema["properties"].(map[string]any) {
 		props[k] = v
 	}
-	props["profile"] = profileProp
+	props["profile"] = profileArg.schema()
 	schema := map[string]any{}
 	for k, v := range t.Schema {
 		schema[k] = v
@@ -420,11 +318,11 @@ func sessionBound(t Tool) Tool {
 	t.Schema = schema
 	run := t.Run
 	t.Run = func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
-		if v, ok := a["profile"]; ok && v != nil {
-			name, isStr := v.(string)
-			if !isStr || name == "" {
-				return nil, fmt.Errorf("profile must be a non-empty string")
-			}
+		name, err := profileArg.get(a)
+		if err != nil {
+			return nil, err
+		}
+		if name != "" {
 			b = scoped{b, name}
 		}
 		return run(ctx, b, a)
@@ -440,6 +338,36 @@ func tools() []Tool {
 	return all
 }
 
+// The arguments of the tools below; connect's and screenshot's are with them.
+var (
+	allArg = boolSpec{Key: "all", Desc: "Close every open console instead of one"}
+
+	waitTimeoutArg = intSpec{Key: "timeout_ms", Desc: "default 10000", Hi: maxWaitMS, Def: 10000}
+	quietArg       = intSpec{Key: "quiet_ms", Desc: "default 500", Hi: maxWaitMS, Def: 500}
+	msArg          = intSpec{Key: "ms", Desc: "milliseconds", Hi: maxWaitMS, Req: true}
+
+	textArg      = strSpec{Key: "text", Desc: "Up to 4096 characters", Req: true}
+	delayArg     = intSpec{Key: "delay_ms", Desc: "Pause after each key event, default 8; use 30-50 for slow BIOS screens", Hi: 2000, Def: defaultKeyGap}
+	keyNameArg   = strSpec{Key: "name", Desc: "Key name or combination of up to 6 keys", Req: true}
+	repeatArg    = intSpec{Key: "repeat", Desc: "Times to press, default 1", Lo: 1, Hi: 100, Def: 1}
+	keyHoldArg   = intSpec{Key: "hold_ms", Desc: "How long the key is held, default 50", Hi: 10000, Def: 50}
+	comboHoldArg = intSpec{Key: "hold_ms", Desc: "How long the full combination is held, default 50", Hi: 10000, Def: 50}
+	keysArg      = keysSpec{Key: "keys", Desc: "Key names", Min: 1, Max: 6}
+
+	xArg         = intSpec{Key: "x", Desc: "Framebuffer X", Hi: 4095, Req: true}
+	yArg         = intSpec{Key: "y", Desc: "Framebuffer Y", Hi: 4095, Req: true}
+	buttonArg    = enumSpec{Key: "button", Desc: "Mouse button, default left", Values: []string{"left", "right", "middle"}, Def: "left"}
+	modifiersArg = keysSpec{Key: "modifiers", Desc: "Keys held during the click", Max: 4}
+	fromXArg     = intSpec{Key: "x", Desc: "Start X", Hi: 4095, Req: true}
+	fromYArg     = intSpec{Key: "y", Desc: "Start Y", Hi: 4095, Req: true}
+	toXArg       = intSpec{Key: "to_x", Desc: "Target X", Hi: 4095, Req: true}
+	toYArg       = intSpec{Key: "to_y", Desc: "Target Y", Hi: 4095, Req: true}
+	amountArg    = intSpec{Key: "amount", Desc: "Wheel steps, -20..20, not 0", Lo: -20, Hi: 20, Req: true, NonZero: true}
+
+	actionArg = enumSpec{Key: "action", Values: powerActions}
+	pathArg   = strSpec{Key: "path", Desc: "Absolute path to a readable .iso file on this computer", Req: true}
+)
+
 func rawTools() []Tool {
 	return []Tool{
 		simple(Tool{Name: "list_profiles", Title: "List BMC profiles", ReadOnly: true,
@@ -451,9 +379,9 @@ func rawTools() []Tool {
 		connectTool(),
 		{Name: "disconnect", Title: "Disconnect console", Idempotent: true,
 			Description: "Close one console session (profile argument, or the only open one), or cancel one that is being set up (also dismisses a pending password prompt). all=true closes every open console. Other consoles stay open.",
-			Schema:      obj(map[string]any{"all": prop("boolean", "Close every open console instead of one")}),
+			Schema:      params(allArg),
 			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
-				all, err := argBool(a, "all")
+				all, err := allArg.get(a)
 				if err != nil {
 					return nil, err
 				}
@@ -507,9 +435,9 @@ func rawTools() []Tool {
 		screenshotTool(),
 		{Name: "wait_for_change", Title: "Wait for screen change", ReadOnly: true,
 			Description: "Block until the remote screen content changes, or until the timeout. Use after an action whose effect takes time (boot, menu redraw).",
-			Schema:      obj(map[string]any{"timeout_ms": intProp("default 10000", 0, maxWaitMS)}),
+			Schema:      params(waitTimeoutArg),
 			Run: func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
-				t, err := argInt(a, "timeout_ms", 10000, 0, maxWaitMS)
+				t, err := waitTimeoutArg.get(a)
 				if err != nil {
 					return nil, err
 				}
@@ -537,13 +465,13 @@ func rawTools() []Tool {
 			}},
 		{Name: "wait_for_stable", Title: "Wait for stable screen", ReadOnly: true,
 			Description: "Block until the remote screen has not changed for quiet_ms, or until the timeout. Use after input before taking a screenshot.",
-			Schema:      obj(map[string]any{"quiet_ms": intProp("default 500", 0, maxWaitMS), "timeout_ms": intProp("default 10000", 0, maxWaitMS)}),
+			Schema:      params(quietArg, waitTimeoutArg),
 			Run: func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
-				q, err := argInt(a, "quiet_ms", 500, 0, maxWaitMS)
+				q, err := quietArg.get(a)
 				if err != nil {
 					return nil, err
 				}
-				t, err := argInt(a, "timeout_ms", 10000, 0, maxWaitMS)
+				t, err := waitTimeoutArg.get(a)
 				if err != nil {
 					return nil, err
 				}
@@ -567,9 +495,9 @@ func rawTools() []Tool {
 			}},
 		{Name: "wait", Title: "Wait", ReadOnly: true, Idempotent: true,
 			Description: "Pause for a fixed time, e.g. while a host boots.",
-			Schema:      obj(map[string]any{"ms": intProp("milliseconds", 0, maxWaitMS)}, "ms"),
+			Schema:      params(msArg),
 			Run: func(ctx context.Context, _ Backend, a map[string]any) ([]Content, error) {
-				ms, err := argReqInt(a, "ms", 0, maxWaitMS)
+				ms, err := msArg.get(a)
 				if err != nil {
 					return nil, err
 				}
@@ -604,13 +532,13 @@ func rawTools() []Tool {
 		inputTool(Tool{Name: "type_text", Title: "Type text", Destructive: true,
 			Description: "Type text on the remote keyboard as a US-layout keyboard would: every printable ASCII character (Shift added where needed), newline = Enter, tab = Tab. " +
 				"The remote OS keymap must be US for symbols to come out right; CapsLock on the remote inverts letter case.",
-			Schema: obj(map[string]any{"text": prop("string", "Up to 4096 characters"), "delay_ms": intProp("Pause after each key event, default 8; use 30-50 for slow BIOS screens", 0, 2000)}, "text")},
+			Schema: params(textArg, delayArg)},
 			func(in *input, a map[string]any) (string, error) {
-				s, err := argStr(a, "text")
+				s, err := textArg.get(a)
 				if err != nil {
 					return "", err
 				}
-				gap, err := argInt(a, "delay_ms", defaultKeyGap, 0, 2000)
+				gap, err := delayArg.get(a)
 				if err != nil {
 					return "", err
 				}
@@ -646,10 +574,9 @@ func rawTools() []Tool {
 			}),
 		inputTool(Tool{Name: "key", Title: "Press key", Destructive: true,
 			Description: "Press and release one key or a '+'-joined combination, e.g. Enter, Esc, F2, Down, PageDown, Delete, KP_Enter, ctrl+alt+delete, alt+sysrq+b, ctrl+alt+f1. Optional repeat. Call list_keys for all names.",
-			Schema: obj(map[string]any{"name": prop("string", "Key name or combination of up to 6 keys"), "repeat": intProp("Times to press, default 1", 1, 100),
-				"hold_ms": intProp("How long the key is held, default 50", 0, 10000)}, "name")},
+			Schema:      params(keyNameArg, repeatArg, keyHoldArg)},
 			func(in *input, a map[string]any) (string, error) {
-				n, err := argStr(a, "name")
+				n, err := keyNameArg.get(a)
 				if err != nil {
 					return "", err
 				}
@@ -667,11 +594,11 @@ func rawTools() []Tool {
 				if len(us) > 6 {
 					return "", fmt.Errorf("at most 6 keys at once")
 				}
-				rep, err := argInt(a, "repeat", 1, 1, 100)
+				rep, err := repeatArg.get(a)
 				if err != nil {
 					return "", err
 				}
-				hold, err := argInt(a, "hold_ms", 50, 0, 10000)
+				hold, err := keyHoldArg.get(a)
 				if err != nil {
 					return "", err
 				}
@@ -695,14 +622,13 @@ func rawTools() []Tool {
 			}),
 		inputTool(Tool{Name: "key_combo", Title: "Press key combination", Destructive: true,
 			Description: `Press keys together in the given order and release them in reverse, e.g. ["ctrl","alt","delete"], ["alt","sysrq","b"], ["ctrl","alt","f2"], ["shift","f10"].`,
-			Schema: obj(map[string]any{"keys": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 1, "maxItems": 6, "description": "Key names"},
-				"hold_ms": intProp("How long the full combination is held, default 50", 0, 10000)}, "keys")},
+			Schema:      params(keysArg, comboHoldArg)},
 			func(in *input, a map[string]any) (string, error) {
-				us, err := keyList(a, "keys", 1, 6)
+				us, err := keysArg.get(a)
 				if err != nil {
 					return "", err
 				}
-				hold, err := argInt(a, "hold_ms", 50, 0, 10000)
+				hold, err := comboHoldArg.get(a)
 				if err != nil {
 					return "", err
 				}
@@ -713,20 +639,20 @@ func rawTools() []Tool {
 			}),
 		{Name: "key_down", Title: "Hold key", Destructive: true,
 			Description: "Press and HOLD keys (e.g. Shift while clicking, or a key that must stay down). They stay down until key_up, release_input, disconnect, or this MCP server exits.",
-			Schema:      obj(map[string]any{"keys": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 1, "maxItems": 6, "description": "Key names"}}, "keys"),
+			Schema:      params(keysArg),
 			Run:         keyHold(true)},
 		{Name: "key_up", Title: "Release key",
 			Description: "Release keys previously held with key_down.",
-			Schema:      obj(map[string]any{"keys": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 1, "maxItems": 6, "description": "Key names"}}, "keys"),
+			Schema:      params(keysArg),
 			Run:         keyHold(false), Idempotent: true},
 		simpleDone(Tool{Name: "release_input", Title: "Release all input", Idempotent: true,
 			Description: "Release every held key and mouse button on the remote side (also the user's). Use when keys seem stuck.",
 			Schema:      obj(map[string]any{})}, opRelease, "Released all held keys and mouse buttons."),
 		inputTool(Tool{Name: "mouse_move", Title: "Move pointer", Idempotent: true,
 			Description: "Move the pointer to a framebuffer pixel (absolute).",
-			Schema:      obj(map[string]any{"x": intProp("Framebuffer X", 0, 4095), "y": intProp("Framebuffer Y", 0, 4095)}, "x", "y")},
+			Schema:      params(xArg, yArg)},
 			func(in *input, a map[string]any) (string, error) {
-				x, y, err := coords(a, "x", "y")
+				x, y, err := coords(a, xArg, yArg)
 				if err != nil {
 					return "", err
 				}
@@ -737,23 +663,21 @@ func rawTools() []Tool {
 			}),
 		inputTool(Tool{Name: "mouse_click", Title: "Click", Destructive: true,
 			Description: "Move to a framebuffer pixel and click. Optional modifier keys are held during the click (e.g. [\"shift\"], [\"ctrl\"]).",
-			Schema: obj(map[string]any{"x": intProp("Framebuffer X", 0, 4095), "y": intProp("Framebuffer Y", 0, 4095), "button": buttonProp,
-				"modifiers": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": 4, "description": "Keys held during the click"}}, "x", "y")},
+			Schema:      params(xArg, yArg, buttonArg, modifiersArg)},
 			clicker(1)),
 		inputTool(Tool{Name: "mouse_double_click", Title: "Double-click", Destructive: true,
 			Description: "Move to a framebuffer pixel and double-click.",
-			Schema:      obj(map[string]any{"x": intProp("Framebuffer X", 0, 4095), "y": intProp("Framebuffer Y", 0, 4095), "button": buttonProp}, "x", "y")},
+			Schema:      params(xArg, yArg, buttonArg)},
 			clicker(2)),
 		inputTool(Tool{Name: "mouse_drag", Title: "Drag", Destructive: true,
 			Description: "Press a button at (x,y), move in steps to (to_x,to_y) and release there.",
-			Schema: obj(map[string]any{"x": intProp("Start X", 0, 4095), "y": intProp("Start Y", 0, 4095), "to_x": intProp("Target X", 0, 4095), "to_y": intProp("Target Y", 0, 4095),
-				"button": buttonProp}, "x", "y", "to_x", "to_y")},
+			Schema:      params(fromXArg, fromYArg, toXArg, toYArg, buttonArg)},
 			func(in *input, a map[string]any) (string, error) {
-				x, y, err := coords(a, "x", "y")
+				x, y, err := coords(a, fromXArg, fromYArg)
 				if err != nil {
 					return "", err
 				}
-				tx, ty, err := coords(a, "to_x", "to_y")
+				tx, ty, err := coords(a, toXArg, toYArg)
 				if err != nil {
 					return "", err
 				}
@@ -789,18 +713,15 @@ func rawTools() []Tool {
 			}),
 		inputTool(Tool{Name: "mouse_scroll", Title: "Scroll", Destructive: true,
 			Description: "Move to a pixel and turn the mouse wheel; positive amount scrolls up, negative down.",
-			Schema:      obj(map[string]any{"x": intProp("Framebuffer X", 0, 4095), "y": intProp("Framebuffer Y", 0, 4095), "amount": intProp("Wheel steps, -20..20, not 0", -20, 20)}, "x", "y", "amount")},
+			Schema:      params(xArg, yArg, amountArg)},
 			func(in *input, a map[string]any) (string, error) {
-				x, y, err := coords(a, "x", "y")
+				x, y, err := coords(a, xArg, yArg)
 				if err != nil {
 					return "", err
 				}
-				if v, ok := a["amount"]; !ok || v == nil {
-					return "", fmt.Errorf("amount is required")
-				}
-				n, err := argInt(a, "amount", 0, -20, 20)
-				if err != nil || n == 0 {
-					return "", fmt.Errorf("amount must be a non-zero integer in -20..20")
+				n, err := amountArg.get(a)
+				if err != nil {
+					return "", err
 				}
 				dir := 1
 				if n < 0 {
@@ -821,9 +742,9 @@ func rawTools() []Tool {
 			}),
 		{Name: "power", Title: "Chassis power", Destructive: true,
 			Description: "Chassis power control: on, off (hard), reset (hard), soft (ACPI shutdown request). Takes effect IMMEDIATELY with no confirmation and may destroy unsaved work on the host; prefer soft over off. Only with the user's consent.",
-			Schema:      obj(map[string]any{"action": map[string]any{"type": "string", "enum": powerActions}}, "action"),
+			Schema:      params(actionArg),
 			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
-				act, err := argEnum(a, "action", powerActions, "")
+				act, err := actionArg.get(a)
 				if err != nil {
 					return nil, err
 				}
@@ -834,9 +755,9 @@ func rawTools() []Tool {
 			}},
 		{Name: "mount_iso", Title: "Mount ISO",
 			Description: "Attach a local ISO file read-only as virtual CD/DVD (AMI and ATEN Java-protocol consoles; not Avocent/Cisco or ATEN HTML5). The host sees it until eject_iso or disconnect.",
-			Schema:      obj(map[string]any{"path": prop("string", "Absolute path to a readable .iso file on this computer")}, "path"),
+			Schema:      params(pathArg),
 			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
-				path, err := argStr(a, "path")
+				path, err := pathArg.get(a)
 				if err != nil {
 					return nil, err
 				}
@@ -871,7 +792,7 @@ func rawTools() []Tool {
 
 func keyHold(down bool) func(context.Context, Backend, map[string]any) ([]Content, error) {
 	return func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
-		us, err := keyList(a, "keys", 1, 6)
+		us, err := keysArg.get(a)
 		if err != nil {
 			return nil, err
 		}
@@ -892,7 +813,7 @@ func keyHold(down bool) func(context.Context, Backend, map[string]any) ([]Conten
 
 func clicker(n int) func(*input, map[string]any) (string, error) {
 	return func(in *input, a map[string]any) (string, error) {
-		x, y, err := coords(a, "x", "y")
+		x, y, err := coords(a, xArg, yArg)
 		if err != nil {
 			return "", err
 		}
@@ -900,7 +821,7 @@ func clicker(n int) func(*input, map[string]any) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		mods, err := keyList(a, "modifiers", 0, 4)
+		mods, err := modifiersArg.get(a)
 		if err != nil {
 			return "", err
 		}
@@ -939,25 +860,31 @@ func clicker(n int) func(*input, map[string]any) (string, error) {
 	}
 }
 
+// connect's arguments.
+var (
+	connectProfileArg = strSpec{Key: "profile", Desc: "Profile name, id or host (see list_profiles)", Req: true}
+	connectTimeoutArg = intSpec{Key: "timeout_ms", Desc: "Time allowed for login and console setup, default 45000", Lo: 1000, Hi: maxWaitMS, Def: 45000}
+	passwordWaitArg   = intSpec{Key: "password_wait_ms", Desc: "Time to wait for the user to enter a missing password in the OldIPMI window, default 60000; 0 = do not wait",
+		Hi: maxWaitMS, Def: 60000}
+)
+
 func connectTool() Tool {
 	return Tool{Name: "connect", Title: "Open console", Idempotent: true,
 		Description: "Open the console of a saved profile (by name, id or host) and wait until it is connected with a first frame, or report the failing stage. " +
 			"Uses the password saved in KWallet. If none is saved, OldIPMI asks the USER for it in its window; this tool keeps waiting for that (password_wait_ms) — tell the user to type it there. " +
 			"Other consoles that are already open stay open (several can be open at once; address each with the profile argument of the other tools). " +
 			"Calling connect again for the profile that is already connecting or connected just waits for it.",
-		Schema: obj(map[string]any{"profile": prop("string", "Profile name, id or host (see list_profiles)"),
-			"timeout_ms":       intProp("Time allowed for login and console setup, default 45000", 1000, maxWaitMS),
-			"password_wait_ms": intProp("Time to wait for the user to enter a missing password in the OldIPMI window, default 60000; 0 = do not wait", 0, maxWaitMS)}, "profile"),
+		Schema: params(connectProfileArg, connectTimeoutArg, passwordWaitArg),
 		Run: func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
-			name, err := argStr(a, "profile")
+			name, err := connectProfileArg.get(a)
 			if err != nil {
 				return nil, err
 			}
-			timeout, err := argInt(a, "timeout_ms", 45000, 1000, maxWaitMS)
+			timeout, err := connectTimeoutArg.get(a)
 			if err != nil {
 				return nil, err
 			}
-			pwWait, err := argInt(a, "password_wait_ms", 60000, 0, maxWaitMS)
+			pwWait, err := passwordWaitArg.get(a)
 			if err != nil {
 				return nil, err
 			}
@@ -1033,35 +960,40 @@ func connectTool() Tool {
 		}}
 }
 
+// screenshot's arguments.
+var (
+	regionXArg = intSpec{Key: "x", Desc: "Region left", Hi: 4095}
+	regionYArg = intSpec{Key: "y", Desc: "Region top", Hi: 4095}
+	regionWArg = intSpec{Key: "width", Desc: "Region width", Lo: 1, Hi: 4096}
+	regionHArg = intSpec{Key: "height", Desc: "Region height", Lo: 1, Hi: 4096}
+	scaleArg   = numSpec{Key: "scale", Desc: "Downscale factor, default 1", Lo: 0.1, Hi: 1}
+	maxSizeArg = intSpec{Key: "max_size", Desc: "Longest side of the returned image in pixels, 64..4096, default 1568; 0 = no limit", Hi: 4096, Def: defaultMaxImage}
+)
+
 func screenshotTool() Tool {
 	return Tool{Name: "screenshot", Title: "Screenshot", ReadOnly: true,
 		Description: "PNG image of the remote screen (returned as MCP image content). Optional crop region in framebuffer pixels, and downscaling: scale (0.1..1) and/or max_size " +
 			"(longest image side, default 1568; 0 = full resolution). The text block states the exact mapping; all other tools always take FRAMEBUFFER coordinates.",
-		Schema: obj(map[string]any{"x": intProp("Region left", 0, 4095), "y": intProp("Region top", 0, 4095), "width": intProp("Region width", 1, 4096), "height": intProp("Region height", 1, 4096),
-			"scale":    map[string]any{"type": "number", "minimum": 0.1, "maximum": 1, "description": "Downscale factor, default 1"},
-			"max_size": intProp("Longest side of the returned image in pixels, 64..4096, default 1568; 0 = no limit", 0, 4096)}),
+		Schema: params(regionXArg, regionYArg, regionWArg, regionHArg, scaleArg, maxSizeArg),
 		Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
-			args := map[string]any{}
-			for _, r := range []struct {
-				k      string
-				lo, hi int
-			}{{"x", 0, 4095}, {"y", 0, 4095}, {"width", 1, 4096}, {"height", 1, 4096}} {
-				if v, ok := a[r.k]; ok && v != nil {
-					n, err := argInt(a, r.k, 0, r.lo, r.hi)
+			args := map[string]any{} // the region and the scale go to the app only when given
+			for _, r := range []intSpec{regionXArg, regionYArg, regionWArg, regionHArg} {
+				if given(a, r.Key) {
+					n, err := r.get(a)
 					if err != nil {
 						return nil, err
 					}
-					args[r.k] = n
+					args[r.Key] = n
 				}
 			}
-			if v, ok := a["scale"]; ok && v != nil {
-				f, ok := v.(float64)
-				if !ok || f < 0.1 || f > 1 {
-					return nil, fmt.Errorf("scale must be a number in 0.1..1")
+			if given(a, scaleArg.Key) {
+				f, err := scaleArg.get(a)
+				if err != nil {
+					return nil, err
 				}
 				args["scale"] = f
 			}
-			ms, err := argInt(a, "max_size", defaultMaxImage, 0, 4096)
+			ms, err := maxSizeArg.get(a)
 			if err != nil {
 				return nil, err
 			}

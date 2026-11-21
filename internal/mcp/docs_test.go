@@ -21,7 +21,7 @@ func TestDocsNameEveryTool(t *testing.T) {
 	for _, tool := range tools() {
 		names = append(names, tool.Name)
 		props := tool.Schema["properties"].(map[string]any)
-		if !reflect.DeepEqual(props["profile"], profileProp) {
+		if !reflect.DeepEqual(props["profile"], profileArg.schema()) {
 			global = append(global, tool.Name)
 		}
 	}
