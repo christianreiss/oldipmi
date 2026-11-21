@@ -27,7 +27,11 @@ get_filename_component(OLDIPMI_APP_ID ${OLDIPMI_DESKTOP_FILE} NAME_WLE)
 # purpose: Fedora's %cmake turns BUILD_SHARED_LIBS on.
 qt_add_library(oldipmi_desktop STATIC desktop/agentapi.cpp desktop/agentapi.h desktop/framethumbnail.cpp desktop/framethumbnail.h desktop/controller.cpp desktop/controller.h desktop/families.cpp desktop/families.h desktop/session.cpp desktop/session.h desktop/credentials.cpp desktop/credentials.h desktop/console.cpp desktop/console.h desktop/settings.cpp desktop/settings.h desktop/singleinstance.cpp desktop/singleinstance.h desktop/runtimedir.cpp desktop/runtimedir.h desktop/i18n.h desktop/ipc.h)
 target_link_libraries(oldipmi_desktop PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::Network KF6::Wallet)
-qt_add_executable(oldipmi desktop/main.cpp)
+# Code in subdirectories includes the desktop headers by name ("controller.h").
+target_include_directories(oldipmi_desktop PUBLIC ${CMAKE_SOURCE_DIR}/desktop)
+# The application; desktop/devtools holds what only --self-test and its tour run.
+qt_add_executable(oldipmi desktop/main.cpp desktop/devtools/qmlwarnings.cpp desktop/devtools/qmlwarnings.h
+                  desktop/devtools/selftest.cpp desktop/devtools/selftest.h desktop/devtools/tour.cpp desktop/devtools/tour.h)
 target_compile_definitions(oldipmi PRIVATE OLDIPMI_VERSION="${PROJECT_VERSION}" OLDIPMI_APP_ID="${OLDIPMI_APP_ID}")
 # One instruction text for the GUI button and the MCP server's initialize reply.
 configure_file(internal/mcp/instructions.md ${CMAKE_BINARY_DIR}/mcp_instructions.md COPYONLY)
