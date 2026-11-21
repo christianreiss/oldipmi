@@ -67,7 +67,7 @@ FormCard.FormCardPage {
             trailing: QQC2.Button {
                 text: "Copy"
                 icon.name: "edit-copy"
-                onClicked: { clip.text = page.registerCommand; clip.selectAll(); clip.copy() }
+                onClicked: Ui.copyText(page.registerCommand)
             }
         }
         FormCard.FormDelegateSeparator {}
@@ -75,7 +75,7 @@ FormCard.FormCardPage {
             text: "Show instructions for the agent…"
             description: "The tool list and workflow, also sent to agents as MCP instructions"
             icon.name: "help-contents"
-            onClicked: mainWindow.showMcpInstructions()
+            onClicked: Ui.mcpInstructionsRequested()
         }
     }
 
@@ -97,6 +97,4 @@ FormCard.FormCardPage {
             onClicked: agent.clearActivity()
         }
     }
-
-    TextEdit { id: clip; visible: false }
 }

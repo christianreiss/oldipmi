@@ -51,7 +51,7 @@ ColumnLayout {
     function copyScreen() {
         const size = controller.copyFrame();
         if (size.width > 0)
-            mainWindow.showPassiveNotification("Screen image copied (" + size.width + " × " + size.height + ")", "short");
+            Ui.notify("Screen image copied (" + size.width + " × " + size.height + ")", "short");
     }
 
     // ── Header: what is shown, and what can be done with it ────────────────
@@ -129,7 +129,7 @@ ColumnLayout {
                 Layout.minimumWidth: implicitWidth
                 icon.name: "dialog-scripts"
                 text: "AI agent connected: " + agent.clientName + (agent.activity.length ? "\nLast action: " + agent.activity[0].text : "")
-                onClicked: mainWindow.openSettings("agents")
+                onClicked: Ui.settingsRequested("agents")
             }
 
             Kirigami.ActionToolBar {

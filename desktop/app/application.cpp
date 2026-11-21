@@ -50,7 +50,6 @@ ExitCode Application::load() {
   if (m_engine.rootObjects().isEmpty())
     return ExitCode::QmlNotLoaded;
   QObject *root = m_engine.rootObjects().first();
-  m_engine.rootContext()->setContextProperty("mainWindow", root);
   m_quitRequests.root = root;
   QCoreApplication::instance()->installEventFilter(&m_quitRequests);
   m_console = root->findChild<Console *>("console");

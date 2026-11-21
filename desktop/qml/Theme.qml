@@ -119,15 +119,6 @@ Item {
             ? "~/.config" + path.slice(testConfigDir.length) : path
     }
 
-    // Clipboard without another import: a hidden text editor copies its selection.
-    TextEdit { id: clipboard; visible: false }
-    function copyText(value) {
-        clipboard.text = value;
-        clipboard.selectAll();
-        clipboard.copy();
-        clipboard.text = "";
-    }
-
     readonly property color black: Qt.rgba(0, 0, 0, 1)
     readonly property color white: Qt.rgba(1, 1, 1, 1)
     // Channel by channel in sRGB: unlike ColorUtils.linearInterpolation (HSL), a

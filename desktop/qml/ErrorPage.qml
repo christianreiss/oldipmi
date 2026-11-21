@@ -136,10 +136,7 @@ Rectangle {
                             icon.name: "edit-copy"
                             tooltip: "Copy the technical details"
                             implicitHeight: Math.round(Theme.gu * 1.6)
-                            onClicked: {
-                                Theme.copyText(page.detail);
-                                mainWindow.showPassiveNotification("Technical details copied");
-                            }
+                            onClicked: Ui.copyText(page.detail, "Technical details copied")
                         }
                     }
                     Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.lineSoft }

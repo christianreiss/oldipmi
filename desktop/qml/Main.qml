@@ -489,4 +489,11 @@ Kirigami.ApplicationWindow {
         }
         function onWalletUnavailable() { walletDialog.open() }
     }
+    // Requests of the pages and of the settings window (Ui.qml).
+    Connections {
+        target: Ui
+        function onNotificationRequested(message, timeout) { window.showPassiveNotification(message, timeout) }
+        function onSettingsRequested(page) { window.openSettings(page) }
+        function onMcpInstructionsRequested() { window.showMcpInstructions() }
+    }
 }

@@ -128,10 +128,7 @@ Item {
                                 icon.name: "edit-copy"
                                 text: "Copy address"
                                 size: Math.round(Theme.gu * 1.6)
-                                onClicked: {
-                                    Theme.copyText(page.profile.host || "");
-                                    mainWindow.showPassiveNotification("Address copied");
-                                }
+                                onClicked: Ui.copyText(page.profile.host || "", "Address copied")
                             }
                         }
 
