@@ -56,6 +56,11 @@
   stay as they are.
 
 ### Fixed
+* **The packages carry every license of the Go programs.** `oldipmi-core` and
+  `oldipmi-mcp` contain the Go standard library; its license and the patent
+  grant of Go and of the `golang.org/x` modules now come with the RPM and the
+  bundle (`licenses/go`). `tools/check.sh` fails if a module linked into
+  either program has no license there.
 * **The window is ready within a second again, and OldIPMI needs far less
   memory.** While the window was being laid out, five pictures took their size
   from their own width: the sidebar's logo, the family picture of each

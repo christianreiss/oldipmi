@@ -38,6 +38,15 @@ The native application contains no vendor Java code, JARs or shared libraries.
   distributed under the project license.
 * Go IPMI dependency versions are locked in `go.mod` / `go.sum`. No external
   `ipmitool` process is used.
+* `oldipmi-core` and `oldipmi-mcp` are statically linked Go programs. They
+  contain the Go standard library and runtime (BSD-3-Clause, with Google's
+  additional patent grant: `licenses/go/std`) and the modules of `go.mod`, each
+  with its license under `licenses/go/<module path>`: `golang.org/x/net`, whose
+  `websocket` package carries the HTML5 consoles, `golang.org/x/sys` and
+  `golang.org/x/term` (BSD-3-Clause, with the same patent grant), and
+  `github.com/bougou/go-ipmi` (Apache-2.0) with its dependencies (MIT and
+  BSD-3-Clause). `tools/check.sh` fails if a module linked into either program
+  has no license there.
 * Qt 6 and KDE Frameworks 6 are dynamically linked. Bundle license texts are
   under `usr/share/licenses`; the bundle's libraries can be replaced. Obtain
   corresponding distro source packages for bundled Qt/KDE libraries from

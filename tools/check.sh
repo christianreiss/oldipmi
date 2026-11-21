@@ -78,6 +78,22 @@ if ! $package; then
     ctest --test-dir "$asan" --output-on-failure
 fi
 
+step "Go licenses"
+# Every module linked into the Go programs ships its license (licenses/go),
+# and so does the standard library they contain.
+modules=$(go version -m "$build/oldipmi-core" "$build/oldipmi-mcp" | awk '$1 == "dep" { print $2 }' | sort -u)
+if [ -z "$modules" ]; then
+  echo "check.sh: no Go modules found in $build/oldipmi-core and $build/oldipmi-mcp" >&2
+  exit 1
+fi
+missing=
+for module in std $modules; do
+  ls "licenses/go/$module" 2>/dev/null | grep -qi '^licen[cs]e' || missing="$missing $module"
+done
+if [ -n "$missing" ]; then
+  echo "check.sh: no license in licenses/go for:$missing" >&2
+  exit 1
+fi
 step desktop-file-validate
 desktop-file-validate packaging/io.uggs.OldIPMI.desktop
 step "all checks passed"
