@@ -47,6 +47,12 @@
   stay as they are.
 
 ### Fixed
+* **Typing and the picture go on while an ISO is being mounted.** Mounting,
+  ejecting and power commands now run beside the console, one at a time and in
+  the order they were given. Keys and mouse input no longer wait until the BMC
+  has answered a mount, and the picture of an AMI console no longer stands still
+  meanwhile. A mount now gives up after 30 seconds and a power command after 15,
+  each with an error that says so; a mount had no time limit of its own before.
 * **An AMI console ends when its keepalive fails.** The native AMI console
   (IVTP) sends a keepalive every 5 seconds but ignored a failed send, so a
   console whose BMC had stopped taking data could stay open with a frozen

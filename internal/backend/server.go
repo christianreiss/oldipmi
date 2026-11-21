@@ -29,6 +29,14 @@ var (
 // console; the deadline still ends a session whose GUI stopped reading altogether.
 const writeTimeout = 30 * time.Second
 
+// The time limits of the slow commands. Both stay below the 60 seconds that
+// oldipmi-mcp waits for an answer (internal/mcp/client.go), so that an agent
+// hears about a stuck BMC too. Tests shorten them.
+var (
+	mountTimeout = 30 * time.Second
+	powerTimeout = 15 * time.Second
+)
+
 type Command struct {
 	Version  int                  `json:"version"`
 	ID       int                  `json:"id"`
@@ -195,32 +203,96 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 		})
 	}()
 	emit(Event{Type: EventState, State: StateConnected})
+	// Mount, eject and power can take seconds. They run off this loop, one at
+	// a time and in the order they came, so that input goes on meanwhile; the
+	// desktop matches their replies by id. Only this loop sends replies, and
+	// the session closes only after the command in flight has returned.
+	slow := make(chan slowResult, 1)
+	var queue []Command
+	var inFlight *Command
+	var lane sync.WaitGroup
+	defer lane.Wait()
+	startSlow := func() {
+		if inFlight != nil || len(queue) == 0 {
+			return
+		}
+		c := queue[0]
+		queue = queue[1:]
+		inFlight = &c
+		lane.Add(1)
+		go func() {
+			defer lane.Done()
+			slow <- slowResult{c, runSlow(ctx, media, power, c)}
+		}()
+	}
+	wasMounted := false
+	reply := func(c Command, err error) {
+		if err != nil {
+			emit(Event{ID: c.ID, Type: EventError, Message: err.Error()})
+			return
+		}
+		ev := Event{ID: c.ID, Type: EventOK}
+		if c.Op == OpMount || c.Op == OpEject {
+			mounted := isMounted()
+			wasMounted = mounted
+			ev.Mounted = &mounted
+		}
+		emit(ev)
+	}
+	disconnecting := false
 	defer func() { cancel() }()
 	mediaTick := time.NewTicker(500 * time.Millisecond)
 	defer mediaTick.Stop()
-	wasMounted := false
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-mediaTick.C:
+			if inFlight != nil && inFlight.Op != OpPower {
+				continue // the reply of the mount or eject reports the media
+			}
 			mounted := isMounted()
 			if mounted != wasMounted {
 				wasMounted = mounted
 				emit(Event{Type: EventMedia, Mounted: &mounted})
 			}
 		case e := <-done:
+			if inFlight != nil {
+				// The reply of the command in flight comes first, as it did
+				// when the command ran in this loop.
+				r := <-slow
+				reply(r.cmd, r.err)
+			}
 			if e != nil && ctx.Err() == nil {
 				emit(Event{Type: EventError, State: StateDisconnected, Message: e.Error()})
 			}
 			return e
+		case r := <-slow:
+			inFlight = nil
+			reply(r.cmd, r.err)
+			startSlow()
+			if disconnecting && inFlight == nil {
+				session.Release()
+				return nil
+			}
 		case c, ok := <-cmds:
 			if !ok {
 				return io.EOF
 			}
+			if disconnecting {
+				continue // nothing after a disconnect is carried out
+			}
 			var err error
 			switch c.Op {
+			case OpMount, OpEject, OpPower:
+				queue = append(queue, c)
+				startSlow()
+				continue
 			case OpDisconnect:
+				if inFlight != nil {
+					disconnecting = true // once the slow commands before it are done
+					continue
+				}
 				session.Release()
 				return nil
 			case OpKey:
@@ -229,38 +301,53 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 				err = session.Pointer(c.Input)
 			case OpRelease:
 				err = session.Release()
-			case OpMount:
-				if media == nil {
-					err = errNoMedia
-				} else {
-					err = media.Mount(ctx, c.Path)
-				}
-			case OpEject:
-				if media != nil {
-					err = media.Eject()
-				}
-			case OpPower:
-				if power == nil {
-					err = errNoPower
-				} else {
-					opctx, stop := context.WithTimeout(ctx, 15*time.Second)
-					err = power.Power(opctx, c.Action)
-					stop()
-				}
 			default:
 				err = fmt.Errorf("unknown command")
 			}
-			if err != nil {
-				emit(Event{ID: c.ID, Type: EventError, Message: err.Error()})
-			} else {
-				ev := Event{ID: c.ID, Type: EventOK}
-				if c.Op == OpMount || c.Op == OpEject {
-					mounted := isMounted()
-					wasMounted = mounted
-					ev.Mounted = &mounted
-				}
-				emit(ev)
-			}
+			reply(c, err)
 		}
 	}
+}
+
+type slowResult struct {
+	cmd Command
+	err error
+}
+
+// runSlow carries out a mount, eject or power command, a mount or power
+// command within its time limit.
+func runSlow(ctx context.Context, media protocol.Media, power protocol.Power, c Command) error {
+	switch c.Op {
+	case OpMount:
+		if media == nil {
+			return errNoMedia
+		}
+		return withTimeout(ctx, mountTimeout, "the ISO was not mounted", func(ctx context.Context) error {
+			return media.Mount(ctx, c.Path)
+		})
+	case OpEject:
+		if media == nil {
+			return nil
+		}
+		return media.Eject()
+	default: // OpPower
+		if power == nil {
+			return errNoPower
+		}
+		return withTimeout(ctx, powerTimeout, "the power command did not finish", func(ctx context.Context) error {
+			return power.Power(ctx, c.Action)
+		})
+	}
+}
+
+// withTimeout runs op within d. When op fails because d ran out, the error
+// says so in front of op's own.
+func withTimeout(ctx context.Context, d time.Duration, what string, op func(context.Context) error) error {
+	ctx, cancel := context.WithTimeout(ctx, d)
+	defer cancel()
+	err := op(ctx)
+	if err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return fmt.Errorf("%s within %v: %w", what, d, err)
+	}
+	return err
 }
