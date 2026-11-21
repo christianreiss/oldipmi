@@ -284,7 +284,7 @@ type input struct {
 }
 
 func (in *input) key(u int, down bool) error {
-	if _, err := call(in.b, opKey, map[string]any{"usage": u, "down": down}); err != nil {
+	if _, err := call(in.ctx, in.b, opKey, map[string]any{"usage": u, "down": down}); err != nil {
 		return err
 	}
 	if down {
@@ -311,7 +311,7 @@ func (in *input) tap(u, holdMS int) error {
 }
 
 func (in *input) pointer(x, y, buttons, wheel int) error {
-	if _, err := call(in.b, opPointer, map[string]any{"x": x, "y": y, "buttons": buttons, "wheel": wheel}); err != nil {
+	if _, err := call(in.ctx, in.b, opPointer, map[string]any{"x": x, "y": y, "buttons": buttons, "wheel": wheel}); err != nil {
 		return err
 	}
 	in.x, in.y, in.buttons = x, y, buttons
@@ -319,12 +319,13 @@ func (in *input) pointer(x, y, buttons, wheel int) error {
 }
 
 func (in *input) cleanup() {
+	ctx := context.WithoutCancel(in.ctx) // let go also when the tool was cancelled
 	for i := len(in.held) - 1; i >= 0; i-- {
-		call(in.b, opKey, map[string]any{"usage": in.held[i], "down": false})
+		call(ctx, in.b, opKey, map[string]any{"usage": in.held[i], "down": false})
 	}
 	in.held = nil
 	if in.buttons != 0 {
-		call(in.b, opPointer, map[string]any{"x": in.x, "y": in.y, "buttons": 0, "wheel": 0})
+		call(ctx, in.b, opPointer, map[string]any{"x": in.x, "y": in.y, "buttons": 0, "wheel": 0})
 		in.buttons = 0
 	}
 }
@@ -400,7 +401,7 @@ func keyHold(down bool) func(context.Context, Backend, map[string]any) ([]Conten
 			return nil, err
 		}
 		for _, u := range us {
-			if _, err := call(b, opKey, map[string]any{"usage": u, "down": down}); err != nil {
+			if _, err := call(ctx, b, opKey, map[string]any{"usage": u, "down": down}); err != nil {
 				return nil, err
 			}
 			if err := sleep(ctx, 20*time.Millisecond); err != nil {

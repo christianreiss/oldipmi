@@ -20,7 +20,7 @@ func sessionTools() []Tool {
 		{Name: "disconnect", Title: "Disconnect console", Idempotent: true,
 			Description: "Close one console session (profile argument, or the only open one), or cancel one that is being set up (also dismisses a pending password prompt). all=true closes every open console. Other consoles stay open.",
 			Schema:      params(allArg),
-			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
+			Run: func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
 				all, err := allArg.get(a)
 				if err != nil {
 					return nil, err
@@ -32,7 +32,7 @@ func sessionTools() []Tool {
 				if all {
 					args["all"] = true
 				}
-				raw, err := call(b, opDisconnect, args)
+				raw, err := call(ctx, b, opDisconnect, args)
 				if err != nil {
 					return nil, err
 				}
@@ -106,7 +106,7 @@ func connectTool() Tool {
 			if err != nil {
 				return nil, err
 			}
-			raw, err := call(b, opConnect, map[string]any{"profile": name})
+			raw, err := call(ctx, b, opConnect, map[string]any{"profile": name})
 			if err != nil {
 				return nil, err
 			}
@@ -131,7 +131,7 @@ func connectTool() Tool {
 			// Phase 1: wait for the user while a password prompt is open.
 			var s statusReply
 			if _, err = poll(ctx, pwWait, func() (bool, error) {
-				if s, err = getStatus(b); err != nil {
+				if s, err = getStatus(ctx, b); err != nil {
 					return false, err
 				}
 				return !(s.State == "disconnected" && s.PasswordRequired), nil
@@ -144,7 +144,7 @@ func connectTool() Tool {
 			// Phase 2: wait for login, discovery and the first frame.
 			var noFrameSince time.Time
 			done, err := poll(ctx, timeout, func() (bool, error) {
-				if s, err = getStatus(b); err != nil {
+				if s, err = getStatus(ctx, b); err != nil {
 					return false, err
 				}
 				switch s.State {

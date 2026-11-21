@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,11 +53,13 @@ type reply struct {
 // ErrNotRunning is returned when nothing answers on the agent socket.
 var ErrNotRunning = errors.New("No OldIPMI window is serving agent control (nothing answers on the agent socket). Ask the user to start OldIPMI, or, if it is open, to switch on Settings → AI agents (MCP) → \"Allow AI agents to control OldIPMI\"")
 
-func (c *Client) Call(op string, args map[string]any) (json.RawMessage, error) {
+// Call sends one request and waits for its reply. ctx does not limit the
+// wait yet: every round trip has 60 seconds.
+func (c *Client) Call(ctx context.Context, op string, args map[string]any) (json.RawMessage, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for attempt := 0; ; attempt++ {
-		raw, err, retry := c.once(op, args)
+		raw, retry, err := c.once(op, args)
 		if err == nil || !retry || attempt > 0 {
 			return raw, err
 		}
@@ -107,7 +110,7 @@ func (c *Client) dial() error {
 // greet says hello and keeps what the app answers about itself: its version
 // and, since the version check, its agent API and the ops it offers.
 func (c *Client) greet() error {
-	raw, err, _ := c.roundTrip(opHello, c.hello)
+	raw, _, err := c.roundTrip(opHello, c.hello)
 	if err != nil {
 		return err
 	}
@@ -143,40 +146,40 @@ func (c *Client) offers(op string) error {
 }
 
 // once returns retry=true when the failure happened before the request could have been acted on.
-func (c *Client) once(op string, args map[string]any) (json.RawMessage, error, bool) {
+func (c *Client) once(op string, args map[string]any) (raw json.RawMessage, retry bool, err error) {
 	if c.conn == nil {
 		if err := c.dial(); err != nil {
-			return nil, err, false
+			return nil, false, err
 		}
 	}
 	if err := c.offers(op); err != nil {
-		return nil, err, false
+		return nil, false, err
 	}
 	return c.roundTrip(op, args)
 }
 
-func (c *Client) roundTrip(op string, args map[string]any) (json.RawMessage, error, bool) {
+func (c *Client) roundTrip(op string, args map[string]any) (raw json.RawMessage, retry bool, err error) {
 	c.id++
 	b, _ := json.Marshal(map[string]any{"id": c.id, "op": op, "args": args})
 	c.conn.SetDeadline(time.Now().Add(60 * time.Second))
 	if _, err := c.conn.Write(append(b, '\n')); err != nil {
 		c.drop()
-		return nil, errors.New("connection to OldIPMI lost"), true
+		return nil, true, errors.New("connection to OldIPMI lost")
 	}
 	for {
 		line, err := c.rd.ReadBytes('\n')
 		if err != nil {
 			c.drop()
-			return nil, errors.New("connection to OldIPMI lost while waiting for the reply; the operation may or may not have run"), false
+			return nil, false, errors.New("connection to OldIPMI lost while waiting for the reply; the operation may or may not have run")
 		}
 		var r reply
 		if json.Unmarshal(line, &r) != nil || r.ID != c.id {
 			continue
 		}
 		if !r.OK {
-			return nil, errors.New(r.Error), false
+			return nil, false, errors.New(r.Error)
 		}
-		return r.Result, nil, false
+		return r.Result, false, nil
 	}
 }
 

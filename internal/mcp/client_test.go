@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -93,7 +94,7 @@ const hello = `{"args":{"name":"fixture-agent","protocol":"2025-06-18","version"
 
 func TestClientWithoutTheApp(t *testing.T) {
 	c := &Client{Path: filepath.Join(t.TempDir(), "agent.sock")}
-	if _, err := c.Call("status", map[string]any{}); err != ErrNotRunning {
+	if _, err := c.Call(context.Background(), "status", map[string]any{}); err != ErrNotRunning {
 		t.Fatalf("got %v, want ErrNotRunning", err)
 	}
 }
@@ -121,11 +122,11 @@ func TestClientRequestsAndReplies(t *testing.T) {
 	// the test output.
 	c := &Client{Path: a.path, Log: io.Discard}
 	c.Hello("fixture-agent", "1.0", "2025-06-18")
-	raw, err := c.Call("status", map[string]any{"profile": "Demo"})
+	raw, err := c.Call(context.Background(), "status", map[string]any{"profile": "Demo"})
 	if err != nil || string(raw) != `{"state":"connected"}` {
 		t.Fatalf("status: %s, %v", raw, err)
 	}
-	if _, err := c.Call("key", map[string]any{"usage": 4, "down": true}); err == nil || err.Error() != "Not connected (state: disconnected). Use connect first." {
+	if _, err := c.Call(context.Background(), "key", map[string]any{"usage": 4, "down": true}); err == nil || err.Error() != "Not connected (state: disconnected). Use connect first." {
 		t.Fatalf("key: %v", err)
 	}
 	// A hello while connected goes out at once.
@@ -160,14 +161,14 @@ func TestClientReconnects(t *testing.T) {
 	c.Hello("fixture-agent", "1.0", "2025-06-18")
 	status := func(want string) {
 		t.Helper()
-		if raw, err := c.Call("status", map[string]any{}); err != nil || string(raw) != want {
+		if raw, err := c.Call(context.Background(), "status", map[string]any{}); err != nil || string(raw) != want {
 			t.Fatalf("status: %s, %v; want %s", raw, err, want)
 		}
 	}
 	status(`{"conn":0}`)
 	<-a.closed
 	status(`{"conn":1}`) // request 3 cannot be sent on the closed connection
-	if _, err := c.Call("power", map[string]any{"action": "soft"}); err == nil || !strings.Contains(err.Error(), "may or may not have run") {
+	if _, err := c.Call(context.Background(), "power", map[string]any{"action": "soft"}); err == nil || !strings.Contains(err.Error(), "may or may not have run") {
 		t.Fatalf("power: %v", err)
 	}
 	<-a.closed
@@ -186,12 +187,12 @@ func TestClientReconnects(t *testing.T) {
 func TestClientGivesUpWhenTheAppIsGone(t *testing.T) {
 	a := newFakeApp(t, func(_ int, req map[string]any) []string { return []string{answer(req, `{}`), "CLOSE"} })
 	c := &Client{Path: a.path}
-	if _, err := c.Call("status", map[string]any{}); err != nil {
+	if _, err := c.Call(context.Background(), "status", map[string]any{}); err != nil {
 		t.Fatal(err)
 	}
 	<-a.closed
 	a.ln.Close()
-	if _, err := c.Call("status", map[string]any{}); err != ErrNotRunning {
+	if _, err := c.Call(context.Background(), "status", map[string]any{}); err != ErrNotRunning {
 		t.Fatalf("got %v, want ErrNotRunning", err)
 	}
 }
@@ -209,7 +210,7 @@ func TestClientCallsOneAtATime(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			raw, err := c.Call("status", map[string]any{"n": i})
+			raw, err := c.Call(context.Background(), "status", map[string]any{"n": i})
 			if want := fmt.Sprintf(`{"n":%d}`, i); err != nil || string(raw) != want {
 				t.Errorf("call %d: %s, %v", i, raw, err)
 			}
@@ -244,7 +245,7 @@ func TestClientLosesTheAppAtTheHello(t *testing.T) {
 	a := newFakeApp(t, func(int, map[string]any) []string { return nil })
 	c := &Client{Path: a.path}
 	c.Hello("fixture-agent", "1.0", "2025-06-18")
-	if _, err := c.Call("status", map[string]any{}); err == nil || err.Error() != "connection to OldIPMI lost" {
+	if _, err := c.Call(context.Background(), "status", map[string]any{}); err == nil || err.Error() != "connection to OldIPMI lost" {
 		t.Fatalf("got %v", err)
 	}
 	if got := a.requests(); len(got) != 2 || len(got[0]) != 1 || len(got[1]) != 1 || got[1][0] != fmt.Sprintf(hello, 2) {
@@ -261,7 +262,7 @@ func TestClientRefusesAnotherUsersSocket(t *testing.T) {
 	t.Cleanup(func() { ownUID = uid })
 	c := &Client{Path: a.path}
 	c.Hello("fixture-agent", "1.0", "2025-06-18")
-	if _, err := c.Call("status", map[string]any{}); err == nil || !strings.Contains(err.Error(), "served by another user") {
+	if _, err := c.Call(context.Background(), "status", map[string]any{}); err == nil || !strings.Contains(err.Error(), "served by another user") {
 		t.Fatalf("got %v", err)
 	}
 	for _, conn := range a.requests() {
@@ -287,10 +288,10 @@ func TestClientChecksTheAppsOperations(t *testing.T) {
 	a := app(`{"app":"OldIPMI","version":"0.4.0","api":1,"ops":["hello","status"]}`)
 	c := &Client{Path: a.path, Version: "0.5.0", Log: &log}
 	c.Hello("fixture-agent", "1.0", "2025-06-18")
-	if _, err := c.Call(opStatus, map[string]any{}); err != nil {
+	if _, err := c.Call(context.Background(), opStatus, map[string]any{}); err != nil {
 		t.Fatalf("status: %v", err)
 	}
-	_, err := c.Call(opPower, map[string]any{"action": "soft"})
+	_, err := c.Call(context.Background(), opPower, map[string]any{"action": "soft"})
 	if want := `OldIPMI 0.4.0 does not offer the operation "power" that oldipmi-mcp 0.5.0 uses: start the oldipmi-mcp of OldIPMI 0.4.0, or update OldIPMI`; err == nil || err.Error() != want {
 		t.Fatalf("power: %v, want %q", err, want)
 	}
@@ -305,7 +306,7 @@ func TestClientChecksTheAppsOperations(t *testing.T) {
 	a = app(`{"app":"OldIPMI","version":"9.0.0","api":2,"ops":["hello","status"]}`)
 	c = &Client{Path: a.path, Version: "0.5.0", Log: &log}
 	c.Hello("fixture-agent", "1.0", "2025-06-18")
-	if _, err := c.Call(opStatus, map[string]any{}); err == nil || !strings.Contains(err.Error(), "OldIPMI 9.0.0 speaks agent API 2, this oldipmi-mcp 0.5.0 only 1") {
+	if _, err := c.Call(context.Background(), opStatus, map[string]any{}); err == nil || !strings.Contains(err.Error(), "OldIPMI 9.0.0 speaks agent API 2, this oldipmi-mcp 0.5.0 only 1") {
 		t.Fatalf("newer API: %v", err)
 	}
 	if log.Len() != 0 {
@@ -316,7 +317,7 @@ func TestClientChecksTheAppsOperations(t *testing.T) {
 	c = &Client{Path: a.path, Version: "0.5.0", Log: &log}
 	c.Hello("fixture-agent", "1.0", "2025-06-18")
 	for range 2 {
-		if _, err := c.Call(opPower, map[string]any{"action": "soft"}); err != nil {
+		if _, err := c.Call(context.Background(), opPower, map[string]any{"action": "soft"}); err != nil {
 			t.Fatalf("power from an older app: %v", err)
 		}
 	}

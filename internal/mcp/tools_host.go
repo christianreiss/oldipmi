@@ -10,12 +10,12 @@ func hostTools() []Tool {
 		{Name: "power", Title: "Chassis power", Destructive: true,
 			Description: "Chassis power control: on, off (hard), reset (hard), soft (ACPI shutdown request). Takes effect IMMEDIATELY with no confirmation and may destroy unsaved work on the host; prefer soft over off. Only with the user's consent.",
 			Schema:      params(actionArg),
-			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
+			Run: func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
 				act, err := actionArg.get(a)
 				if err != nil {
 					return nil, err
 				}
-				if _, err := call(b, opPower, map[string]any{"action": act}); err != nil {
+				if _, err := call(ctx, b, opPower, map[string]any{"action": act}); err != nil {
 					return nil, err
 				}
 				return text("Power action '" + act + "' accepted by the BMC."), nil
@@ -23,12 +23,12 @@ func hostTools() []Tool {
 		{Name: "mount_iso", Title: "Mount ISO",
 			Description: "Attach a local ISO file read-only as virtual CD/DVD (AMI and ATEN Java-protocol consoles; not Avocent/Cisco or ATEN HTML5). The host sees it until eject_iso or disconnect.",
 			Schema:      params(pathArg),
-			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
+			Run: func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
 				path, err := pathArg.get(a)
 				if err != nil {
 					return nil, err
 				}
-				raw, err := call(b, opMount, map[string]any{"path": path})
+				raw, err := call(ctx, b, opMount, map[string]any{"path": path})
 				if err != nil {
 					return nil, err
 				}
@@ -40,12 +40,12 @@ func hostTools() []Tool {
 		{Name: "eject_iso", Title: "Eject ISO", Idempotent: true,
 			Description: "Detach the mounted virtual media.",
 			Schema:      obj(map[string]any{}),
-			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
+			Run: func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
 				// Say so when nothing is mounted instead of reporting a silent no-op as success.
-				if s, err := getStatus(b); err == nil && s.State == "connected" && !s.Mounted {
+				if s, err := getStatus(ctx, b); err == nil && s.State == "connected" && !s.Mounted {
 					return text("No virtual media is mounted; nothing to eject."), nil
 				}
-				raw, err := call(b, opEject, a)
+				raw, err := call(ctx, b, opEject, a)
 				if err != nil {
 					return nil, err
 				}

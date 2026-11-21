@@ -84,15 +84,15 @@ var sleep = func(ctx context.Context, d time.Duration) error {
 
 func text(s string) []Content { return []Content{{Type: "text", Text: s}} }
 
-func call(b Backend, op string, args map[string]any) (json.RawMessage, error) {
+func call(ctx context.Context, b Backend, op string, args map[string]any) (json.RawMessage, error) {
 	if args == nil {
 		args = map[string]any{}
 	}
-	return b.Call(op, args)
+	return b.Call(ctx, op, args)
 }
 
-func getStatus(b Backend) (statusReply, error) {
-	raw, err := call(b, opStatus, nil)
+func getStatus(ctx context.Context, b Backend) (statusReply, error) {
+	raw, err := call(ctx, b, opStatus, nil)
 	if err != nil {
 		return statusReply{}, err
 	}
@@ -114,8 +114,8 @@ func simple(t Tool, op string) Tool { return simpleDone(t, op, "") }
 // simpleDone is simple with a sentence for an empty reply, so an agent reads
 // what happened instead of "{}".
 func simpleDone(t Tool, op, done string) Tool {
-	t.Run = func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
-		raw, err := call(b, op, a)
+	t.Run = func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
+		raw, err := call(ctx, b, op, a)
 		if err != nil {
 			return nil, err
 		}
@@ -169,7 +169,7 @@ type scoped struct {
 	profile string
 }
 
-func (s scoped) Call(op string, args map[string]any) (json.RawMessage, error) {
+func (s scoped) Call(ctx context.Context, op string, args map[string]any) (json.RawMessage, error) {
 	if _, ok := args["profile"]; !ok && s.profile != "" {
 		cp := make(map[string]any, len(args)+1)
 		for k, v := range args {
@@ -178,7 +178,7 @@ func (s scoped) Call(op string, args map[string]any) (json.RawMessage, error) {
 		cp["profile"] = s.profile
 		args = cp
 	}
-	return s.Backend.Call(op, args)
+	return s.Backend.Call(ctx, op, args)
 }
 
 // sessionBound adds the optional profile argument to a tool and routes all its

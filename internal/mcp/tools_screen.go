@@ -18,13 +18,13 @@ func screenTools() []Tool {
 				if err != nil {
 					return nil, err
 				}
-				s, err := getStatus(b)
+				s, err := getStatus(ctx, b)
 				if err != nil {
 					return nil, err
 				}
 				base := s.ChangeSeq
 				changed, err := poll(ctx, t, func() (bool, error) {
-					if s, err = getStatus(b); err != nil {
+					if s, err = getStatus(ctx, b); err != nil {
 						return false, err
 					}
 					if s.State != "connected" {
@@ -54,7 +54,7 @@ func screenTools() []Tool {
 				}
 				var s statusReply
 				stable, err := poll(ctx, t, func() (bool, error) {
-					if s, err = getStatus(b); err != nil {
+					if s, err = getStatus(ctx, b); err != nil {
 						return false, err
 					}
 					if s.State != "connected" {
@@ -108,7 +108,7 @@ func screenshotTool() Tool {
 		Description: "PNG image of the remote screen (returned as MCP image content). Optional crop region in framebuffer pixels, and downscaling: scale (0.1..1) and/or max_size " +
 			"(longest image side, default 1568; 0 = full resolution). The text block states the exact mapping; all other tools always take FRAMEBUFFER coordinates.",
 		Schema: params(regionXArg, regionYArg, regionWArg, regionHArg, scaleArg, maxSizeArg),
-		Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
+		Run: func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
 			args := map[string]any{} // the region and the scale go to the app only when given
 			for _, r := range []intSpec{regionXArg, regionYArg, regionWArg, regionHArg} {
 				if given(a, r.Key) {
@@ -134,7 +134,7 @@ func screenshotTool() Tool {
 				return nil, fmt.Errorf("max_size must be 0 or 64..4096")
 			}
 			args["maxSize"] = ms
-			raw, err := call(b, opScreenshot, args)
+			raw, err := call(ctx, b, opScreenshot, args)
 			if err != nil {
 				return nil, err
 			}

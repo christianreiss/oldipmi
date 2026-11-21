@@ -29,7 +29,7 @@ type fake struct {
 	hello    []string
 }
 
-func (f *fake) Call(op string, a map[string]any) (json.RawMessage, error) {
+func (f *fake) Call(_ context.Context, op string, a map[string]any) (json.RawMessage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, call_{op, a})
@@ -382,6 +382,68 @@ func TestEOFCancelsRunningTool(t *testing.T) {
 	send(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"wait","arguments":{"ms":100000}}}`)
 	time.Sleep(50 * time.Millisecond)
 	closeIn()
+}
+
+// ctxBackend refuses calls whose context has ended, as the agent socket
+// client does.
+type ctxBackend struct{ *fake }
+
+func (c ctxBackend) Call(ctx context.Context, op string, a map[string]any) (json.RawMessage, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return c.fake.Call(ctx, op, a)
+}
+
+// until waits up to 3 seconds for done.
+func until(t *testing.T, what string, done func() bool) {
+	t.Helper()
+	for end := time.Now().Add(3 * time.Second); !done(); {
+		if time.Now().After(end) {
+			t.Fatal("timed out waiting for " + what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// A tool cancelled while it holds a key lets go of it, although its context
+// has ended.
+func TestCancelledToolLetsGoOfItsKeys(t *testing.T) {
+	realSleep(t)
+	f := &fake{}
+	send, next, closeIn := pipeServer(t, ctxBackend{f})
+	send(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"key","arguments":{"name":"a","hold_ms":10000}}}`)
+	until(t, "the key press", func() bool { return len(f.ops("key")) > 0 })
+	send(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}}`)
+	send(`{"jsonrpc":"2.0","id":2,"method":"ping"}`)
+	next()
+	if err := closeIn(); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(f.ops("key"), " "); got != "4:true 4:false" {
+		t.Fatalf("got %s, want the key pressed and let go", got)
+	}
+}
+
+// A tool cancelled while it waits for its turn never runs.
+func TestCancelledQueuedToolNeverRuns(t *testing.T) {
+	realSleep(t)
+	f := &fake{}
+	send, next, closeIn := pipeServer(t, f)
+	send(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"wait","arguments":{"ms":100000}}}`)
+	send(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"key_down","arguments":{"keys":["b"]}}}`)
+	send(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":2}}`)
+	send(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}}`)
+	send(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"wait","arguments":{"ms":1}}}`)
+	if r := next(); fmt.Sprint(r["id"]) != "3" {
+		t.Fatalf("cancelled requests must not be answered: %v", r)
+	}
+	if err := closeIn(); err != nil {
+		t.Fatal(err)
+	}
+	if ops := f.ops("key"); len(ops) != 0 {
+		t.Fatalf("the cancelled key_down ran: %v", ops)
+	}
 }
 
 func TestPipelinedToolsKeepOrder(t *testing.T) {

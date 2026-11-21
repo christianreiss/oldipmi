@@ -22,9 +22,10 @@ import (
 // ShutdownGrace is how long running tools may continue after stdin closes.
 var ShutdownGrace = 5 * time.Second
 
-// Backend performs one operation in the OldIPMI desktop application.
+// Backend performs one operation in the OldIPMI desktop application for the
+// tool call whose context is ctx.
 type Backend interface {
-	Call(op string, args map[string]any) (json.RawMessage, error)
+	Call(ctx context.Context, op string, args map[string]any) (json.RawMessage, error)
 }
 
 // Greeter is implemented by backends that tell the app which MCP client is attached.
@@ -92,21 +93,19 @@ type Server struct {
 	tools        []Tool
 	byName       map[string]Tool
 
-	// Tools run one at a time in arrival order (tickets), so input from
-	// pipelined calls never interleaves or reorders on the console.
-	turnMu         sync.Mutex
-	turn           *sync.Cond
-	issued, served uint64
-	mu             sync.Mutex
-	inflight       map[string]*job
-	greeted        string
-	wg             sync.WaitGroup
-	write          func(any)
+	// Tools run one at a time in arrival order on one worker (work), so
+	// input from pipelined calls never interleaves or reorders on the console.
+	mu       sync.Mutex
+	queue    []*job
+	wake     chan struct{}
+	inflight map[string]*job
+	greeted  string
+	wg       sync.WaitGroup
+	write    func(any)
 }
 
 func NewServer(b Backend, version, instructions string) *Server {
-	s := &Server{Backend: b, Version: version, Instructions: instructions, inflight: map[string]*job{}}
-	s.turn = sync.NewCond(&s.turnMu)
+	s := &Server{Backend: b, Version: version, Instructions: instructions, inflight: map[string]*job{}, wake: make(chan struct{}, 1)}
 	s.tools = tools()
 	s.byName = map[string]Tool{}
 	for _, t := range s.tools {
@@ -129,8 +128,11 @@ func (s *Server) Serve(r io.Reader, w io.Writer) error {
 		defer wmu.Unlock()
 		w.Write(append(b, '\n'))
 	}
+	stop := make(chan struct{})
+	go s.work(stop)
 	defer func() {
 		// stdin closed: let running tools finish briefly, then cancel them.
+		defer close(stop)
 		idle := make(chan struct{})
 		go func() { s.wg.Wait(); close(idle) }()
 		select {
@@ -416,34 +418,14 @@ func (s *Server) greet(name, version, protocol string) {
 func (s *Server) start(id json.RawMessage, t Tool, args map[string]any, reply func(map[string]any)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	key, j := string(id), &job{cancel: cancel}
-	s.mu.Lock()
-	if old, dup := s.inflight[key]; dup {
-		old.cancel() // a reused id supersedes the earlier request
-	}
-	s.inflight[key] = j
-	s.mu.Unlock()
-	s.turnMu.Lock()
-	ticket := s.issued
-	s.issued++
-	s.turnMu.Unlock()
-	s.wg.Add(1)
-	go func() {
+	j.run = func() {
 		defer s.wg.Done()
 		defer cancel()
-		s.turnMu.Lock()
-		for s.served != ticket {
-			s.turn.Wait()
-		}
-		s.turnMu.Unlock()
 		var content []Content
 		var err error
 		if ctx.Err() == nil {
 			content, err = safeRun(ctx, t, s.Backend, args)
 		}
-		s.turnMu.Lock()
-		s.served++
-		s.turn.Broadcast()
-		s.turnMu.Unlock()
 		s.mu.Lock()
 		if s.inflight[key] == j {
 			delete(s.inflight, key)
@@ -462,10 +444,48 @@ func (s *Server) start(id json.RawMessage, t Tool, args map[string]any, reply fu
 			res = map[string]any{"content": []Content{{Type: "text", Text: msg}}, "isError": true}
 		}
 		reply(res)
-	}()
+	}
+	s.wg.Add(1)
+	s.mu.Lock()
+	if old, dup := s.inflight[key]; dup {
+		old.cancel() // a reused id supersedes the earlier request
+	}
+	s.inflight[key] = j
+	s.queue = append(s.queue, j)
+	s.mu.Unlock()
+	select {
+	case s.wake <- struct{}{}:
+	default: // the worker has been woken already
+	}
 }
 
-type job struct{ cancel context.CancelFunc }
+// work runs the queued tools one after the other until stop is closed.
+func (s *Server) work(stop <-chan struct{}) {
+	for {
+		s.mu.Lock()
+		if len(s.queue) == 0 {
+			s.mu.Unlock()
+			select {
+			case <-s.wake:
+				continue
+			case <-stop:
+				return
+			}
+		}
+		j := s.queue[0]
+		s.queue[0] = nil
+		s.queue = s.queue[1:]
+		s.mu.Unlock()
+		j.run()
+	}
+}
+
+// job is one tool call. A cancelled job still waits for its turn, then ends
+// without running or answering.
+type job struct {
+	cancel context.CancelFunc
+	run    func()
+}
 
 func safeRun(ctx context.Context, t Tool, b Backend, args map[string]any) (c []Content, err error) {
 	defer func() {
