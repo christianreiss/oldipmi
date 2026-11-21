@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
@@ -303,13 +304,14 @@ ColumnLayout {
                 ].concat((controller.consoleInfo.endpoints || []).map(e => ({label: e.role, value: e.address + "\n" + e.transport, mono: true})))
                  .filter(row => !!row.value)
                 delegate: ColumnLayout {
+                    id: infoRow
                     required property var modelData
                     spacing: 2
                     Layout.fillWidth: true
                     Layout.leftMargin: Math.round(Theme.gu * 0.9)
                     Layout.rightMargin: Math.round(Theme.gu * 0.9)
                     QQC2.Label {
-                        text: modelData.label.toUpperCase()
+                        text: infoRow.modelData.label.toUpperCase()
                         font.pointSize: Theme.tiny
                         font.weight: Font.DemiBold
                         font.letterSpacing: 0.6
@@ -318,9 +320,9 @@ ColumnLayout {
                         Layout.fillWidth: true
                     }
                     QQC2.Label {
-                        text: modelData.value
-                        font.family: modelData.mono ? Theme.mono.family : Kirigami.Theme.defaultFont.family
-                        font.pointSize: modelData.mono ? Theme.small : Theme.fontBase
+                        text: infoRow.modelData.value
+                        font.family: infoRow.modelData.mono ? Theme.mono.family : Kirigami.Theme.defaultFont.family
+                        font.pointSize: infoRow.modelData.mono ? Theme.small : Theme.fontBase
                         wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                         Layout.fillWidth: true
                     }

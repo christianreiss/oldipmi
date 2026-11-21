@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
@@ -154,21 +155,22 @@ Item {
                                     {label: "Security", value: page.exceptions !== "" ? "Exceptions enabled" : "No exceptions", warn: page.exceptions !== ""}
                                 ]
                                 delegate: ColumnLayout {
+                                    id: fact
                                     required property var modelData
                                     spacing: 2
                                     Layout.fillWidth: true
                                     Layout.preferredWidth: 1
                                     QQC2.Label {
-                                        text: modelData.label.toUpperCase()
+                                        text: fact.modelData.label.toUpperCase()
                                         font.pointSize: Theme.tiny
                                         font.weight: Font.DemiBold
                                         font.letterSpacing: 0.6
                                         color: Theme.muted
                                     }
                                     QQC2.Label {
-                                        text: modelData.value
-                                        font.family: modelData.mono ? Theme.mono.family : Kirigami.Theme.defaultFont.family
-                                        color: modelData.warn ? Theme.toneText(Theme.warning, Theme.card) : Theme.text
+                                        text: fact.modelData.value
+                                        font.family: fact.modelData.mono ? Theme.mono.family : Kirigami.Theme.defaultFont.family
+                                        color: fact.modelData.warn ? Theme.toneText(Theme.warning, Theme.card) : Theme.text
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
                                     }

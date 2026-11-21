@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
@@ -97,12 +98,13 @@ Item {
                 Repeater {
                     model: Families.list.filter(f => !f.synthetic)
                     delegate: RowLayout {
+                        id: familyEntry
                         required property var modelData
                         spacing: Kirigami.Units.smallSpacing
                         Image {
                             Layout.preferredWidth: Math.round(Theme.gu * 1.7)
                             Layout.preferredHeight: Layout.preferredWidth
-                            source: Families.image(modelData.id)
+                            source: Families.image(familyEntry.modelData.id)
                             // From the layout's size: width follows the picture until the layout
                             // has run, so a sourceSize from width would double it on every load.
                             sourceSize.width: Layout.preferredWidth * 2
@@ -111,7 +113,7 @@ Item {
                             smooth: true
                         }
                         QQC2.Label {
-                            text: modelData.name
+                            text: familyEntry.modelData.name
                             font.pointSize: Theme.small
                             color: Theme.muted
                         }

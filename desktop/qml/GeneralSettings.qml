@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
@@ -44,9 +45,10 @@ FormCard.FormCardPage {
                 ["Disconnect", "Ctrl+D"], ["Settings", "Ctrl+,"], ["Quit", "Ctrl+Q"]
             ]
             delegate: FormCard.FormTextDelegate {
+                id: shortcutRow
                 required property var modelData
                 text: modelData[0]
-                trailing: QQC2.Label { text: modelData[1]; color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.15) }
+                trailing: QQC2.Label { text: shortcutRow.modelData[1]; color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.15) }
             }
         }
         FormCard.FormSectionText {

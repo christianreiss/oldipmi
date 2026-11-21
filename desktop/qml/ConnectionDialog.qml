@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
@@ -604,6 +605,7 @@ AppDialog {
             Repeater {
                 model: [{label: "Certificate", key: false}, {label: "Private key", key: true}]
                 delegate: RowLayout {
+                    id: certRow
                     required property var modelData
                     readonly property string path: modelData.key ? dialog.keyPath : dialog.certPath
                     spacing: Kirigami.Units.largeSpacing
@@ -611,10 +613,10 @@ AppDialog {
                     ColumnLayout {
                         spacing: 1
                         Layout.fillWidth: true
-                        QQC2.Label { text: modelData.label; font.weight: Font.DemiBold }
+                        QQC2.Label { text: certRow.modelData.label; font.weight: Font.DemiBold }
                         QQC2.Label {
-                            text: path || "None"
-                            font.family: path ? Theme.mono.family : Kirigami.Theme.defaultFont.family
+                            text: certRow.path || "None"
+                            font.family: certRow.path ? Theme.mono.family : Kirigami.Theme.defaultFont.family
                             font.pointSize: Theme.small
                             color: Theme.muted
                             elide: Text.ElideMiddle
@@ -625,16 +627,16 @@ AppDialog {
                         tone: "secondary"
                         text: "Choose…"
                         onClicked: {
-                            const f = controller.chooseCertificate(modelData.key);
+                            const f = controller.chooseCertificate(certRow.modelData.key);
                             if (!f) return;
-                            if (modelData.key) dialog.keyPath = f; else dialog.certPath = f;
+                            if (certRow.modelData.key) dialog.keyPath = f; else dialog.certPath = f;
                         }
                     }
                     IconButton {
                         icon.name: "edit-clear"
-                        text: "Clear " + modelData.label.toLowerCase()
-                        visible: !!path
-                        onClicked: if (modelData.key) dialog.keyPath = ""; else dialog.certPath = ""
+                        text: "Clear " + certRow.modelData.label.toLowerCase()
+                        visible: !!certRow.path
+                        onClicked: if (certRow.modelData.key) dialog.keyPath = ""; else dialog.certPath = ""
                     }
                 }
             }
