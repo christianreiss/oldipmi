@@ -356,17 +356,26 @@ private slots:
     c.show("a");
     QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
     QTimer agent;
+    bool accepted = false;
     connect(&agent, &QTimer::timeout, &c, [&] {
       auto *dialog = qobject_cast<QFileDialog *>(QApplication::activeModalWidget());
       if (!dialog)
         return;
       agent.stop();
       c.show("b"); // what an agent's connect does
+      // selectFile() leaves the file name field alone while it has the focus,
+      // which it may already have here (it has in a fresh Fedora container).
+      if (QWidget *focus = QApplication::focusWidget())
+        focus->clearFocus();
       dialog->selectFile(iso);
       static_cast<QDialog *>(dialog)->accept(); // QFileDialog::accept() is protected
+      accepted = dialog->result() == QDialog::Accepted;
+      if (!accepted)
+        dialog->reject(); // fail below instead of at the test's time limit
     });
     agent.start(20);
     c.mountISO();
+    QVERIFY2(accepted, "the file dialog did not accept the ISO");
     QCOMPARE(c.shownId(), QString("b"));
     QTRY_VERIFY(received("a").contains(R"("op":"mount")"));
     QTest::qWait(100);
