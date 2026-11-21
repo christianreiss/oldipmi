@@ -58,11 +58,12 @@ Eine eingebaute Demo-Konsole zeigt das Fenster ganz ohne BMC.
 * **AppImage** für x86_64-Linux: `OldIPMI-<Version>-x86_64.AppImage` und
   `SHA256SUMS` von der
   [neuesten Version](https://github.com/christianreiss/oldipmi/releases/latest)
-  herunterladen, mit `sha256sum -c --ignore-missing SHA256SUMS` prüfen,
-  ausführbar machen und starten. Es bringt seine Qt- und KDE-Bibliotheken mit
-  und hat seinen Selbsttest auf Fedora 43, Ubuntu 22.04 und 24.04 sowie
-  Debian 12 und 13 bestanden. Ohne FUSE startet es mit
-  `--appimage-extract-and-run`.
+  in dasselbe Verzeichnis herunterladen und das AppImage mit
+  `grep ' OldIPMI-<Version>-x86_64.AppImage$' SHA256SUMS | sha256sum -c`
+  prüfen. Nur wenn das `OK` ausgibt, ausführbar machen und starten. Es bringt
+  seine Qt- und KDE-Bibliotheken mit und hat seinen Selbsttest auf Fedora 43,
+  Ubuntu 22.04 und 24.04 sowie Debian 12 und 13 bestanden. Ohne FUSE startet
+  es mit `--appimage-extract-and-run`.
 * **Aus dem Quelltext**, auf Fedora oder jeder Distribution mit Qt 6.6 oder
   neuer und KDE Frameworks 6: siehe [Build and run](README.md#build-and-run).
   Ein RPM für Fedora baut `packaging/fedora/build-rpm.sh`.
