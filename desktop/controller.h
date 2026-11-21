@@ -11,6 +11,8 @@
 #include <functional>
 #include <memory>
 
+class ProfileStore;
+
 class Controller : public QObject {
   Q_OBJECT
   Q_PROPERTY(QVariantList hosts READ hosts NOTIFY hostsChanged)
@@ -35,7 +37,7 @@ public:
   explicit Controller(QObject *parent = nullptr, Credentials *credentials = nullptr,
                       QString configFile = {});
   ~Controller();
-  QVariantList hosts() const { return m_hosts; }
+  QVariantList hosts() const;
   // The single-session properties describe the shown session (or "disconnected").
   QString state() const { return m_shown ? m_shown->stateName() : QString(ipc::StateDisconnected); }
   QString message() const;
@@ -64,7 +66,7 @@ public:
   // Puts the shown console's picture on the clipboard at its own resolution, without
   // alpha (as the MCP screenshot). Returns its size; an invalid size when nothing is shown.
   Q_INVOKABLE QSize copyFrame();
-  Q_INVOKABLE QString profilesPath() const { return m_configFile; }
+  Q_INVOKABLE QString profilesPath() const;
   // Profile waiting for a password (after passwordRequired/walletUnavailable).
   Q_INVOKABLE QVariantMap pendingProfile() const { return m_pendingProfile; }
   Q_INVOKABLE QVariantMap saveHost(QVariantMap profile, QString password,
@@ -93,13 +95,11 @@ signals:
   void frameReady(QImage image);
 
 private:
-  QVariantList m_hosts;
   QVariantMap m_pendingProfile;
-  QString m_pendingPassword, m_configFile, m_message;
+  QString m_pendingPassword, m_message;
   quint64 m_messageStamp = 0;
-  bool m_profilesReadable = true;
   std::unique_ptr<Credentials> m_ownedCredentials;
-  Credentials *m_credentials;
+  std::unique_ptr<ProfileStore> m_profiles; // uses the credentials
   QHash<QString, Session *> m_sessions;
   Session *m_shown = nullptr;
   void setMessage(const QString &m);
@@ -107,7 +107,4 @@ private:
   void start(QVariantMap profile, QString password);
   void setShown(Session *s);
   void removeSession(Session *s);
-  bool persist(const QVariantList &hosts);
-  void loadProfiles();
-  void stamp(const QString &id);
 };

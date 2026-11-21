@@ -25,7 +25,7 @@ endif()
 get_filename_component(OLDIPMI_APP_ID ${OLDIPMI_DESKTOP_FILE} NAME_WLE)
 # The desktop code, compiled once for the application and its tests. STATIC on
 # purpose: Fedora's %cmake turns BUILD_SHARED_LIBS on.
-qt_add_library(oldipmi_desktop STATIC desktop/agentapi.cpp desktop/agentapi.h desktop/framethumbnail.cpp desktop/framethumbnail.h desktop/controller.cpp desktop/controller.h desktop/families.cpp desktop/families.h desktop/session.cpp desktop/session.h desktop/backendprocess.cpp desktop/backendprocess.h desktop/channels.cpp desktop/channels.h desktop/credentials.cpp desktop/credentials.h desktop/console.cpp desktop/console.h desktop/settings.cpp desktop/settings.h desktop/singleinstance.cpp desktop/singleinstance.h desktop/runtimedir.cpp desktop/runtimedir.h desktop/i18n.h desktop/ipc.h)
+qt_add_library(oldipmi_desktop STATIC desktop/agentapi.cpp desktop/agentapi.h desktop/framethumbnail.cpp desktop/framethumbnail.h desktop/controller.cpp desktop/controller.h desktop/families.cpp desktop/families.h desktop/profilestore.cpp desktop/profilestore.h desktop/session.cpp desktop/session.h desktop/backendprocess.cpp desktop/backendprocess.h desktop/channels.cpp desktop/channels.h desktop/credentials.cpp desktop/credentials.h desktop/console.cpp desktop/console.h desktop/settings.cpp desktop/settings.h desktop/singleinstance.cpp desktop/singleinstance.h desktop/runtimedir.cpp desktop/runtimedir.h desktop/i18n.h desktop/ipc.h)
 target_link_libraries(oldipmi_desktop PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::Network KF6::Wallet)
 # Code in subdirectories includes the desktop headers by name ("controller.h").
 target_include_directories(oldipmi_desktop PUBLIC ${CMAKE_SOURCE_DIR}/desktop)
