@@ -1,4 +1,5 @@
 #pragma once
+#include "app/exitcode.h"
 #include <QString>
 
 namespace devtools {
@@ -10,6 +11,6 @@ namespace devtools {
 // Main.qml, empty until the engine loads it) count.
 void recordQmlWarnings();
 void setQmlRoot(const QString &root);
-// 0 if there were none; otherwise lists them on stderr and returns 6.
-int qmlWarningsResult();
+// Ok if there were none; otherwise lists them on stderr: QmlWarnings.
+ExitCode qmlWarningsResult();
 } // namespace devtools

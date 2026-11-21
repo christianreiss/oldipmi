@@ -1,4 +1,5 @@
 #include "devtools/tour.h"
+#include "app/exitcode.h"
 #include "console.h"
 #include "controller.h"
 #include "credentials.h"
@@ -111,7 +112,7 @@ int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, Controll
   // The connections from writeTourProfiles(), the first one selected.
   if (controller.hosts().size() != 3 || !QDir().mkpath(dir)) {
     fprintf(stderr, "Screenshot tour: the tour's connections or %s are missing\n", qPrintable(dir));
-    return 5;
+    return code(ExitCode::CheckFailed);
   }
   call("loadHost", controller.hosts().first());
   // `wait` ms after `act`, the step is grabbed as soon as `ready` (if given) holds,
@@ -406,10 +407,10 @@ int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, Controll
          // the window rightly quits, so the tour stops here.
          if (controller.openCount() != 2) {
            problem(QString("%1 console(s) open before 10e1-quit-confirm, expected 2").arg(controller.openCount()));
-           app.exit(5);
+           app.exit(code(ExitCode::CheckFailed));
          } else if (window->close()) {
            problem("closing the window with two consoles open did not ask first");
-           app.exit(5);
+           app.exit(code(ExitCode::CheckFailed));
          }
        }, 700, [=] { return popupOpen("disconnectAllDialog") && popup("disconnectAllDialog")->property("quitting").toBool(); }},
       // Two consoles are open, so Disconnect all asks first and names them.
@@ -504,8 +505,8 @@ int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, Controll
       if (QFile f(dir + "/states.json"); problems->isEmpty() &&
           (!f.open(QIODevice::WriteOnly | QIODevice::Truncate) || f.write(QJsonDocument(*states).toJson()) < 0))
         problem("cannot write " + f.fileName());
-      const int warnings = qmlWarningsResult(); // listed either way
-      app.exit(problems->isEmpty() ? warnings : 5);
+      const ExitCode warnings = qmlWarningsResult(); // listed either way
+      app.exit(code(problems->isEmpty() ? warnings : ExitCode::CheckFailed));
       return;
     }
     auto &step = (*steps)[(*index)++];

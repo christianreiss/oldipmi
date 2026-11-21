@@ -1,4 +1,5 @@
 #include "agentapi.h"
+#include "app/exitcode.h"
 #include "console.h"
 #include "controller.h"
 #include "devtools/qmlwarnings.h"
@@ -59,10 +60,10 @@ int main(int argc, char **argv) {
   if (!test && !instance.acquire(qgetenv("XDG_ACTIVATION_TOKEN"), !probe)) {
     if (probe) {
       fprintf(stderr, "OldIPMI is already running; close it before --probe-ui.\n");
-      return 6;
+      return code(ExitCode::AlreadyRunning);
     }
     fprintf(stderr, "OldIPMI is already running; showing its window.\n");
-    return 0;
+    return code(ExitCode::Ok);
   }
   bool preview = app.arguments().contains("--preview");
   const int shots = app.arguments().indexOf("--screenshots");
@@ -71,7 +72,7 @@ int main(int argc, char **argv) {
   QString profiles;
   if (tour && (profiles = devtools::writeTourProfiles()).isEmpty()) {
     fprintf(stderr, "Screenshot tour: could not write the test-mode connections\n");
-    return 5;
+    return code(ExitCode::CheckFailed);
   }
   qmlRegisterType<Console>("OldIPMI", 1, 0, "ConsoleView");
   qmlRegisterType<FrameThumbnail>("OldIPMI", 1, 0, "FrameThumbnail");
@@ -119,7 +120,7 @@ int main(int argc, char **argv) {
   devtools::setQmlRoot(mainQml.adjusted(QUrl::RemoveFilename).toString());
   engine.load(mainQml);
   if (engine.rootObjects().isEmpty())
-    return 1;
+    return code(ExitCode::QmlNotLoaded);
   engine.rootContext()->setContextProperty("mainWindow", engine.rootObjects().first());
   // Any quit request of the application (Qt.quit() after Quit was confirmed, or the
   // session manager when the session ends) closes the window without asking about
@@ -147,7 +148,7 @@ int main(int argc, char **argv) {
   });
   auto console = engine.rootObjects().first()->findChild<Console *>("console");
   if (!console)
-    return 2;
+    return code(ExitCode::NoConsoleView);
   QObject::connect(&controller, &Controller::frameReady, console,
                    &Console::setFrame);
   QObject::connect(console, &Console::keyInput, &controller, &Controller::key);
@@ -158,7 +159,7 @@ int main(int argc, char **argv) {
   if (probe) {
     QFile input;
     if (!input.open(stdin, QIODevice::ReadOnly))
-      return 4;
+      return code(ExitCode::ProbeFailed);
     auto json = QJsonDocument::fromJson(input.readAll()).object();
     auto profile = json["profile"].toObject().toVariantMap();
     if (profile.value("id").toString().isEmpty()) {
@@ -182,7 +183,7 @@ int main(int argc, char **argv) {
       fflush(stdout);
       if (controller.state() == ipc::StateDisconnected && controller.message().contains(" failed:")) {
         fprintf(stderr, "%s\n", qPrintable(controller.message()));
-        app.exit(4);
+        app.exit(code(ExitCode::ProbeFailed));
       }
     });
     QTimer::singleShot(0, &controller, [&, json, profile] {
@@ -197,7 +198,7 @@ int main(int argc, char **argv) {
     // Without a password there is nothing to probe: a prompt would wait for the user.
     QObject::connect(&controller, &Controller::passwordRequired, &app, [&] {
       fprintf(stderr, "%s\n", qPrintable(controller.message()));
-      app.exit(7);
+      app.exit(code(ExitCode::NoPassword));
     });
     QObject::connect(
         &controller, &Controller::frameReady, &app, [&, framed = false](QImage im) mutable {
@@ -212,13 +213,13 @@ int main(int argc, char **argv) {
             QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");
             if (!path.isEmpty())
               w->grabWindow().save(path);
-            app.exit(0);
+            app.exit(code(ExitCode::Ok));
           });
         });
     QTimer::singleShot(30000, &app, [&] {
       fprintf(stderr, "GUI probe timed out: %s\n",
               qPrintable(controller.message()));
-      app.exit(4);
+      app.exit(code(ExitCode::ProbeFailed));
     });
   }
   if (tour) {
@@ -229,7 +230,7 @@ int main(int argc, char **argv) {
         size = {wh[0].toInt(), wh[1].toInt()};
       if (size.isEmpty()) {
         fprintf(stderr, "--size expects WIDTHxHEIGHT\n");
-        return 1;
+        return code(ExitCode::BadArgument);
       }
     }
     return devtools::runScreenshotTour(app, engine, controller, testCredentials, app.arguments()[shots + 1], size);
@@ -240,27 +241,27 @@ int main(int argc, char **argv) {
     QTimer::singleShot(600, &app, [&] {
       auto w = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
       if (!w || w->grabWindow().isNull())
-        app.exit(3);
+        app.exit(code(ExitCode::NoScreenshot));
       else if (QString why = devtools::consoleSizeChanges(w, console); !why.isEmpty()) {
         fprintf(stderr, "Console view changed size: %s\n", qPrintable(why));
-        app.exit(5);
+        app.exit(code(ExitCode::CheckFailed));
       } else if (QString why = devtools::copyFails(w, console); !why.isEmpty()) {
         fprintf(stderr, "Copy: %s\n", qPrintable(why));
-        app.exit(5);
+        app.exit(code(ExitCode::CheckFailed));
       } else if (QString why = devtools::keyboardFails(w, console, controller); !why.isEmpty()) {
         fprintf(stderr, "Keyboard: %s\n", qPrintable(why));
-        app.exit(5);
+        app.exit(code(ExitCode::CheckFailed));
       } else if (QString why = devtools::fullScreenFails(w, console, controller); !why.isEmpty()) {
         fprintf(stderr, "Full screen: %s\n", qPrintable(why));
-        app.exit(5);
+        app.exit(code(ExitCode::CheckFailed));
       } else if (QString why = devtools::unknownFamilyFails(w); !why.isEmpty()) {
         fprintf(stderr, "Unknown family: %s\n", qPrintable(why));
-        app.exit(5);
+        app.exit(code(ExitCode::CheckFailed));
       } else {
         QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");
         if (!path.isEmpty())
           w->grabWindow().save(path);
-        app.exit(devtools::qmlWarningsResult());
+        app.exit(code(devtools::qmlWarningsResult()));
       }
     });
   return app.exec();

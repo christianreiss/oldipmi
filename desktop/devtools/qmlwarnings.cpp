@@ -17,11 +17,11 @@ static void recordQmlWarning(QtMsgType type, const QMessageLogContext &context, 
 }
 void recordQmlWarnings() { s_previousHandler = qInstallMessageHandler(recordQmlWarning); }
 void setQmlRoot(const QString &root) { s_qmlRoot = root; }
-int qmlWarningsResult() {
+ExitCode qmlWarningsResult() {
   if (s_qmlWarnings.isEmpty())
-    return 0;
+    return ExitCode::Ok;
   fprintf(stderr, "%lld QML warning(s):\n%s\n", static_cast<long long>(s_qmlWarnings.size()),
           qPrintable(s_qmlWarnings.join('\n')));
-  return 6;
+  return ExitCode::QmlWarnings;
 }
 } // namespace devtools
