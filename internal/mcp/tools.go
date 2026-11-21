@@ -149,7 +149,7 @@ type status struct {
 
 func getStatus(b Backend) (status, error) {
 	var s status
-	raw, err := call(b, "status", nil)
+	raw, err := call(b, opStatus, nil)
 	if err != nil {
 		return s, err
 	}
@@ -208,7 +208,7 @@ type input struct {
 }
 
 func (in *input) key(u int, down bool) error {
-	if _, err := call(in.b, "key", map[string]any{"usage": u, "down": down}); err != nil {
+	if _, err := call(in.b, opKey, map[string]any{"usage": u, "down": down}); err != nil {
 		return err
 	}
 	if down {
@@ -233,7 +233,7 @@ func (in *input) tap(u, holdMS int) error {
 	return in.key(u, false)
 }
 func (in *input) pointer(x, y, buttons, wheel int) error {
-	if _, err := call(in.b, "pointer", map[string]any{"x": x, "y": y, "buttons": buttons, "wheel": wheel}); err != nil {
+	if _, err := call(in.b, opPointer, map[string]any{"x": x, "y": y, "buttons": buttons, "wheel": wheel}); err != nil {
 		return err
 	}
 	in.x, in.y, in.buttons = x, y, buttons
@@ -241,11 +241,11 @@ func (in *input) pointer(x, y, buttons, wheel int) error {
 }
 func (in *input) cleanup() {
 	for i := len(in.held) - 1; i >= 0; i-- {
-		call(in.b, "key", map[string]any{"usage": in.held[i], "down": false})
+		call(in.b, opKey, map[string]any{"usage": in.held[i], "down": false})
 	}
 	in.held = nil
 	if in.buttons != 0 {
-		call(in.b, "pointer", map[string]any{"x": in.x, "y": in.y, "buttons": 0, "wheel": 0})
+		call(in.b, opPointer, map[string]any{"x": in.x, "y": in.y, "buttons": 0, "wheel": 0})
 		in.buttons = 0
 	}
 }
@@ -429,10 +429,10 @@ func rawTools() []Tool {
 	return []Tool{
 		simple(Tool{Name: "list_profiles", Title: "List BMC profiles", ReadOnly: true,
 			Description: "List the BMC profiles saved in OldIPMI: id, name, host, family, username and whether a password is saved. Never returns passwords.",
-			Schema:      obj(map[string]any{})}, "list_profiles"),
+			Schema:      obj(map[string]any{})}, opListProfiles),
 		simple(Tool{Name: "status", Title: "Console status", ReadOnly: true,
 			Description: "Several consoles can be open at once. Always lists them in sessions (profile, state). For one console (the profile argument, or the only open one): connection state (disconnected, logging_in, discovering, connecting, connected), status message, profile, console info, mounted ISO, framebuffer size and screen-change counters. Also whether a password prompt is waiting for the user. With several open and no profile this is an error that names them.",
-			Schema:      obj(map[string]any{})}, "status"),
+			Schema:      obj(map[string]any{})}, opStatus),
 		connectTool(),
 		{Name: "disconnect", Title: "Disconnect console", Idempotent: true,
 			Description: "Close one console session (profile argument, or the only open one), or cancel one that is being set up (also dismisses a pending password prompt). all=true closes every open console. Other consoles stay open.",
@@ -446,7 +446,7 @@ func rawTools() []Tool {
 				if all {
 					args["all"] = true
 				}
-				raw, err := call(b, "disconnect", args)
+				raw, err := call(b, opDisconnect, args)
 				if err != nil {
 					return nil, err
 				}
@@ -707,7 +707,7 @@ func rawTools() []Tool {
 			Run:         keyHold(false), Idempotent: true},
 		simpleDone(Tool{Name: "release_input", Title: "Release all input", Idempotent: true,
 			Description: "Release every held key and mouse button on the remote side (also the user's). Use when keys seem stuck.",
-			Schema:      obj(map[string]any{})}, "release", "Released all held keys and mouse buttons."),
+			Schema:      obj(map[string]any{})}, opRelease, "Released all held keys and mouse buttons."),
 		inputTool(Tool{Name: "mouse_move", Title: "Move pointer", Idempotent: true,
 			Description: "Move the pointer to a framebuffer pixel (absolute).",
 			Schema:      obj(map[string]any{"x": intProp("Framebuffer X", 0, 4095), "y": intProp("Framebuffer Y", 0, 4095)}, "x", "y")},
@@ -813,21 +813,21 @@ func rawTools() []Tool {
 				if !slices.Contains(powerActions, act) {
 					return nil, fmt.Errorf("action must be on, off, reset or soft")
 				}
-				if _, err := call(b, "power", map[string]any{"action": act}); err != nil {
+				if _, err := call(b, opPower, map[string]any{"action": act}); err != nil {
 					return nil, err
 				}
 				return text("Power action '" + act + "' accepted by the BMC."), nil
 			}},
 		simpleDone(Tool{Name: "mount_iso", Title: "Mount ISO",
 			Description: "Attach a local ISO file read-only as virtual CD/DVD (AMI and ATEN Java-protocol consoles; not Avocent/Cisco or ATEN HTML5). The host sees it until eject_iso or disconnect.",
-			Schema:      obj(map[string]any{"path": prop("string", "Absolute path to a readable .iso file on this computer")}, "path")}, "mount",
+			Schema:      obj(map[string]any{"path": prop("string", "Absolute path to a readable .iso file on this computer")}, "path")}, opMount,
 			"ISO attached read-only; the host sees a virtual CD/DVD until eject_iso or disconnect."),
 		{Name: "eject_iso", Title: "Eject ISO", Idempotent: true,
 			Description: "Detach the mounted virtual media.",
 			Schema:      obj(map[string]any{}),
 			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
 				// Say so when nothing is mounted instead of reporting a silent no-op as success.
-				if raw, err := call(b, "status", nil); err == nil {
+				if raw, err := call(b, opStatus, nil); err == nil {
 					var st struct {
 						State   string `json:"state"`
 						Mounted *bool  `json:"mounted"`
@@ -836,7 +836,7 @@ func rawTools() []Tool {
 						return text("No virtual media is mounted; nothing to eject."), nil
 					}
 				}
-				raw, err := call(b, "eject", a)
+				raw, err := call(b, opEject, a)
 				if err != nil {
 					return nil, err
 				}
@@ -855,7 +855,7 @@ func keyHold(down bool) func(context.Context, Backend, map[string]any) ([]Conten
 			return nil, err
 		}
 		for _, u := range us {
-			if _, err := call(b, "key", map[string]any{"usage": u, "down": down}); err != nil {
+			if _, err := call(b, opKey, map[string]any{"usage": u, "down": down}); err != nil {
 				return nil, err
 			}
 			if err := sleep(ctx, 20*time.Millisecond); err != nil {
@@ -944,7 +944,7 @@ func connectTool() Tool {
 			if err != nil {
 				return nil, err
 			}
-			raw, err := call(b, "connect", map[string]any{"profile": name})
+			raw, err := call(b, opConnect, map[string]any{"profile": name})
 			if err != nil {
 				return nil, err
 			}
@@ -1049,7 +1049,7 @@ func screenshotTool() Tool {
 				return nil, fmt.Errorf("max_size must be 0 or 64..4096")
 			}
 			args["maxSize"] = ms
-			raw, err := call(b, "screenshot", args)
+			raw, err := call(b, opScreenshot, args)
 			if err != nil {
 				return nil, err
 			}

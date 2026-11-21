@@ -2,7 +2,9 @@
 // limit. Here the constants of desktop/ipc.h are checked against it in both
 // directions: every constant is in the file with its value, and every entry of
 // the file is a constant. internal/backend/names_test.go does the same for the
-// core.
+// core. testdata/agent/names.json and desktop/agentops.h are the same for the
+// agent socket, which internal/mcp/agentops_test.go checks for oldipmi-mcp.
+#include "agentops.h"
 #include "ipc.h"
 #include <QFile>
 #include <QJsonDocument>
@@ -14,6 +16,7 @@ class IpcNames : public QObject {
   Q_OBJECT
 private slots:
   void headerMatchesNamesJson();
+  void agentHeaderMatchesNamesJson();
 };
 
 static QStringList pairs(const QVariantMap &m) {
@@ -57,6 +60,28 @@ void IpcNames::headerMatchesNamesJson() {
   QCOMPARE(QString(ipc::StageLoggingIn), fixture["stages"]["LoggingIn"].toString());
   QCOMPARE(ipc::MaxFrameWidth, unsigned(fixture["maxFrame"]["Width"].toInt()));
   QCOMPARE(ipc::MaxFrameHeight, unsigned(fixture["maxFrame"]["Height"].toInt()));
+}
+
+void IpcNames::agentHeaderMatchesNamesJson() {
+  QFile names(AGENT_FIXTURES "/names.json"), header(AGENT_HEADER);
+  QVERIFY(names.open(QIODevice::ReadOnly));
+  QVERIFY(header.open(QIODevice::ReadOnly));
+  const QJsonObject fixture = QJsonDocument::fromJson(names.readAll()).object();
+  static const QRegularExpression constant(R"re(^inline constexpr char Op(\w+)\[\] = "([^"]*)";)re");
+  QVariantMap got;
+  for (const QString &line : QString::fromUtf8(header.readAll()).split('\n')) {
+    if (!line.contains("constexpr"))
+      continue;
+    const auto m = constant.match(line);
+    QVERIFY2(m.hasMatch(), qPrintable("agentops.h: not one constant in the usual form: " + line));
+    got[m.captured(1)] = m.captured(2);
+  }
+  const QVariantMap want = fixture.value("ops").toObject().toVariantMap();
+  QVERIFY2(!want.isEmpty(), "names.json has no ops");
+  QVERIFY2(pairs(got) == pairs(want), qPrintable(QString("agentops::Op* are %1; names.json has %2")
+                                                     .arg(pairs(got).join(' '), pairs(want).join(' '))));
+  // The text is what the desktop compiles.
+  QCOMPARE(QString(agentops::OpListProfiles), want["ListProfiles"].toString());
 }
 
 QTEST_GUILESS_MAIN(IpcNames)

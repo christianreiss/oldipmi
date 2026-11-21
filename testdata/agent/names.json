@@ -1,0 +1,17 @@
+{
+  "about": "The names of the agent socket between OldIPMI and oldipmi-mcp, by the rest of their constant name: desktop/agentops.h has agentops::Op*, internal/mcp/agentops.go has op*. A request names one of ops in op; exchanges.json records each of them as the app answers it.",
+  "ops": {
+    "Hello": "hello",
+    "ListProfiles": "list_profiles",
+    "Status": "status",
+    "Connect": "connect",
+    "Disconnect": "disconnect",
+    "Screenshot": "screenshot",
+    "Key": "key",
+    "Pointer": "pointer",
+    "Release": "release",
+    "Power": "power",
+    "Mount": "mount",
+    "Eject": "eject"
+  }
+}

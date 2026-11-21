@@ -25,7 +25,7 @@ endif()
 get_filename_component(OLDIPMI_APP_ID ${OLDIPMI_DESKTOP_FILE} NAME_WLE)
 # The desktop code, compiled once for the application and its tests. STATIC on
 # purpose: Fedora's %cmake turns BUILD_SHARED_LIBS on.
-qt_add_library(oldipmi_desktop STATIC desktop/agentapi.cpp desktop/agentapi.h desktop/framethumbnail.cpp desktop/framethumbnail.h desktop/controller.cpp desktop/controller.h desktop/families.cpp desktop/families.h desktop/filedialogs.cpp desktop/filedialogs.h desktop/profilestore.cpp desktop/profilestore.h desktop/session.cpp desktop/session.h desktop/sessionmanager.cpp desktop/sessionmanager.h desktop/backendprocess.cpp desktop/backendprocess.h desktop/channels.cpp desktop/channels.h desktop/credentials.cpp desktop/credentials.h desktop/console.cpp desktop/console.h desktop/keymap.cpp desktop/keymap.h desktop/settings.cpp desktop/settings.h desktop/singleinstance.cpp desktop/singleinstance.h desktop/runtimedir.cpp desktop/runtimedir.h desktop/i18n.h desktop/ipc.h)
+qt_add_library(oldipmi_desktop STATIC desktop/agentapi.cpp desktop/agentapi.h desktop/framethumbnail.cpp desktop/framethumbnail.h desktop/controller.cpp desktop/controller.h desktop/families.cpp desktop/families.h desktop/filedialogs.cpp desktop/filedialogs.h desktop/profilestore.cpp desktop/profilestore.h desktop/session.cpp desktop/session.h desktop/sessionmanager.cpp desktop/sessionmanager.h desktop/backendprocess.cpp desktop/backendprocess.h desktop/channels.cpp desktop/channels.h desktop/credentials.cpp desktop/credentials.h desktop/console.cpp desktop/console.h desktop/keymap.cpp desktop/keymap.h desktop/settings.cpp desktop/settings.h desktop/singleinstance.cpp desktop/singleinstance.h desktop/runtimedir.cpp desktop/runtimedir.h desktop/i18n.h desktop/ipc.h desktop/agentops.h)
 target_link_libraries(oldipmi_desktop PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::Network KF6::Wallet)
 # Code in subdirectories includes the desktop headers by name ("controller.h").
 target_include_directories(oldipmi_desktop PUBLIC ${CMAKE_SOURCE_DIR}/desktop)
@@ -136,9 +136,11 @@ add_test(NAME ipc_channels COMMAND ${ISOLATED} $<TARGET_FILE:channels_tests>)
 qt_add_executable(keymap_tests desktop/keymap_test.cpp)
 target_link_libraries(keymap_tests PRIVATE oldipmi_desktop Qt6::Test)
 add_test(NAME key_table COMMAND ${ISOLATED} $<TARGET_FILE:keymap_tests>)
-# desktop/ipc.h against testdata/ipc/names.json, which the Go tests check too.
-qt_add_executable(ipc_tests desktop/ipc_test.cpp desktop/ipc.h)
-target_compile_definitions(ipc_tests PRIVATE IPC_FIXTURES="${CMAKE_SOURCE_DIR}/testdata/ipc" IPC_HEADER="${CMAKE_SOURCE_DIR}/desktop/ipc.h")
+# desktop/ipc.h and agentops.h against testdata/{ipc,agent}/names.json, which the
+# Go tests check too.
+qt_add_executable(ipc_tests desktop/ipc_test.cpp desktop/ipc.h desktop/agentops.h)
+target_compile_definitions(ipc_tests PRIVATE IPC_FIXTURES="${CMAKE_SOURCE_DIR}/testdata/ipc" IPC_HEADER="${CMAKE_SOURCE_DIR}/desktop/ipc.h"
+                           AGENT_FIXTURES="${CMAKE_SOURCE_DIR}/testdata/agent" AGENT_HEADER="${CMAKE_SOURCE_DIR}/desktop/agentops.h")
 target_link_libraries(ipc_tests PRIVATE Qt6::Core Qt6::Test)
 add_test(NAME ipc_names COMMAND ${ISOLATED} $<TARGET_FILE:ipc_tests>)
 # Qt scans the QML imports of every program that links Qt Quick, to link static QML

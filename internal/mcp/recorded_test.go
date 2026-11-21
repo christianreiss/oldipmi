@@ -22,22 +22,28 @@ type exchange struct {
 	Error  string          `json:"error"`
 }
 
-// recorded is the n-th recorded exchange of op with exactly these args.
-func recorded(t *testing.T, op, args string, n int) exchange {
+// allExchanges is every exchange of exchanges.json, in order.
+func allExchanges(t *testing.T) []exchange {
 	t.Helper()
 	b, err := os.ReadFile("../../testdata/agent/exchanges.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var f struct{ Exchanges []exchange }
-	var want map[string]any
 	if err := json.Unmarshal(b, &f); err != nil {
 		t.Fatal(err)
 	}
+	return f.Exchanges
+}
+
+// recorded is the n-th recorded exchange of op with exactly these args.
+func recorded(t *testing.T, op, args string, n int) exchange {
+	t.Helper()
+	var want map[string]any
 	if err := json.Unmarshal([]byte(args), &want); err != nil {
 		t.Fatal(err)
 	}
-	for _, x := range f.Exchanges {
+	for _, x := range allExchanges(t) {
 		if x.Op == op && reflect.DeepEqual(x.Args, want) {
 			if n == 0 {
 				return x

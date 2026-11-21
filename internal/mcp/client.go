@@ -64,7 +64,7 @@ func (c *Client) Hello(name, version, protocol string) {
 	defer c.mu.Unlock()
 	c.hello = map[string]any{"name": name, "version": version, "protocol": protocol}
 	if c.conn != nil {
-		c.roundTrip("hello", c.hello)
+		c.roundTrip(opHello, c.hello)
 	} else {
 		c.dial() // dial sends the hello
 	}
@@ -88,7 +88,7 @@ func (c *Client) dial() error {
 	}
 	c.conn, c.rd = conn, bufio.NewReaderSize(conn, 1<<20)
 	if c.hello != nil {
-		if _, err, _ := c.roundTrip("hello", c.hello); err != nil && c.conn == nil {
+		if _, err, _ := c.roundTrip(opHello, c.hello); err != nil && c.conn == nil {
 			return errors.New("connection to OldIPMI lost")
 		}
 	}

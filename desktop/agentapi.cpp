@@ -1,4 +1,5 @@
 #include "agentapi.h"
+#include "agentops.h"
 #include "runtimedir.h"
 #include <QBuffer>
 #include <QCoreApplication>
@@ -354,7 +355,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
   };
   auto done = [reply](bool ok, QString m) { reply(ok, ok ? QJsonValue(QJsonObject{{"message", m}}) : QJsonValue(m)); };
   QString who = label(client);
-  if (op == "hello") {
+  if (op == agentops::OpHello) {
     if (client) {
       client->name = clean(a.value("name").toString());
       client->version = clean(a.value("version").toString(), 32);
@@ -362,7 +363,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       emit clientsChanged();
     }
     reply(true, QJsonObject{{"app", "OldIPMI"}, {"version", QCoreApplication::applicationVersion()}});
-  } else if (op == "list_profiles") {
+  } else if (op == agentops::OpListProfiles) {
     QJsonArray list;
     for (const auto &v : m_c->hosts()) {
       auto p = v.toMap();
@@ -373,7 +374,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     }
     log(label(client), "profiles", "Listed profiles ×%1", true);
     reply(true, QJsonObject{{"profiles", list}});
-  } else if (op == "status") {
+  } else if (op == agentops::OpStatus) {
     QString err;
     auto *s = resolve(a, &err);
     if (!err.isEmpty())
@@ -416,7 +417,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       st["consoleInfo"] = QJsonObject{};
     }
     reply(true, st);
-  } else if (op == "connect") {
+  } else if (op == agentops::OpConnect) {
     auto key = a.value("profile").toString();
     auto p = findProfile(key);
     if (p.isEmpty()) {
@@ -447,7 +448,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       return fail(m_c->message());
     }
     reply(true, QJsonObject{{"state", s->stateName()}, {"profile", profileJson(p)}});
-  } else if (op == "disconnect") {
+  } else if (op == agentops::OpDisconnect) {
     QString err;
     auto *s = resolve(a, &err);
     bool all = a.value("all").toBool();
@@ -492,7 +493,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       remaining.append(profileJson(m_c->session(id)->profile));
     r["stillOpen"] = remaining;
     reply(true, r);
-  } else if (op == "screenshot") {
+  } else if (op == agentops::OpScreenshot) {
     QString err;
     auto *s = resolve(a, &err);
     if (!err.isEmpty())
@@ -525,7 +526,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     reply(true, QJsonObject{{"png", QString::fromLatin1(png.toBase64())}, {"width", out.width()},
                             {"height", out.height()}, {"fullWidth", fw}, {"fullHeight", fh},
                             {"x", x}, {"y", y}, {"regionW", w}, {"regionH", h}});
-  } else if (op == "key") {
+  } else if (op == agentops::OpKey) {
     auto *s = needConnected();
     if (!s)
       return;
@@ -543,7 +544,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     if (down) // never log which key: the agent may be typing a password
       log(label(client), "keys", "Keyboard input: %1 key presses", true);
     reply(true, QJsonObject{});
-  } else if (op == "pointer") {
+  } else if (op == agentops::OpPointer) {
     auto *s = needConnected();
     if (!s)
       return;
@@ -563,7 +564,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     }
     log(who, "pointer", "Pointer input ×%1, last at " + QString::number(x) + "," + QString::number(y), true);
     reply(true, QJsonObject{});
-  } else if (op == "release") {
+  } else if (op == agentops::OpRelease) {
     QString err;
     auto key = a.value("profile").toString();
     Session *only = nullptr;
@@ -583,7 +584,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     }
     log(who, "release", "Released all keys and buttons");
     reply(true, QJsonObject{});
-  } else if (op == "power") {
+  } else if (op == agentops::OpPower) {
     auto *s = needConnected();
     if (!s)
       return;
@@ -598,7 +599,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       log(who, "power", ok ? "Power " + action + " accepted" : "Power " + action + " failed");
       done(ok, ok ? "Power action '" + action + "' accepted." : m);
     });
-  } else if (op == "mount") {
+  } else if (op == agentops::OpMount) {
     auto *s = needConnected();
     if (!s)
       return;
@@ -609,7 +610,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     note("mount " + f.fileName());
     log(label(client), "media", "Mount ISO " + f.fileName());
     s->mount(f.canonicalFilePath(), this, done);
-  } else if (op == "eject") {
+  } else if (op == agentops::OpEject) {
     auto *s = needConnected();
     if (!s)
       return;
