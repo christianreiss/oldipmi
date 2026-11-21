@@ -275,21 +275,29 @@ private slots:
     delete s;
   }
 
-  // A core that ends settles the waiting callbacks; while setting up or
+  // A core that ends settles the waiting callbacks, here of a power command
+  // or of a mount that is still waiting for the BMC; while setting up or
   // connected, the message says the connection ended. What it wrote to stderr
   // goes to the app's stderr, the terminal or the journal; it was kept unread
   // before (C-08). A Go panic ends the core with exit code 2.
+  void coreThatEndsSettlesCallbacks_data() {
+    QTest::addColumn<QJsonObject>("cmd");
+    QTest::newRow("power") << QJsonObject{{"op", "power"}, {"action", "soft"}};
+    QTest::newRow("mount") << QJsonObject{{"op", "mount"}, {"path", "/srv/iso/install.iso"}};
+  }
   void coreThatEndsSettlesCallbacks() {
+    QFETCH(QJsonObject, cmd);
     StderrCapture err;
-    auto *s = start({expect("connect"), send(event(3)), expect("power"),
+    auto *s = start({expect("connect"), send(event(3)), QJsonObject{{"expect", cmd["op"]}},
                      QJsonObject{{"stderr", "panic: test\n"}}, QJsonObject{{"exit", 2}}});
     QTRY_VERIFY(s->connected());
     QStringList results;
-    s->command({{"op", "power"}, {"action", "soft"}}, this, [&results](bool ok, QString m) { results << QString::number(ok) + " " + m; });
+    s->command(cmd, this, [&results](bool ok, QString m) { results << QString::number(ok) + " " + m; });
     QTRY_COMPARE(s->state, QString("disconnected"));
     QCOMPARE(results, QStringList{"0 Connection ended."});
     QCOMPARE(s->message, QString("Connection ended. Reconnect to obtain a fresh session."));
     QVERIFY(s->lastFrame.isNull());
+    QVERIFY(!s->mounted);
     delete s;
     QVERIFY(err.text().contains("panic: test\n"));
   }
