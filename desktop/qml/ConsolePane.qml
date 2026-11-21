@@ -148,33 +148,33 @@ ColumnLayout {
             ActionButton {
                 visible: root.mode === "console" && root.connected
                 tone: "secondary"
-                text: "Disconnect"
-                icon.name: "network-disconnect"
+                text: disconnectAction.text
+                icon.name: disconnectAction.icon.name
                 display: header.roomy ? QQC2.AbstractButton.TextBesideIcon : QQC2.AbstractButton.IconOnly
-                tooltip: "Close this console session (" + Shortcuts.disconnect + ")"
+                tooltip: disconnectAction.tooltip
                 Layout.minimumWidth: implicitWidth
-                onClicked: controller.disconnectHost()
+                onClicked: disconnectAction.trigger()
             }
             IconButton {
                 visible: root.fullscreen && !root.immersive
-                icon.name: "view-restore"
-                text: "Leave full screen"
+                icon.name: fullscreenAction.icon.name
+                text: fullscreenAction.text
                 shortcut: Shortcuts.fullScreen
                 Layout.minimumWidth: implicitWidth
-                onClicked: root.toggleFullscreen()
+                onClicked: fullscreenAction.trigger()
             }
             IconButton {
                 objectName: "headerQuitButton"
-                icon.name: "application-exit"
-                text: "Quit OldIPMI"
+                icon.name: quitAction.icon.name
+                text: quitAction.text
                 shortcut: Shortcuts.quit
                 Layout.minimumWidth: implicitWidth
-                onClicked: root.quitRequested()
+                onClicked: quitAction.trigger()
             }
         }
     }
 
-    // Actions of a live console (header, and full-screen bar for keys and power).
+    // Actions of a live console, for the header and the full-screen bar.
     Kirigami.Action {
         id: sendKeyAction
         text: "Send key"
@@ -246,6 +246,21 @@ ColumnLayout {
         checkable: true
         displayHint: Kirigami.DisplayHint.IconOnly
         tooltip: text
+    }
+    // Disconnect and Quit have buttons of their own, in the header and in full
+    // screen. Their keys are Main.qml's shortcuts.
+    Kirigami.Action {
+        id: disconnectAction
+        text: "Disconnect"
+        icon.name: "network-disconnect"
+        tooltip: "Close this console session (" + Shortcuts.disconnect + ")"
+        onTriggered: controller.disconnectHost()
+    }
+    Kirigami.Action {
+        id: quitAction
+        text: "Quit OldIPMI"
+        icon.name: "application-exit"
+        onTriggered: root.quitRequested()
     }
     // In order of importance: what does not fit moves to the overflow menu from the end.
     readonly property list<Kirigami.Action> connectedActions: [sendKeyAction, powerAction, mediaAction, copyAction, fitAction, fullscreenAction, infoAction]
@@ -518,8 +533,8 @@ ColumnLayout {
                             BarButton {
                                 id: keysButton
                                 objectName: "fullscreenKeys"
-                                icon.name: "input-keyboard"
-                                text: "Send key"
+                                icon.name: sendKeyAction.icon.name
+                                text: sendKeyAction.text
                                 checked: keysMenu.visible
                                 onClicked: keysMenu.popup(keysButton, 0, keysButton.height + 4)
                             }
@@ -531,8 +546,8 @@ ColumnLayout {
                             }
                             BarButton {
                                 id: powerButton
-                                icon.name: "system-shutdown"
-                                text: "Power"
+                                icon.name: powerAction.icon.name
+                                text: powerAction.text
                                 checked: powerMenu.visible
                                 onClicked: powerMenu.popup(powerButton, 0, powerButton.height + 4)
                             }
@@ -551,26 +566,26 @@ ColumnLayout {
                                 onClicked: fitAction.trigger()
                             }
                             BarButton {
-                                icon.name: "view-restore"
-                                text: "Leave full screen"
+                                icon.name: fullscreenAction.icon.name
+                                text: fullscreenAction.text
                                 shortcut: Shortcuts.fullScreen
-                                onClicked: root.toggleFullscreen()
+                                onClicked: fullscreenAction.trigger()
                             }
                             ActionButton {
                                 visible: !fsBar.narrow
                                 onStage: true
                                 tone: "secondary"
-                                text: "Disconnect"
-                                icon.name: "network-disconnect"
+                                text: disconnectAction.text
+                                icon.name: disconnectAction.icon.name
                                 Layout.leftMargin: 4
                                 Layout.minimumWidth: implicitWidth
-                                onClicked: controller.disconnectHost()
+                                onClicked: disconnectAction.trigger()
                             }
                             BarButton {
                                 visible: fsBar.narrow
-                                icon.name: "network-disconnect"
-                                text: "Disconnect"
-                                onClicked: controller.disconnectHost()
+                                icon.name: disconnectAction.icon.name
+                                text: disconnectAction.text
+                                onClicked: disconnectAction.trigger()
                             }
                         }
                     }
@@ -591,10 +606,10 @@ ColumnLayout {
                             id: quitCorner
                             objectName: "quitCorner"
                             anchors.centerIn: parent
-                            icon.name: "application-exit"
-                            text: "Quit OldIPMI"
+                            icon.name: quitAction.icon.name
+                            text: quitAction.text
                             shortcut: Shortcuts.quit
-                            onClicked: root.quitRequested()
+                            onClicked: quitAction.trigger()
                         }
                     }
                     QQC2.Menu {
