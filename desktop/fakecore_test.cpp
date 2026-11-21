@@ -12,6 +12,9 @@
 //   {"stderr": "text"}   write the text to stderr
 //   {"exit": code}       end at once with this exit code
 //   {"signal": n}        end at once, killed by signal n
+//   {"logout": ms}       after the disconnect, take ms to end, as the real core
+//                        does while it logs out of the BMC, then record
+//                        {"loggedOut": true}
 // After the last step it records commands until a disconnect or until the
 // control socket closes, then ends with 0, as the real core does. Like the real
 // core it also ends with 0 on SIGTERM, which Session sends to stop it.
@@ -21,6 +24,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QThread>
 #include <QtEndian>
 #include <csignal>
 #include <cstdio>
@@ -65,7 +69,7 @@ int main() {
     return 2;
   }
   const QJsonArray steps = QJsonDocument::fromJson(script.readAll()).array();
-  int lastId = 0;
+  int lastId = 0, logoutMs = 0;
   // Reads one command and records it; false once the control socket closed.
   auto next = [&log](QJsonObject *c) {
     char h[4];
@@ -116,6 +120,8 @@ int main() {
     } else if (s.contains("stderr")) {
       std::fputs(s["stderr"].toString().toLocal8Bit().constData(), stderr);
       std::fflush(stderr);
+    } else if (s.contains("logout")) {
+      logoutMs = s["logout"].toInt();
     } else if (s.contains("exit")) {
       return s["exit"].toInt();
     } else if (s.contains("signal")) {
@@ -128,5 +134,10 @@ int main() {
   for (QJsonObject c; next(&c);)
     if (c["op"] == "disconnect")
       break;
+  if (logoutMs > 0) {
+    QThread::msleep(logoutMs);
+    log.write(R"({"loggedOut":true})" "\n");
+    log.flush();
+  }
   return 0;
 }

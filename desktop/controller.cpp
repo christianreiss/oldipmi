@@ -30,7 +30,12 @@ Controller::Controller(QObject *p, Credentials *credentials, QString configFile)
 }
 Controller::~Controller() {
   m_shown = nullptr;
-  for (auto *s : m_sessions.values()) {
+  const auto all = m_sessions.values();
+  // Every core logs out of its BMC at the same time; deleting a session then
+  // waits only for what is left of its own logout.
+  for (auto *s : all)
+    s->sendDisconnect();
+  for (auto *s : all) {
     disconnect(s, nullptr, this, nullptr);
     delete s; // stops the backend
   }
@@ -96,6 +101,8 @@ void Controller::removeSession(Session *s) {
 void Controller::disconnectAll() {
   cancelCredentials();
   auto all = m_sessions.values();
+  for (auto *s : all) // their logouts overlap, as at quit
+    s->sendDisconnect();
   for (auto *s : all)
     removeSession(s);
   emit changed();

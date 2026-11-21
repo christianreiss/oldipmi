@@ -46,13 +46,18 @@ void Session::failPending(const QString &why) {
   for (const auto &entry : std::exchange(m_pending, {}))
     settle(entry.second, false, why);
 }
+void Session::sendDisconnect() {
+  if (m_process && m_control && !m_disconnectSent) {
+    m_disconnectSent = true;
+    command({{"op", ipc::OpDisconnect}});
+  }
+}
 void Session::stop() {
   failPending("Connection closed.");
   lastFrame = QImage();
   if (m_process) {
     disconnect(m_process, nullptr, this, nullptr);
-    if (m_control)
-      command({{"op", ipc::OpDisconnect}});
+    sendDisconnect();
     if (!m_process->waitForFinished(1500))
       m_process->terminate();
     if (!m_process->waitForFinished(2500)) {
@@ -70,6 +75,7 @@ void Session::stop() {
   mounted = false;
 }
 void Session::begin(const QString &password) {
+  m_disconnectSent = false;
   consoleInfo.clear();
   errorStage.clear();
   startedAt = QDateTime::currentMSecsSinceEpoch();

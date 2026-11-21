@@ -23,6 +23,10 @@ public:
   Session(QString key, QVariantMap profile, QObject *parent = nullptr);
   ~Session() override;
   void begin(const QString &password);
+  // Tells the core to disconnect, without waiting: it logs out of the BMC
+  // first, which takes it up to three seconds. Closing several consoles tells
+  // all of them before stopping any, so that their logouts overlap.
+  void sendDisconnect();
   // Ends the backend process (blocking up to a few seconds) and clears the frame.
   void stop();
   void command(QJsonObject obj);
@@ -64,6 +68,7 @@ private:
   QLocalSocket *m_control = nullptr, *m_video = nullptr;
   QByteArray m_controlBuffer, m_videoBuffer;
   int m_id = 0;
+  bool m_disconnectSent = false;
   size_t m_frameHash = 0;
   struct Pending {
     QPointer<const QObject> context;

@@ -372,6 +372,49 @@ private slots:
     QTest::qWait(100);
     QVERIFY(!received("b").contains(R"("op":"mount")"));
   }
+  // Quitting and Disconnect all tell every core to disconnect before they wait
+  // for any, so the cores log out of their BMCs at the same time.
+  void closingConsolesLogsThemOutTogether_data() {
+    QTest::addColumn<bool>("quit");
+    QTest::newRow("quit") << true;
+    QTest::newRow("disconnect all") << false;
+  }
+  void closingConsolesLogsThemOutTogether() {
+    QFETCH(bool, quit);
+    QTemporaryDir dir; FakeCredentials wallet;
+    const QByteArray binDir = qgetenv("OLDIPMI_BIN_DIR");
+    auto restore = qScopeGuard([&binDir] {
+      if (binDir.isNull()) qunsetenv("OLDIPMI_BIN_DIR"); else qputenv("OLDIPMI_BIN_DIR", binDir);
+      qunsetenv("OLDIPMI_FAKE_SCRIPT"); qunsetenv("OLDIPMI_FAKE_LOG");
+    });
+    qputenv("OLDIPMI_BIN_DIR", FAKECORE_DIR);
+    QFile script(dir.filePath("script.json"));
+    QVERIFY(script.open(QIODevice::WriteOnly));
+    // Each stand-in core takes a second to log out after the disconnect.
+    script.write(R"([{"expect": "connect"}, {"send": {"version": 1, "type": "state", "state": "connected"}}, {"logout": 1000}])");
+    script.close();
+    qputenv("OLDIPMI_FAKE_SCRIPT", script.fileName().toLocal8Bit());
+    const QList<const char *> ids{"a", "b", "c"};
+    QElapsedTimer closing;
+    {
+      Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+      for (const char *id : ids) { // one stand-in core each, with its own log
+        qputenv("OLDIPMI_FAKE_LOG", dir.filePath(QString(id) + ".jsonl").toLocal8Bit());
+        c.connectHost({{"id", id}, {"name", id}, {"host", QString(id) + ".example.net"}, {"family", "demo"}}, "");
+        QTRY_VERIFY(c.session(id) && c.session(id)->connected());
+      }
+      closing.start();
+      if (!quit)
+        c.disconnectAll();
+    } // quitting deletes the controller
+    // One after the other, the three logouts took three seconds.
+    QVERIFY2(closing.elapsed() < 2000, qPrintable(QString("closing took %1 ms").arg(closing.elapsed())));
+    for (const char *id : ids) {
+      QFile log(dir.filePath(QString(id) + ".jsonl"));
+      QVERIFY(log.open(QIODevice::ReadOnly));
+      QVERIFY2(log.readAll().contains(R"("loggedOut":true)"), id);
+    }
+  }
 };
 QTEST_MAIN(ControllerTest)
 #include "controller_test.moc"

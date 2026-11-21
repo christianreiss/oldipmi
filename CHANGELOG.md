@@ -60,6 +60,11 @@
   connections the window took 12 seconds to be ready and OldIPMI held up to
   900 MiB; now it is ready after half a second and holds about 130 MiB. The
   pictures look the same.
+* **Quitting with several consoles open no longer waits for them one by one.**
+  Each console logs out of its BMC when it closes, which can take up to three
+  seconds. Quitting and Disconnect all waited for each logout before starting
+  the next; now all consoles log out at the same time, and only the slowest
+  counts.
 * **A wrong account or password gets its hint on Supermicro (ATEN), Avocent
   and Cisco consoles too.** The error page suggests checking the username and
   password when the BMC rejects them, but it did not recognise how these
