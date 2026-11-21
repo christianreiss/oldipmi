@@ -55,22 +55,43 @@ func recorded(t *testing.T, op, args string, n int) exchange {
 	return exchange{}
 }
 
-// The status type reads only keys the app sends.
-func TestStatusReadsRecordedKeys(t *testing.T) {
-	connected := recorded(t, "status", `{}`, 1)
-	var sent map[string]any
-	if err := json.Unmarshal(connected.Result, &sent); err != nil || sent["state"] != "connected" {
-		t.Fatalf("%s: %v", connected.Result, err)
+// Every successful reply recorded for op reads as T, with the keys T
+// requires, and every key T reads is in one of them: the tools read only what
+// the app sends.
+func readsRecorded[T any](t *testing.T, op string) {
+	t.Helper()
+	seen, n := map[string]bool{}, 0
+	for _, x := range allExchanges(t) {
+		if x.Op != op || !x.OK {
+			continue
+		}
+		n++
+		if _, err := readReply[T](op, x.Result); err != nil {
+			t.Errorf("%s %v: %v", op, x.Args, err)
+		}
+		var keys map[string]json.RawMessage
+		json.Unmarshal(x.Result, &keys)
+		for k := range keys {
+			seen[k] = true
+		}
 	}
-	st := reflect.TypeOf(status{})
-	for i := range st.NumField() {
-		if k := jsonName(st.Field(i)); sent[k] == nil {
-			t.Errorf("status reads %q, which the app does not send", k)
+	if n == 0 {
+		t.Errorf("exchanges.json records no successful %s", op)
+	}
+	typ := reflect.TypeFor[T]()
+	for i := range typ.NumField() {
+		if k := jsonKey(typ.Field(i)); !seen[k] {
+			t.Errorf("%s reads %q, which the app does not send", typ.Name(), k)
 		}
 	}
 }
 
-func jsonName(f reflect.StructField) string { return strings.Split(f.Tag.Get("json"), ",")[0] }
+func TestRepliesReadRecordedKeys(t *testing.T) {
+	readsRecorded[statusReply](t, opStatus)
+	readsRecorded[connectReply](t, opConnect)
+	readsRecorded[disconnectReply](t, opDisconnect)
+	readsRecorded[screenshotReply](t, opScreenshot)
+}
 
 func TestToolsReadRecordedReplies(t *testing.T) {
 	ok := func(x exchange) string {

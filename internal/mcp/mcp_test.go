@@ -47,12 +47,27 @@ func (f *fake) Call(op string, a map[string]any) (json.RawMessage, error) {
 		if len(f.statuses) > 1 {
 			f.statuses = f.statuses[1:]
 		}
-		return json.RawMessage(s), nil
+		return fullStatus(s), nil
 	}
 	if r, ok := f.result[op]; ok {
 		return json.RawMessage(r), nil
 	}
+	if op == "status" {
+		return fullStatus(`{}`), nil
+	}
 	return json.RawMessage(`{}`), nil
+}
+
+// fullStatus is a status reply with the keys a test leaves out as zero
+// values: the app always sends all of them (exchanges.json).
+func fullStatus(s string) json.RawMessage {
+	m := map[string]any{"state": "", "message": "", "mounted": false, "width": 0, "height": 0, "changeSeq": 0,
+		"msSinceChange": 0, "passwordRequired": false, "consoleInfo": map[string]any{}}
+	if json.Unmarshal([]byte(s), &m) != nil {
+		return json.RawMessage(s)
+	}
+	b, _ := json.Marshal(m)
+	return b
 }
 
 type greeter struct{ fake }
@@ -551,12 +566,14 @@ func TestConnectWaitsAndReportsFailure(t *testing.T) {
 	if res := callTool(t, f, "connect", `{"profile":"demo"}`); res["isError"] == true || !strings.Contains(content(res), "640x480") {
 		t.Fatalf("%v", res)
 	}
-	f = &fake{statuses: []string{`{"state":"logging_in"}`, `{"state":"disconnected","message":"Login failed: bad credentials"}`}}
+	f = &fake{result: map[string]string{"connect": `{"state":"logging_in","profile":{"name":"Lab-AMI"}}`},
+		statuses: []string{`{"state":"logging_in"}`, `{"state":"disconnected","message":"Login failed: bad credentials"}`}}
 	res := callTool(t, f, "connect", `{"profile":"Lab-AMI"}`)
 	if res["isError"] != true || !strings.Contains(content(res), "Login failed") {
 		t.Fatalf("%v", res)
 	}
-	f = &fake{statuses: []string{`{"state":"connecting","message":"Connecting"}`}}
+	f = &fake{result: map[string]string{"connect": `{"state":"logging_in","profile":{"name":"x"}}`},
+		statuses: []string{`{"state":"connecting","message":"Connecting"}`}}
 	res = callTool(t, f, "connect", `{"profile":"x","timeout_ms":1000}`)
 	if res["isError"] != true || !strings.Contains(content(res), "timed out") {
 		t.Fatalf("%v", res)

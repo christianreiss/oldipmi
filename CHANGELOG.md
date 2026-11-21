@@ -19,6 +19,12 @@
   is not open, "Last connected" stayed at what it said when the page came
   up, such as "just now", until the profile list changed. It now moves on
   once a minute.
+* **oldipmi-mcp says when it cannot read the app's reply.** A reply from
+  OldIPMI without a field the tools read, or with a field of the wrong type,
+  as from an OldIPMI of another version, was read as empty: a wait for a
+  screen change then ran into its timeout, and `connect` and `disconnect`
+  went on with what they could not read. The tool now fails with a message
+  that names the reply and the field.
 
 ## 0.4.0 (2026-11-21)
 

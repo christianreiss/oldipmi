@@ -133,27 +133,12 @@ func call(b Backend, op string, args map[string]any) (json.RawMessage, error) {
 	return b.Call(op, args)
 }
 
-type status struct {
-	State            string         `json:"state"`
-	Message          string         `json:"message"`
-	Mounted          bool           `json:"mounted"`
-	Width            int            `json:"width"`
-	Height           int            `json:"height"`
-	FrameSeq         int64          `json:"frameSeq"`
-	ChangeSeq        int64          `json:"changeSeq"`
-	MSSinceChange    int64          `json:"msSinceChange"`
-	PasswordRequired bool           `json:"passwordRequired"`
-	Profile          map[string]any `json:"profile"`
-	ConsoleInfo      map[string]any `json:"consoleInfo"`
-}
-
-func getStatus(b Backend) (status, error) {
-	var s status
+func getStatus(b Backend) (statusReply, error) {
 	raw, err := call(b, opStatus, nil)
 	if err != nil {
-		return s, err
+		return statusReply{}, err
 	}
-	return s, json.Unmarshal(raw, &s)
+	return readReply[statusReply](opStatus, raw)
 }
 func pretty(raw json.RawMessage) []Content {
 	var v any
@@ -450,14 +435,10 @@ func rawTools() []Tool {
 				if err != nil {
 					return nil, err
 				}
-				var r struct {
-					Previous        string                  `json:"previous"`
-					PromptDismissed bool                    `json:"promptDismissed"`
-					Profile         struct{ Name string }   `json:"profile"`
-					Closed          []struct{ Name string } `json:"closed"`
-					StillOpen       []struct{ Name string } `json:"stillOpen"`
+				r, err := readReply[disconnectReply](opDisconnect, raw)
+				if err != nil {
+					return nil, err
 				}
-				json.Unmarshal(raw, &r)
 				others := ""
 				if len(r.StillOpen) > 0 {
 					var names []string
@@ -533,7 +514,7 @@ func rawTools() []Tool {
 				if err != nil {
 					return nil, err
 				}
-				var s status
+				var s statusReply
 				stable, err := poll(ctx, t, func() (bool, error) {
 					if s, err = getStatus(b); err != nil {
 						return false, err
@@ -827,14 +808,8 @@ func rawTools() []Tool {
 			Schema:      obj(map[string]any{}),
 			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
 				// Say so when nothing is mounted instead of reporting a silent no-op as success.
-				if raw, err := call(b, opStatus, nil); err == nil {
-					var st struct {
-						State   string `json:"state"`
-						Mounted *bool  `json:"mounted"`
-					}
-					if json.Unmarshal(raw, &st) == nil && st.State == "connected" && st.Mounted != nil && !*st.Mounted {
-						return text("No virtual media is mounted; nothing to eject."), nil
-					}
+				if s, err := getStatus(b); err == nil && s.State == "connected" && !s.Mounted {
+					return text("No virtual media is mounted; nothing to eject."), nil
 				}
 				raw, err := call(b, opEject, a)
 				if err != nil {
@@ -948,10 +923,10 @@ func connectTool() Tool {
 			if err != nil {
 				return nil, err
 			}
-			var started struct {
-				Profile struct{ ID, Name string } `json:"profile"`
+			started, err := readReply[connectReply](opConnect, raw)
+			if err != nil {
+				return nil, err
 			}
-			json.Unmarshal(raw, &started)
 			// From here on only this profile's console is of interest, whatever else is open.
 			if started.Profile.ID != "" {
 				b = scoped{b, started.Profile.ID}
@@ -967,7 +942,7 @@ func connectTool() Tool {
 					"Ask the user to type it there (ticking 'remember' saves it in KWallet); calling connect again reopens the prompt and waits.", label)
 			}
 			// Phase 1: wait for the user while a password prompt is open.
-			var s status
+			var s statusReply
 			if _, err = poll(ctx, pwWait, func() (bool, error) {
 				if s, err = getStatus(b); err != nil {
 					return false, err
@@ -1053,30 +1028,20 @@ func screenshotTool() Tool {
 			if err != nil {
 				return nil, err
 			}
-			var r struct {
-				PNG        string `json:"png"`
-				W          int    `json:"width"`
-				H          int    `json:"height"`
-				FullWidth  int    `json:"fullWidth"`
-				FullHeight int    `json:"fullHeight"`
-				RX         int    `json:"x"`
-				RY         int    `json:"y"`
-				RegionW    int    `json:"regionW"`
-				RegionH    int    `json:"regionH"`
-			}
-			if err := json.Unmarshal(raw, &r); err != nil {
+			r, err := readReply[screenshotReply](opScreenshot, raw)
+			if err != nil {
 				return nil, err
 			}
 			if r.PNG == "" {
 				return nil, fmt.Errorf("the app returned no image")
 			}
 			mapping := "Image pixels equal framebuffer pixels."
-			if r.RX != 0 || r.RY != 0 || r.RegionW != r.FullWidth || r.RegionH != r.FullHeight || r.W != r.RegionW {
-				sx := float64(r.W) / float64(max(1, r.RegionW))
+			if r.X != 0 || r.Y != 0 || r.RegionW != r.FullWidth || r.RegionH != r.FullHeight || r.Width != r.RegionW {
+				sx := float64(r.Width) / float64(max(1, r.RegionW))
 				mapping = fmt.Sprintf("Image shows framebuffer region x=%d y=%d %dx%d at scale %.4g: framebuffer_x = %d + image_x / %.4g, framebuffer_y = %d + image_y / %.4g.",
-					r.RX, r.RY, r.RegionW, r.RegionH, sx, r.RX, sx, r.RY, float64(r.H)/float64(max(1, r.RegionH)))
+					r.X, r.Y, r.RegionW, r.RegionH, sx, r.X, sx, r.Y, float64(r.Height)/float64(max(1, r.RegionH)))
 			}
 			return []Content{{Type: "image", Data: r.PNG, MimeType: "image/png"},
-				{Type: "text", Text: fmt.Sprintf("Framebuffer %dx%d; image %dx%d. %s", r.FullWidth, r.FullHeight, r.W, r.H, mapping)}}, nil
+				{Type: "text", Text: fmt.Sprintf("Framebuffer %dx%d; image %dx%d. %s", r.FullWidth, r.FullHeight, r.Width, r.Height, mapping)}}, nil
 		}}
 }
