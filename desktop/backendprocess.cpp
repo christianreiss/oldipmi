@@ -1,11 +1,37 @@
 #include "backendprocess.h"
 #include <QCoreApplication>
+#include <QTimer>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-BackendProcess::BackendProcess(QObject *parent) : QObject(parent) {}
-BackendProcess::~BackendProcess() { stop(); }
+// From stop() on: when a core that has not ended is terminated, and when it
+// is killed.
+static constexpr int TerminateAfterMs = 1500, KillAfterMs = 4000;
+
+// The cores that stop() is letting end.
+static QList<BackendProcess *> stoppingCores;
+
+BackendProcess::BackendProcess(QString host, QObject *parent) : QObject(parent), m_host(std::move(host)) {}
+
+BackendProcess::~BackendProcess() {
+  stoppingCores.removeOne(this);
+  if (!m_process || m_process->state() == QProcess::NotRunning)
+    return;
+  // The app quits, or the session went without stop(): the core gets what is
+  // left of the time stop() gives it, but now the wait blocks.
+  disconnect(m_process, nullptr, this, nullptr);
+  if (!m_stopping.isValid())
+    m_stopping.start();
+  if (!m_process->waitForFinished(remaining(TerminateAfterMs)))
+    m_process->terminate();
+  if (!m_process->waitForFinished(remaining(KillAfterMs))) {
+    m_process->kill();
+    m_process->waitForFinished(1000);
+  }
+}
+
+int BackendProcess::remaining(int ms) const { return int(qMax<qint64>(0, ms - m_stopping.elapsed())); }
 
 BackendProcess::Start BackendProcess::start() {
   int ctl[2], vid[2];
@@ -43,7 +69,13 @@ BackendProcess::Start BackendProcess::start() {
   });
   connect(m_process, &QProcess::errorOccurred, this, &BackendProcess::errorOccurred);
   connect(m_process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
-          [this](int, QProcess::ExitStatus) { emit finished(); });
+          [this](int, QProcess::ExitStatus) {
+            if (m_stopping.isValid()) { // stop() let it end, and now it has
+              stoppingCores.removeOne(this);
+              deleteLater();
+            }
+            emit finished();
+          });
   // What the core logs (a Go panic, log.Printf, the AVPT trace) goes to the
   // app's own stderr, the terminal or the journal; nothing reads its stdout.
   // Kept by QProcess instead, it went unread and grew (C-08).
@@ -67,18 +99,26 @@ void BackendProcess::terminate() {
 }
 
 void BackendProcess::stop() {
-  if (m_process) {
-    disconnect(m_process, nullptr, this, nullptr);
-    if (!m_process->waitForFinished(1500))
-      m_process->terminate();
-    if (!m_process->waitForFinished(2500)) {
-      m_process->kill();
-      m_process->waitForFinished(1000);
-    }
-    delete m_process;
-    m_process = nullptr;
+  if (m_stopping.isValid())
+    return;
+  m_stopping.start();
+  if (!m_process || m_process->state() == QProcess::NotRunning) {
+    deleteLater();
+    return;
   }
-  delete m_control;
-  delete m_video;
-  m_control = m_video = nullptr;
+  // A core that still sends while it logs out must not block on a full socket.
+  for (QLocalSocket *socket : {m_control, m_video}) {
+    socket->readAll();
+    connect(socket, &QLocalSocket::readyRead, this, [socket] { socket->readAll(); });
+  }
+  stoppingCores << this;
+  QTimer::singleShot(TerminateAfterMs, this, &BackendProcess::terminate);
+  QTimer::singleShot(KillAfterMs, this, [this] { m_process->kill(); });
+}
+
+BackendProcess *BackendProcess::stopping(const QString &host) {
+  for (auto *core : std::as_const(stoppingCores))
+    if (core->m_host == host)
+      return core;
+  return nullptr;
 }

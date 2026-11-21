@@ -1,4 +1,5 @@
 #include "controller.h"
+#include "backendprocess.h"
 #include "families.h"
 #include <QApplication>
 #include <QClipboard>
@@ -31,14 +32,13 @@ Controller::Controller(QObject *p, Credentials *credentials, QString configFile)
 Controller::~Controller() {
   m_shown = nullptr;
   const auto all = m_sessions.values();
-  // Every core logs out of its BMC at the same time; deleting a session then
-  // waits only for what is left of its own logout.
-  for (auto *s : all)
-    s->sendDisconnect();
   for (auto *s : all) {
     disconnect(s, nullptr, this, nullptr);
-    delete s; // stops the backend
+    delete s; // its core logs out in the background
   }
+  // Quitting waits for every core still logging out of its BMC, from the
+  // consoles closed now and those closed before; the logouts overlap.
+  qDeleteAll(findChildren<BackendProcess *>(Qt::FindDirectChildrenOnly));
 }
 void Controller::setMessage(const QString &m) {
   m_message = m;
@@ -96,14 +96,11 @@ void Controller::removeSession(Session *s) {
   }
   s->releaseInput();
   disconnect(s, nullptr, this, nullptr);
-  delete s; // stops the backend
+  delete s; // its core logs out in the background, while this keeps it
 }
 void Controller::disconnectAll() {
   cancelCredentials();
-  auto all = m_sessions.values();
-  for (auto *s : all) // their logouts overlap, as at quit
-    s->sendDisconnect();
-  for (auto *s : all)
+  for (auto *s : m_sessions.values()) // none waits for another: the logouts overlap
     removeSession(s);
   emit changed();
 }

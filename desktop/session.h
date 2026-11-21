@@ -23,12 +23,13 @@ public:
 
   Session(QString key, QVariantMap profile, QObject *parent = nullptr);
   ~Session() override;
+  // Starts the core, once a core for the same host that is still logging out
+  // has ended: a BMC may allow a single session.
   void begin(const QString &password);
-  // Tells the core to disconnect, without waiting: it logs out of the BMC
-  // first, which takes it up to three seconds. Closing several consoles tells
-  // all of them before stopping any, so that their logouts overlap.
-  void sendDisconnect();
-  // Ends the backend process (blocking up to a few seconds) and clears the frame.
+  // Closes the console and clears the frame, without waiting for the core: it
+  // gets the disconnect, logs out of the BMC in the background and ends as
+  // BackendProcess::stop() lets it. Meanwhile the session's parent keeps it,
+  // so destroying the parent waits for it.
   void stop();
   void command(QJsonObject obj);
   // With a callback: it gets the reply, or why there is none, once and only
@@ -66,6 +67,7 @@ signals:
 
 private:
   BackendProcess *m_backend = nullptr;
+  QMetaObject::Connection m_waitForHost; // begin() waits for another core to end
   ControlChannel m_controlIn;
   VideoChannel m_videoIn;
   int m_id = 0;
@@ -77,6 +79,8 @@ private:
   };
   std::map<int, Pending> m_pending;
   static void settle(const Pending &p, bool ok, const QString &message);
+  void launch(const QString &password);
+  void sendDisconnect();
   void fail(const QString &message);
   void failPending(const QString &why);
   void readControl();

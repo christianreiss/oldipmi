@@ -8,6 +8,13 @@
   "Incompatible backend version.", which only a backend of another version
   should cause. It now ends it with "Invalid backend control message.", like a
   message of an impossible length.
+* **Closing a console no longer freezes the window.** Closing a console
+  waited for its backend to log out of the BMC, and the window froze
+  meanwhile: up to 1.5 seconds, or 5 for a backend that did not end by
+  itself. Now the window goes on at once and the backend logs out in the
+  background. A console opened again on the same BMC starts after that
+  logout, so a BMC that allows a single session sees the old one end first,
+  and quitting still waits for every logout.
 
 ## 0.4.0 (2026-11-21)
 

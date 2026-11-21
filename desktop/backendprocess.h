@@ -1,4 +1,5 @@
 #pragma once
+#include <QElapsedTimer>
 #include <QLocalSocket>
 #include <QObject>
 #include <QProcess>
@@ -17,7 +18,10 @@ public:
     NoVideoPair,     // the video socket pair could not be created
     NoDescriptors,   // the core's ends could not be moved out of the way of 3 and 4
   };
-  explicit BackendProcess(QObject *parent = nullptr);
+  // host is the BMC the core talks to.
+  explicit BackendProcess(QString host, QObject *parent = nullptr);
+  // Waits for a core that has not ended, as stop() lets it end, with the
+  // times counted from stop(): quitting does not cut a logout short.
   ~BackendProcess() override;
   // Creates the sockets and starts the core (OLDIPMI_BIN_DIR, else the app's
   // directory) with them.
@@ -27,15 +31,23 @@ public:
   QString errorString() const;
   // Asks the core to end at once (SIGTERM).
   void terminate();
-  // Ends the core: gives it 1.5 s to end by itself (it logs out after a
-  // disconnect), then terminates it, and kills it 2.5 s later. Blocks meanwhile.
+  // Lets the core end without waiting for it: it gets 1.5 s to end by itself
+  // (it logs out after a disconnect), is then terminated, and killed 2.5 s
+  // later. What it still sends is read and dropped. Once the core has ended,
+  // the object deletes itself.
   void stop();
+  // A core for host that stop() is letting end, if there is one.
+  static BackendProcess *stopping(const QString &host);
 
 signals:
   void errorOccurred(QProcess::ProcessError error);
+  // The core has ended.
   void finished();
 
 private:
+  const QString m_host;
   QProcess *m_process = nullptr;
   QLocalSocket *m_control = nullptr, *m_video = nullptr;
+  QElapsedTimer m_stopping; // valid from stop() on
+  int remaining(int ms) const;
 };

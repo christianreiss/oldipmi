@@ -3,6 +3,7 @@
 // holds the messages each side sends (internal/backend pins the core's side). A
 // stand-in core, desktop/fakecore_test.cpp, plays a script for each case.
 #include "session.h"
+#include "backendprocess.h"
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -30,12 +31,14 @@ class SessionTest : public QObject {
   static QString snapshot(const Session *s) {
     return s->state + " | " + s->message + (s->mounted ? " | mounted" : "");
   }
-  // start runs a Session against the stand-in core, which plays steps.
+  // start runs a Session against the stand-in core, which plays steps; with
+  // sameLog, that core records into the log of the one before.
   Session *start(const QJsonArray &steps, const QVariantMap &profile = {{"host", "bmc1.example.net"}},
-                 const QString &binDir = FAKECORE_DIR) {
+                 const QString &binDir = FAKECORE_DIR, bool sameLog = false) {
     ++runs;
     const QString script = dir.filePath(QString("script-%1.json").arg(runs));
-    log = dir.filePath(QString("commands-%1.jsonl").arg(runs));
+    if (!sameLog)
+      log = dir.filePath(QString("commands-%1.jsonl").arg(runs));
     QFile f(script);
     if (!f.open(QIODevice::WriteOnly) || f.write(QJsonDocument(steps).toJson()) < 0)
       qFatal("cannot write %s", qPrintable(script));
@@ -49,6 +52,15 @@ class SessionTest : public QObject {
     s->begin("pw-1");
     return s;
   }
+  // What the cores recorded: the op of each command, and "loggedOut".
+  QStringList ops() const {
+    QStringList out;
+    for (const auto &c : commands())
+      out << (c.value("loggedOut").toBool() ? QString("loggedOut") : c.value("op").toString());
+    return out;
+  }
+  // The stopped cores this test object keeps until they have ended.
+  QList<BackendProcess *> stopping() const { return findChildren<BackendProcess *>(Qt::FindDirectChildrenOnly); }
   // The commands the core received, in order.
   QList<QJsonObject> commands() const {
     QList<QJsonObject> out;
@@ -92,6 +104,8 @@ class SessionTest : public QObject {
 
 private slots:
   void initTestCase() { QVERIFY(dir.isValid()); }
+  // Each test ends with every core it stopped, as quitting does.
+  void cleanup() { qDeleteAll(stopping()); }
 
   // The connect command carries the profile as the desktop keeps it
   // (Controller::saveHost) and the password.
@@ -390,6 +404,44 @@ private slots:
     s->command({{"op", "eject"}}, this, record);
     QCOMPARE(results, (QStringList{"0 Connection closed.", "0 Not connected."}));
     delete s;
+  }
+
+  // Closing does not wait for the core: it logs out of the BMC in the
+  // background, and what ran it goes away once it has ended (C-08).
+  void stopDoesNotWaitForTheLogout() {
+    auto *s = start({expect("connect"), send(event(3)), QJsonObject{{"logout", 1000}}});
+    QTRY_VERIFY(s->connected());
+    QElapsedTimer closing;
+    closing.start();
+    s->stop();
+    QVERIFY2(closing.elapsed() < 500, qPrintable(QString("closing took %1 ms").arg(closing.elapsed())));
+    delete s;
+    QCOMPARE(stopping().size(), 1);
+    QTRY_COMPARE_WITH_TIMEOUT(ops(), (QStringList{"connect", "disconnect", "loggedOut"}), 3000);
+    QTRY_VERIFY(stopping().isEmpty());
+  }
+
+  // A BMC may allow a single session: a console on the host of one that just
+  // closed starts its core once the old core has logged out. On another host
+  // it starts at once.
+  void reopeningWaitsForTheLogoutOnTheSameHost_data() {
+    QTest::addColumn<QString>("host");
+    QTest::addColumn<bool>("waits");
+    QTest::newRow("same host") << "bmc1.example.net" << true;
+    QTest::newRow("other host") << "bmc2.example.net" << false;
+  }
+  void reopeningWaitsForTheLogoutOnTheSameHost() {
+    QFETCH(QString, host);
+    QFETCH(bool, waits);
+    auto *first = start({expect("connect"), send(event(3)), QJsonObject{{"logout", 1000}}});
+    QTRY_VERIFY(first->connected());
+    delete first;
+    auto *second = start({expect("connect"), send(event(3))}, {{"host", host}}, FAKECORE_DIR, true);
+    QTRY_VERIFY_WITH_TIMEOUT(second->connected(), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(ops().count("connect") == 2 && ops().contains("loggedOut"), 3000);
+    const QStringList order = ops();
+    QVERIFY2((order.lastIndexOf("connect") > order.indexOf("loggedOut")) == waits, qPrintable(order.join(", ")));
+    delete second;
   }
 
   // A callback runs only while its context exists: once the object that asked

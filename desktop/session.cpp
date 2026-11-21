@@ -48,13 +48,19 @@ void Session::sendDisconnect() {
   }
 }
 void Session::stop() {
+  disconnect(m_waitForHost);
   failPending("Connection closed.");
   lastFrame = QImage();
   if (m_backend) {
+    // Nothing the core does from here on concerns this session.
     disconnect(m_backend, nullptr, this, nullptr);
+    if (m_backend->control()) {
+      disconnect(m_backend->control(), nullptr, this, nullptr);
+      disconnect(m_backend->video(), nullptr, this, nullptr);
+    }
     sendDisconnect();
+    m_backend->setParent(parent());
     m_backend->stop();
-    delete m_backend;
     m_backend = nullptr;
   }
   m_controlIn.clear();
@@ -69,7 +75,16 @@ void Session::begin(const QString &password) {
   state = ipc::StageLoggingIn;
   setMessage("Opening console on " + profile.value("host").toString() + "…");
   emit changed();
-  m_backend = new BackendProcess(this);
+  launch(password);
+}
+void Session::launch(const QString &password) {
+  const QString host = profile.value("host").toString();
+  if (auto *old = BackendProcess::stopping(host)) {
+    m_waitForHost = connect(old, &BackendProcess::finished, this, [this, password] { launch(password); },
+                            Qt::SingleShotConnection);
+    return;
+  }
+  m_backend = new BackendProcess(host, this);
   connect(m_backend, &BackendProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
     state = ipc::StateDisconnected;
     if (error == QProcess::FailedToStart)

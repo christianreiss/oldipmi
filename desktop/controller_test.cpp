@@ -381,8 +381,8 @@ private slots:
     QTest::qWait(100);
     QVERIFY(!received("b").contains(R"("op":"mount")"));
   }
-  // Quitting and Disconnect all tell every core to disconnect before they wait
-  // for any, so the cores log out of their BMCs at the same time.
+  // With Quit and Disconnect all, the cores log out of their BMCs at the same
+  // time, and quitting waits for all of them.
   void closingConsolesLogsThemOutTogether_data() {
     QTest::addColumn<bool>("quit");
     QTest::newRow("quit") << true;
@@ -423,6 +423,40 @@ private slots:
       QVERIFY(log.open(QIODevice::ReadOnly));
       QVERIFY2(log.readAll().contains(R"("loggedOut":true)"), id);
     }
+  }
+  // Closing a console does not wait for its core to log out of the BMC: that
+  // goes on in the background, and quitting waits for it (C-08).
+  void closingAConsoleDoesNotWait() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    const QByteArray binDir = qgetenv("OLDIPMI_BIN_DIR");
+    auto restore = qScopeGuard([&binDir] {
+      if (binDir.isNull()) qunsetenv("OLDIPMI_BIN_DIR"); else qputenv("OLDIPMI_BIN_DIR", binDir);
+      qunsetenv("OLDIPMI_FAKE_SCRIPT"); qunsetenv("OLDIPMI_FAKE_LOG");
+    });
+    qputenv("OLDIPMI_BIN_DIR", FAKECORE_DIR);
+    QFile script(dir.filePath("script.json"));
+    QVERIFY(script.open(QIODevice::WriteOnly));
+    script.write(R"([{"expect": "connect"}, {"send": {"version": 1, "type": "state", "state": "connected"}}, {"logout": 1000}])");
+    script.close();
+    qputenv("OLDIPMI_FAKE_SCRIPT", script.fileName().toLocal8Bit());
+    const QString log = dir.filePath("a.jsonl");
+    qputenv("OLDIPMI_FAKE_LOG", log.toLocal8Bit());
+    auto loggedOut = [&log] {
+      QFile f(log);
+      return f.open(QIODevice::ReadOnly) && f.readAll().contains(R"("loggedOut":true)");
+    };
+    {
+      Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+      c.connectHost({{"id", "a"}, {"name", "a"}, {"host", "a.example.net"}, {"family", "demo"}}, "");
+      QTRY_VERIFY(c.session("a") && c.session("a")->connected());
+      QElapsedTimer closing;
+      closing.start();
+      c.disconnectProfile("a");
+      QVERIFY2(closing.elapsed() < 500, qPrintable(QString("closing took %1 ms").arg(closing.elapsed())));
+      QVERIFY(!c.session("a"));
+      QVERIFY(!loggedOut()); // the core takes a second for it
+    } // quitting deletes the controller
+    QVERIFY(loggedOut());
   }
 };
 QTEST_MAIN(ControllerTest)
