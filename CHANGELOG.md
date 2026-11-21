@@ -37,6 +37,15 @@
   screen change then ran into its timeout, and `connect` and `disconnect`
   went on with what they could not read. The tool now fails with a message
   that names the reply and the field.
+* **oldipmi-mcp refuses tool arguments of the wrong type.** A tool read some
+  arguments of the wrong type as their default: an `all` that was not true or
+  false as false, a `button` that was no word as left, `modifiers` that were
+  no list as none. `mount_iso` passed any `path` on unchecked, and
+  `screenshot` took a region beyond its own schema (x and y up to 4096, a
+  width or height of 0). Each is now refused with a message that names the
+  argument. An argument that is null counts as not given. Power actions and
+  buttons may be written in any case, and the descriptions of `screenshot`'s
+  `max_size` and `key`'s `name` give their limits.
 
 ## 0.4.0 (2026-11-21)
 

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"oldipmi/internal/hid"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -113,9 +112,40 @@ func argReqInt(a map[string]any, k string, lo, hi int) (int, error) {
 	}
 	return argInt(a, k, 0, lo, hi)
 }
+func argBool(a map[string]any, k string) (bool, error) {
+	v, ok := a[k]
+	if !ok || v == nil {
+		return false, nil
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return false, fmt.Errorf("%s must be true or false", k)
+	}
+	return b, nil
+}
+
+// argEnum reads one of values, in any case, as values spells it; without a
+// value it is def, or required when def is "".
+func argEnum(a map[string]any, k string, values []string, def string) (string, error) {
+	v, ok := a[k]
+	if !ok || v == nil {
+		if def == "" {
+			return "", fmt.Errorf("%s is required", k)
+		}
+		return def, nil
+	}
+	if s, ok := v.(string); ok {
+		for _, w := range values {
+			if strings.EqualFold(s, w) {
+				return w, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("%s must be %s or %s", k, strings.Join(values[:len(values)-1], ", "), values[len(values)-1])
+}
 func argStr(a map[string]any, k string) (string, error) {
 	v, ok := a[k]
-	if !ok {
+	if !ok || v == nil {
 		return "", fmt.Errorf("%s is required", k)
 	}
 	s, ok := v.(string)
@@ -252,20 +282,8 @@ func inputTool(t Tool, run func(in *input, a map[string]any) (string, error)) To
 var buttonProp = map[string]any{"type": "string", "enum": []string{"left", "right", "middle"}, "description": "Mouse button, default left"}
 
 func buttonMask(a map[string]any) (int, error) {
-	v, ok := a["button"]
-	if !ok || v == nil {
-		return 1, nil
-	}
-	s, _ := v.(string)
-	switch strings.ToLower(s) {
-	case "left", "":
-		return 1, nil
-	case "right":
-		return 2, nil
-	case "middle":
-		return 4, nil
-	}
-	return 0, fmt.Errorf("button must be left, right or middle")
+	b, err := argEnum(a, "button", []string{"left", "right", "middle"}, "left")
+	return map[string]int{"left": 1, "right": 2, "middle": 4}[b], err
 }
 
 func coords(a map[string]any, kx, ky string) (int, int, error) {
@@ -280,14 +298,26 @@ func coords(a map[string]any, kx, ky string) (int, int, error) {
 	return x, y, nil
 }
 
-func keyList(a map[string]any, k string, max int) ([]int, error) {
+// keyList reads a list of min..max key names as HID usages; a missing list
+// is an empty one.
+func keyList(a map[string]any, k string, min, max int) ([]int, error) {
+	bad := fmt.Errorf("%s must list %d..%d key names", k, min, max)
+	if min == 0 {
+		bad = fmt.Errorf("%s must list up to %d key names", k, max)
+	}
 	arr, ok := a[k].([]any)
-	if !ok || len(arr) == 0 || len(arr) > max {
-		return nil, fmt.Errorf("%s must list 1..%d key names", k, max)
+	if a[k] == nil {
+		arr, ok = nil, true
+	}
+	if !ok || len(arr) < min || len(arr) > max {
+		return nil, bad
 	}
 	var us []int
 	for _, v := range arr {
-		n, _ := v.(string)
+		n, ok := v.(string)
+		if !ok {
+			return nil, bad
+		}
 		u, err := hid.Usage(n)
 		if err != nil {
 			return nil, err
@@ -423,8 +453,11 @@ func rawTools() []Tool {
 			Description: "Close one console session (profile argument, or the only open one), or cancel one that is being set up (also dismisses a pending password prompt). all=true closes every open console. Other consoles stay open.",
 			Schema:      obj(map[string]any{"all": prop("boolean", "Close every open console instead of one")}),
 			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
-				all, _ := a["all"].(bool)
-				if _, ok := a["profile"]; ok && all {
+				all, err := argBool(a, "all")
+				if err != nil {
+					return nil, err
+				}
+				if v, ok := a["profile"]; ok && v != nil && all {
 					return nil, fmt.Errorf("give either profile or all, not both")
 				}
 				args := map[string]any{}
@@ -613,7 +646,7 @@ func rawTools() []Tool {
 			}),
 		inputTool(Tool{Name: "key", Title: "Press key", Destructive: true,
 			Description: "Press and release one key or a '+'-joined combination, e.g. Enter, Esc, F2, Down, PageDown, Delete, KP_Enter, ctrl+alt+delete, alt+sysrq+b, ctrl+alt+f1. Optional repeat. Call list_keys for all names.",
-			Schema: obj(map[string]any{"name": prop("string", "Key name or combination"), "repeat": intProp("Times to press, default 1", 1, 100),
+			Schema: obj(map[string]any{"name": prop("string", "Key name or combination of up to 6 keys"), "repeat": intProp("Times to press, default 1", 1, 100),
 				"hold_ms": intProp("How long the key is held, default 50", 0, 10000)}, "name")},
 			func(in *input, a map[string]any) (string, error) {
 				n, err := argStr(a, "name")
@@ -665,7 +698,7 @@ func rawTools() []Tool {
 			Schema: obj(map[string]any{"keys": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 1, "maxItems": 6, "description": "Key names"},
 				"hold_ms": intProp("How long the full combination is held, default 50", 0, 10000)}, "keys")},
 			func(in *input, a map[string]any) (string, error) {
-				us, err := keyList(a, "keys", 6)
+				us, err := keyList(a, "keys", 1, 6)
 				if err != nil {
 					return "", err
 				}
@@ -762,7 +795,10 @@ func rawTools() []Tool {
 				if err != nil {
 					return "", err
 				}
-				n, err := argReqInt(a, "amount", -20, 20)
+				if v, ok := a["amount"]; !ok || v == nil {
+					return "", fmt.Errorf("amount is required")
+				}
+				n, err := argInt(a, "amount", 0, -20, 20)
 				if err != nil || n == 0 {
 					return "", fmt.Errorf("amount must be a non-zero integer in -20..20")
 				}
@@ -787,22 +823,32 @@ func rawTools() []Tool {
 			Description: "Chassis power control: on, off (hard), reset (hard), soft (ACPI shutdown request). Takes effect IMMEDIATELY with no confirmation and may destroy unsaved work on the host; prefer soft over off. Only with the user's consent.",
 			Schema:      obj(map[string]any{"action": map[string]any{"type": "string", "enum": powerActions}}, "action"),
 			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
-				act, err := argStr(a, "action")
+				act, err := argEnum(a, "action", powerActions, "")
 				if err != nil {
 					return nil, err
-				}
-				if !slices.Contains(powerActions, act) {
-					return nil, fmt.Errorf("action must be on, off, reset or soft")
 				}
 				if _, err := call(b, opPower, map[string]any{"action": act}); err != nil {
 					return nil, err
 				}
 				return text("Power action '" + act + "' accepted by the BMC."), nil
 			}},
-		simpleDone(Tool{Name: "mount_iso", Title: "Mount ISO",
+		{Name: "mount_iso", Title: "Mount ISO",
 			Description: "Attach a local ISO file read-only as virtual CD/DVD (AMI and ATEN Java-protocol consoles; not Avocent/Cisco or ATEN HTML5). The host sees it until eject_iso or disconnect.",
-			Schema:      obj(map[string]any{"path": prop("string", "Absolute path to a readable .iso file on this computer")}, "path")}, opMount,
-			"ISO attached read-only; the host sees a virtual CD/DVD until eject_iso or disconnect."),
+			Schema:      obj(map[string]any{"path": prop("string", "Absolute path to a readable .iso file on this computer")}, "path"),
+			Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
+				path, err := argStr(a, "path")
+				if err != nil {
+					return nil, err
+				}
+				raw, err := call(b, opMount, map[string]any{"path": path})
+				if err != nil {
+					return nil, err
+				}
+				if saidNothing(raw) {
+					return text("ISO attached read-only; the host sees a virtual CD/DVD until eject_iso or disconnect."), nil
+				}
+				return pretty(raw), nil
+			}},
 		{Name: "eject_iso", Title: "Eject ISO", Idempotent: true,
 			Description: "Detach the mounted virtual media.",
 			Schema:      obj(map[string]any{}),
@@ -825,7 +871,7 @@ func rawTools() []Tool {
 
 func keyHold(down bool) func(context.Context, Backend, map[string]any) ([]Content, error) {
 	return func(ctx context.Context, b Backend, a map[string]any) ([]Content, error) {
-		us, err := keyList(a, "keys", 6)
+		us, err := keyList(a, "keys", 1, 6)
 		if err != nil {
 			return nil, err
 		}
@@ -854,13 +900,9 @@ func clicker(n int) func(*input, map[string]any) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		var mods []int
-		if _, ok := a["modifiers"]; ok {
-			if arr, _ := a["modifiers"].([]any); len(arr) > 0 {
-				if mods, err = keyList(a, "modifiers", 4); err != nil {
-					return "", err
-				}
-			}
+		mods, err := keyList(a, "modifiers", 0, 4)
+		if err != nil {
+			return "", err
 		}
 		if err := in.pointer(x, y, 0, 0); err != nil {
 			return "", err
@@ -997,16 +1039,19 @@ func screenshotTool() Tool {
 			"(longest image side, default 1568; 0 = full resolution). The text block states the exact mapping; all other tools always take FRAMEBUFFER coordinates.",
 		Schema: obj(map[string]any{"x": intProp("Region left", 0, 4095), "y": intProp("Region top", 0, 4095), "width": intProp("Region width", 1, 4096), "height": intProp("Region height", 1, 4096),
 			"scale":    map[string]any{"type": "number", "minimum": 0.1, "maximum": 1, "description": "Downscale factor, default 1"},
-			"max_size": intProp("Longest side of the returned image in pixels, default 1568; 0 = no limit", 0, 4096)}),
+			"max_size": intProp("Longest side of the returned image in pixels, 64..4096, default 1568; 0 = no limit", 0, 4096)}),
 		Run: func(_ context.Context, b Backend, a map[string]any) ([]Content, error) {
 			args := map[string]any{}
-			for _, k := range []string{"x", "y", "width", "height"} {
-				if _, ok := a[k]; ok {
-					v, err := argInt(a, k, 0, 0, 4096)
+			for _, r := range []struct {
+				k      string
+				lo, hi int
+			}{{"x", 0, 4095}, {"y", 0, 4095}, {"width", 1, 4096}, {"height", 1, 4096}} {
+				if v, ok := a[r.k]; ok && v != nil {
+					n, err := argInt(a, r.k, 0, r.lo, r.hi)
 					if err != nil {
 						return nil, err
 					}
-					args[k] = v
+					args[r.k] = n
 				}
 			}
 			if v, ok := a["scale"]; ok && v != nil {

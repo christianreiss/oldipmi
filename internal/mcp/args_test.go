@@ -35,7 +35,9 @@ func TestToolListMatchesRecording(t *testing.T) {
 }
 
 // What each tool makes of its arguments: the exact error of a call it refuses,
-// or the requests it sends to the app for one it carries out.
+// or the requests it sends to the app for one it carries out. An argument of
+// the wrong type, or beyond the limits of the tool's schema, is refused; one
+// that is null counts as not given.
 func TestArgumentChecks(t *testing.T) {
 	for _, c := range []struct {
 		tool, args string
@@ -53,14 +55,16 @@ func TestArgumentChecks(t *testing.T) {
 		{tool: "connect", args: `{"profile":"x","password_wait_ms":-1}`, err: "password_wait_ms must be an integer in 0..300000"},
 
 		{tool: "disconnect", args: `{"all":true,"profile":"A"}`, err: "give either profile or all, not both"},
-		{tool: "disconnect", args: `{"all":"yes"}`, sent: `disconnect{}`},
+		{tool: "disconnect", args: `{"all":"yes"}`, err: "all must be true or false"},
+		{tool: "disconnect", args: `{"all":null}`, sent: `disconnect{}`},
+		{tool: "disconnect", args: `{"all":true,"profile":null}`, sent: `disconnect{"all":true}`},
 		{tool: "disconnect", args: `{"all":true}`, sent: `disconnect{"all":true}`},
 
-		{tool: "screenshot", args: `{"x":-1}`, err: "x must be an integer in 0..4096"},
-		{tool: "screenshot", args: `{"height":4097}`, err: "height must be an integer in 0..4096"},
-		{tool: "screenshot", args: `{"x":4096}`, sent: `screenshot{"maxSize":1568,"x":4096}`},
-		{tool: "screenshot", args: `{"width":0}`, sent: `screenshot{"maxSize":1568,"width":0}`},
-		{tool: "screenshot", args: `{"x":null}`, sent: `screenshot{"maxSize":1568,"x":0}`},
+		{tool: "screenshot", args: `{"x":-1}`, err: "x must be an integer in 0..4095"},
+		{tool: "screenshot", args: `{"height":4097}`, err: "height must be an integer in 1..4096"},
+		{tool: "screenshot", args: `{"x":4096}`, err: "x must be an integer in 0..4095"},
+		{tool: "screenshot", args: `{"width":0}`, err: "width must be an integer in 1..4096"},
+		{tool: "screenshot", args: `{"x":null}`, sent: `screenshot{"maxSize":1568}`},
 		{tool: "screenshot", args: `{"scale":0.05}`, err: "scale must be a number in 0.1..1"},
 		{tool: "screenshot", args: `{"scale":"1"}`, err: "scale must be a number in 0.1..1"},
 		{tool: "screenshot", args: `{"max_size":32}`, err: "max_size must be 0 or 64..4096"},
@@ -77,7 +81,7 @@ func TestArgumentChecks(t *testing.T) {
 
 		{tool: "type_text", args: `{}`, err: "text is required"},
 		{tool: "type_text", args: `{"text":""}`, err: "text must be a non-empty string"},
-		{tool: "type_text", args: `{"text":null}`, err: "text must be a non-empty string"},
+		{tool: "type_text", args: `{"text":null}`, err: "text is required"},
 		{tool: "type_text", args: `{"text":"a","delay_ms":2001}`, err: "delay_ms must be an integer in 0..2000"},
 		{tool: "type_text", args: `{"text":"é"}`, err: "character 'é' at position 0 cannot be typed on a US layout (only printable ASCII, newline and tab)"},
 
@@ -92,7 +96,7 @@ func TestArgumentChecks(t *testing.T) {
 		{tool: "key_combo", args: `{"keys":[]}`, err: "keys must list 1..6 key names"},
 		{tool: "key_combo", args: `{"keys":"ctrl"}`, err: "keys must list 1..6 key names"},
 		{tool: "key_combo", args: `{"keys":["a","b","c","d","e","f","g"]}`, err: "keys must list 1..6 key names"},
-		{tool: "key_combo", args: `{"keys":[1]}`, err: `unknown key "" (list_keys shows all key names)`},
+		{tool: "key_combo", args: `{"keys":[1]}`, err: "keys must list 1..6 key names"},
 		{tool: "key_combo", args: `{"keys":["a"],"hold_ms":-1}`, err: "hold_ms must be an integer in 0..10000"},
 		{tool: "key_down", args: `{"keys":["nosuch"]}`, err: `unknown key "nosuch" (list_keys shows all key names)`},
 		{tool: "key_up", args: `{}`, err: "keys must list 1..6 key names"},
@@ -101,26 +105,29 @@ func TestArgumentChecks(t *testing.T) {
 		{tool: "mouse_move", args: `{"x":4096,"y":0}`, err: "x must be an integer in 0..4095"},
 		{tool: "mouse_click", args: `{"x":1,"y":1,"button":"side"}`, err: "button must be left, right or middle"},
 		{tool: "mouse_click", args: `{"x":1,"y":1,"button":"LEFT"}`, sent: clicks(1, 1)},
-		{tool: "mouse_click", args: `{"x":1,"y":1,"button":7}`, sent: clicks(1, 1)},
-		{tool: "mouse_click", args: `{"x":1,"y":1,"button":""}`, sent: clicks(1, 1)},
-		{tool: "mouse_click", args: `{"x":1,"y":1,"modifiers":"shift"}`, sent: clicks(1, 1)},
+		{tool: "mouse_click", args: `{"x":1,"y":1,"button":7}`, err: "button must be left, right or middle"},
+		{tool: "mouse_click", args: `{"x":1,"y":1,"button":""}`, err: "button must be left, right or middle"},
+		{tool: "mouse_click", args: `{"x":1,"y":1,"button":null}`, sent: clicks(1, 1)},
+		{tool: "mouse_click", args: `{"x":1,"y":1,"modifiers":"shift"}`, err: "modifiers must list up to 4 key names"},
+		{tool: "mouse_click", args: `{"x":1,"y":1,"modifiers":[1]}`, err: "modifiers must list up to 4 key names"},
 		{tool: "mouse_click", args: `{"x":1,"y":1,"modifiers":[]}`, sent: clicks(1, 1)},
-		{tool: "mouse_click", args: `{"x":1,"y":1,"modifiers":["a","b","c","d","e"]}`, err: "modifiers must list 1..4 key names"},
+		{tool: "mouse_click", args: `{"x":1,"y":1,"modifiers":null}`, sent: clicks(1, 1)},
+		{tool: "mouse_click", args: `{"x":1,"y":1,"modifiers":["a","b","c","d","e"]}`, err: "modifiers must list up to 4 key names"},
 		{tool: "mouse_double_click", args: `{"x":1,"y":1,"button":"right"}`, sent: clicks(2, 2)},
 		{tool: "mouse_drag", args: `{"x":1,"y":1,"to_x":2}`, err: "to_y is required"},
 		{tool: "mouse_drag", args: `{"x":1,"y":1,"to_x":2,"to_y":2,"button":"middle"}`, err: ""},
-		{tool: "mouse_scroll", args: `{"x":1,"y":1}`, err: "amount must be a non-zero integer in -20..20"},
+		{tool: "mouse_scroll", args: `{"x":1,"y":1}`, err: "amount is required"},
 		{tool: "mouse_scroll", args: `{"x":1,"y":1,"amount":0}`, err: "amount must be a non-zero integer in -20..20"},
 		{tool: "mouse_scroll", args: `{"x":1,"y":1,"amount":21}`, err: "amount must be a non-zero integer in -20..20"},
 
 		{tool: "power", args: `{}`, err: "action is required"},
-		{tool: "power", args: `{"action":5}`, err: "action must be a non-empty string"},
+		{tool: "power", args: `{"action":5}`, err: "action must be on, off, reset or soft"},
 		{tool: "power", args: `{"action":"explode"}`, err: "action must be on, off, reset or soft"},
-		{tool: "power", args: `{"action":"ON"}`, err: "action must be on, off, reset or soft"},
+		{tool: "power", args: `{"action":"ON"}`, sent: `power{"action":"on"}`},
 		{tool: "power", args: `{"action":"soft"}`, sent: `power{"action":"soft"}`},
 
-		{tool: "mount_iso", args: `{}`, sent: `mount{}`},
-		{tool: "mount_iso", args: `{"path":5}`, sent: `mount{"path":5}`},
+		{tool: "mount_iso", args: `{}`, err: "path is required"},
+		{tool: "mount_iso", args: `{"path":5}`, err: "path must be a non-empty string"},
 		{tool: "mount_iso", args: `{"path":"/srv/x.iso"}`, sent: `mount{"path":"/srv/x.iso"}`},
 	} {
 		f := &fake{result: map[string]string{"screenshot": `{"png":"iVBO","width":1,"height":1,"fullWidth":1,"fullHeight":1,"x":0,"y":0,"regionW":1,"regionH":1}`}}

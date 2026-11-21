@@ -114,7 +114,7 @@
           "type": "integer"
         },
         "max_size": {
-          "description": "Longest side of the returned image in pixels, default 1568; 0 = no limit",
+          "description": "Longest side of the returned image in pixels, 64..4096, default 1568; 0 = no limit",
           "maximum": 4096,
           "minimum": 0,
           "type": "integer"
@@ -305,7 +305,7 @@
           "type": "integer"
         },
         "name": {
-          "description": "Key name or combination",
+          "description": "Key name or combination of up to 6 keys",
           "type": "string"
         },
         "profile": {
