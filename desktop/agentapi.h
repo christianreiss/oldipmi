@@ -100,16 +100,53 @@ private:
   void releaseHeld(Client *c);
   static QString label(const Client *c);
   void log(const QString &who, const QString &kind, const QString &text, bool coalesce = false);
-  void note(const QString &what);
+  // An action the user should notice: the note "Agent: <status>" in the status
+  // bar, and the entry `activity` under `who` in the activity list.
+  void audit(const QString &who, const QString &kind, const QString &activity, const QString &status);
   QVariantMap findProfile(const QString &key) const;
   // A request that cannot be done: its code (agentops::Err*) and the message.
   struct Failure {
     const char *code = nullptr;
     QString message;
   };
+  // That no profile has the id, name or host key, with the names there are.
+  Failure noProfile(const QString &key) const;
   // The session a request targets: args.profile, else the only open one. Null
   // when that console or every console is closed; null with *failure set
   // (ErrNoProfile, ErrAmbiguous) when no profile matches args.profile, or when
   // args names none and several consoles are open.
   Session *resolve(const QJsonObject &args, Failure *failure) const;
+
+  // One request while dispatch runs it: its arguments, the client that sent
+  // it (null for direct calls) and its reply.
+  struct Call {
+    const QJsonObject &args;
+    Client *client;
+    Reply reply;
+    QString who() const { return label(client); }
+    void succeed(const QJsonValue &result) const { reply(true, result, {}); }
+    void fail(const char *code, const QString &message) const { reply(false, message, code); }
+  };
+  // The session c targets (resolve), which must be connected; null after
+  // answering c with why not.
+  Session *connected(const Call &c) const;
+  // The ops dispatch answers and the method that answers each, in the order
+  // the reply to hello lists them: that of testdata/agent/names.json.
+  struct Op {
+    const char *name;
+    void (AgentApi::*run)(Call &);
+  };
+  static const Op Ops[];
+  void opHello(Call &c);
+  void opListProfiles(Call &c);
+  void opStatus(Call &c);
+  void opConnect(Call &c);
+  void opDisconnect(Call &c);
+  void opScreenshot(Call &c);
+  void opKey(Call &c);
+  void opPointer(Call &c);
+  void opRelease(Call &c);
+  void opPower(Call &c);
+  void opMount(Call &c);
+  void opEject(Call &c);
 };

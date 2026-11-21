@@ -36,14 +36,6 @@ struct AgentApi::Client {
   }
 };
 
-// The ops dispatch answers, which the reply to hello lists: those of
-// testdata/agent/names.json.
-static QJsonArray offeredOps() {
-  return {agentops::OpHello,      agentops::OpListProfiles, agentops::OpStatus, agentops::OpConnect,
-          agentops::OpDisconnect, agentops::OpScreenshot,   agentops::OpKey,    agentops::OpPointer,
-          agentops::OpRelease,    agentops::OpPower,        agentops::OpMount,  agentops::OpEject};
-}
-
 static QString clean(const QString &s, int max = 64) {
   QString out;
   for (QChar ch : s.left(max))
@@ -325,7 +317,10 @@ void AgentApi::readClient(Client *c) {
     sock->disconnectFromServer();
   }
 }
-void AgentApi::note(const QString &what) { m_c->agentNote("Agent: " + what); }
+void AgentApi::audit(const QString &who, const QString &kind, const QString &activity, const QString &status) {
+  m_c->agentNote("Agent: " + status);
+  log(who, kind, activity);
+}
 QVariantMap AgentApi::findProfile(const QString &key) const {
   for (const auto &v : m_c->hosts()) {
     auto p = v.toMap();
@@ -344,16 +339,19 @@ static QJsonObject profileJson(const QVariantMap &p) {
   return {{"id", p["id"].toString()}, {"name", p["name"].toString()}, {"host", p["host"].toString()},
           {"family", p["family"].toString()}};
 }
+AgentApi::Failure AgentApi::noProfile(const QString &key) const {
+  QStringList names;
+  for (const auto &v : m_c->hosts())
+    names << v.toMap().value("name").toString();
+  return {agentops::ErrNoProfile, "No profile named '" + key + "'. Available: " + names.join(", ") + "."};
+}
 Session *AgentApi::resolve(const QJsonObject &a, Failure *failure) const {
   *failure = {};
   auto key = a.value("profile").toString();
   if (!key.isEmpty()) {
     auto p = findProfile(key);
     if (p.isEmpty()) {
-      QStringList names;
-      for (const auto &v : m_c->hosts())
-        names << v.toMap().value("name").toString();
-      *failure = {agentops::ErrNoProfile, "No profile named '" + key + "'. Available: " + names.join(", ") + "."};
+      *failure = noProfile(key);
       return nullptr;
     }
     return m_c->session(p.value("id").toString());
@@ -369,296 +367,317 @@ Session *AgentApi::resolve(const QJsonObject &a, Failure *failure) const {
   }
   return open.isEmpty() ? nullptr : m_c->session(open.first());
 }
-void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Client *client) {
-  auto succeed = [&](const QJsonValue &result) { reply(true, result, {}); };
-  auto fail = [&](const char *code, const QString &m) { reply(false, m, code); };
-  // The targeted session, which must be connected; replies with the error and returns null otherwise.
-  auto needConnected = [&]() -> Session * {
-    Failure f;
-    auto *s = resolve(a, &f);
-    if (f.code) {
-      fail(f.code, f.message);
-      return nullptr;
-    }
-    if (!s || !s->connected()) {
-      fail(agentops::ErrNotConnected,
+Session *AgentApi::connected(const Call &c) const {
+  Failure f;
+  auto *s = resolve(c.args, &f);
+  if (f.code) {
+    c.fail(f.code, f.message);
+    return nullptr;
+  }
+  if (!s || !s->connected()) {
+    c.fail(agentops::ErrNotConnected,
            "Not connected (state: " + (s ? s->stateName() : QString(ipc::StateDisconnected)) + "). Use connect first.");
-      return nullptr;
-    }
-    return s;
-  };
-  // Answers power, mount and eject once the console has.
-  auto done = [reply](bool ok, QString m) {
+    return nullptr;
+  }
+  return s;
+}
+// The reply to power, mount and eject, once the console has answered.
+static Session::Result slowReply(AgentApi::Reply reply) {
+  return [reply = std::move(reply)](bool ok, QString m) {
     reply(ok, ok ? QJsonValue(QJsonObject{{"message", m}}) : QJsonValue(m), ok ? QString() : QString(agentops::ErrFailed));
   };
-  QString who = label(client);
-  if (op == agentops::OpHello) {
-    if (client) {
-      client->name = clean(a.value("name").toString());
-      client->version = clean(a.value("version").toString(), 32);
-      client->mcpVersion = clean(a.value("mcpVersion").toString(), 32);
-      client->greeted = true;
-      log(label(client), "client", "Agent identified itself");
-      emit clientsChanged();
-    }
-    succeed(QJsonObject{{"app", "OldIPMI"}, {"version", QCoreApplication::applicationVersion()},
-                        {"api", agentops::Api}, {"ops", offeredOps()}});
-  } else if (op == agentops::OpListProfiles) {
-    QJsonArray list;
-    for (const auto &v : m_c->hosts()) {
-      auto p = v.toMap();
-      auto o = profileJson(p);
-      o["username"] = p["username"].toString();
-      o["passwordSaved"] = p["remember"].toBool();
-      list.append(o);
-    }
-    log(label(client), "profiles", "Listed profiles ×%1", true);
-    succeed(QJsonObject{{"profiles", list}});
-  } else if (op == agentops::OpStatus) {
-    Failure f;
-    auto *s = resolve(a, &f);
-    if (f.code)
-      return fail(f.code, f.message);
-    QJsonArray sessions;
-    auto all = m_c->allSessions();
-    std::sort(all.begin(), all.end(), [](Session *x, Session *y) {
-      return x->profile.value("name").toString().toLower() < y->profile.value("name").toString().toLower();
-    });
-    for (auto *o : all) {
-      auto j = profileJson(o->profile);
-      j["state"] = o->stateName();
-      sessions.append(j);
-    }
-    QJsonObject st{{"sessions", sessions}, {"passwordRequired", !m_passwordFor.isEmpty()}};
-    if (!m_passwordFor.isEmpty())
-      st["passwordProfile"] = m_passwordFor;
-    if (s) {
-      st["state"] = s->stateName();
-      st["message"] = s->message;
-      st["mounted"] = s->mounted;
-      st["width"] = s->lastFrame.width();
-      st["height"] = s->lastFrame.height();
-      st["frameSeq"] = double(s->frameSeq);
-      st["changeSeq"] = double(s->changeSeq);
-      st["msSinceChange"] = double(s->msSinceChange());
-      // Only an open session's; a closed one's would mislead.
-      st["consoleInfo"] = s->state == Session::State::Disconnected ? QJsonObject{} : QJsonObject::fromVariantMap(s->consoleInfo);
-      if (s->state != Session::State::Disconnected)
-        st["profile"] = profileJson(s->profile);
-    } else {
-      st["state"] = ipc::StateDisconnected;
-      st["message"] = m_c->message();
-      st["mounted"] = false;
-      st["width"] = 0;
-      st["height"] = 0;
-      st["frameSeq"] = 0;
-      st["changeSeq"] = 0;
-      st["msSinceChange"] = 0;
-      st["consoleInfo"] = QJsonObject{};
-    }
-    succeed(st);
-  } else if (op == agentops::OpConnect) {
-    auto key = a.value("profile").toString();
-    auto p = findProfile(key);
-    if (p.isEmpty()) {
-      QStringList names;
-      for (const auto &v : m_c->hosts())
-        names << v.toMap().value("name").toString();
-      return fail(agentops::ErrNoProfile, "No profile named '" + key + "'. Available: " + names.join(", ") + ".");
-    }
-    auto name = p.value("name").toString();
-    auto id = p.value("id").toString();
-    if (m_c->isOpen(id))
-      return succeed(QJsonObject{{"state", m_c->session(id)->stateName()}, {"profile", profileJson(p)}, {"already", true}});
-    if (auto pending = m_c->pendingProfile(); !pending.isEmpty() && pending.value("id") != p.value("id"))
-      return fail(agentops::ErrBusy, "A password prompt for '" + pending.value("name").toString() +
+}
+const AgentApi::Op AgentApi::Ops[] = {
+    {agentops::OpHello, &AgentApi::opHello},           {agentops::OpListProfiles, &AgentApi::opListProfiles},
+    {agentops::OpStatus, &AgentApi::opStatus},         {agentops::OpConnect, &AgentApi::opConnect},
+    {agentops::OpDisconnect, &AgentApi::opDisconnect}, {agentops::OpScreenshot, &AgentApi::opScreenshot},
+    {agentops::OpKey, &AgentApi::opKey},               {agentops::OpPointer, &AgentApi::opPointer},
+    {agentops::OpRelease, &AgentApi::opRelease},       {agentops::OpPower, &AgentApi::opPower},
+    {agentops::OpMount, &AgentApi::opMount},           {agentops::OpEject, &AgentApi::opEject},
+};
+void AgentApi::dispatch(const QString &op, const QJsonObject &args, Reply reply, Client *client) {
+  Call c{args, client, std::move(reply)};
+  for (const auto &o : Ops)
+    if (op == QLatin1StringView(o.name))
+      return (this->*o.run)(c);
+  c.fail(agentops::ErrUnknownOp, "Unknown operation '" + op + "'.");
+}
+void AgentApi::opHello(Call &c) {
+  if (c.client) {
+    c.client->name = clean(c.args.value("name").toString());
+    c.client->version = clean(c.args.value("version").toString(), 32);
+    c.client->mcpVersion = clean(c.args.value("mcpVersion").toString(), 32);
+    c.client->greeted = true;
+    log(c.who(), "client", "Agent identified itself");
+    emit clientsChanged();
+  }
+  QJsonArray ops;
+  for (const auto &o : Ops)
+    ops.append(QLatin1StringView(o.name));
+  c.succeed(QJsonObject{{"app", "OldIPMI"}, {"version", QCoreApplication::applicationVersion()},
+                        {"api", agentops::Api}, {"ops", ops}});
+}
+void AgentApi::opListProfiles(Call &c) {
+  QJsonArray list;
+  for (const auto &v : m_c->hosts()) {
+    auto p = v.toMap();
+    auto o = profileJson(p);
+    o["username"] = p["username"].toString();
+    o["passwordSaved"] = p["remember"].toBool();
+    list.append(o);
+  }
+  log(c.who(), "profiles", "Listed profiles ×%1", true);
+  c.succeed(QJsonObject{{"profiles", list}});
+}
+void AgentApi::opStatus(Call &c) {
+  Failure f;
+  auto *s = resolve(c.args, &f);
+  if (f.code)
+    return c.fail(f.code, f.message);
+  QJsonArray sessions;
+  auto all = m_c->allSessions();
+  std::sort(all.begin(), all.end(), [](Session *x, Session *y) {
+    return x->profile.value("name").toString().toLower() < y->profile.value("name").toString().toLower();
+  });
+  for (auto *o : all) {
+    auto j = profileJson(o->profile);
+    j["state"] = o->stateName();
+    sessions.append(j);
+  }
+  QJsonObject st{{"sessions", sessions}, {"passwordRequired", !m_passwordFor.isEmpty()}};
+  if (!m_passwordFor.isEmpty())
+    st["passwordProfile"] = m_passwordFor;
+  if (s) {
+    st["state"] = s->stateName();
+    st["message"] = s->message;
+    st["mounted"] = s->mounted;
+    st["width"] = s->lastFrame.width();
+    st["height"] = s->lastFrame.height();
+    st["frameSeq"] = double(s->frameSeq);
+    st["changeSeq"] = double(s->changeSeq);
+    st["msSinceChange"] = double(s->msSinceChange());
+    // Only an open session's; a closed one's would mislead.
+    st["consoleInfo"] = s->state == Session::State::Disconnected ? QJsonObject{} : QJsonObject::fromVariantMap(s->consoleInfo);
+    if (s->state != Session::State::Disconnected)
+      st["profile"] = profileJson(s->profile);
+  } else {
+    st["state"] = ipc::StateDisconnected;
+    st["message"] = m_c->message();
+    st["mounted"] = false;
+    st["width"] = 0;
+    st["height"] = 0;
+    st["frameSeq"] = 0;
+    st["changeSeq"] = 0;
+    st["msSinceChange"] = 0;
+    st["consoleInfo"] = QJsonObject{};
+  }
+  c.succeed(st);
+}
+void AgentApi::opConnect(Call &c) {
+  auto key = c.args.value("profile").toString();
+  auto p = findProfile(key);
+  if (p.isEmpty()) {
+    auto f = noProfile(key);
+    return c.fail(f.code, f.message);
+  }
+  auto name = p.value("name").toString();
+  auto id = p.value("id").toString();
+  if (m_c->isOpen(id))
+    return c.succeed(QJsonObject{{"state", m_c->session(id)->stateName()}, {"profile", profileJson(p)}, {"already", true}});
+  if (auto pending = m_c->pendingProfile(); !pending.isEmpty() && pending.value("id") != p.value("id"))
+    return c.fail(agentops::ErrBusy, "A password prompt for '" + pending.value("name").toString() +
                                          "' is open in OldIPMI. Wait until the user answers or cancels it.");
-    // Always ask again: the user may have dismissed an earlier password prompt.
-    note("opening " + name);
-    log(label(client), "connect", "Open console '" + name + "'");
-    m_requesting = name;
-    m_c->connectHost(p, "");
-    m_requesting.clear();
-    auto *s = m_c->session(id);
-    if (!s || s->state == Session::State::Disconnected) {
-      if (m_passwordFor == name) {
-        log(label(client), "connect", "Waiting for the user to enter the password for '" + name + "'");
-        return succeed(QJsonObject{{"state", ipc::StateDisconnected}, {"passwordRequired", true}, {"profile", profileJson(p)}});
-      }
-      return fail(agentops::ErrFailed, m_c->message());
+  // Always ask again: the user may have dismissed an earlier password prompt.
+  audit(c.who(), "connect", "Open console '" + name + "'", "opening " + name);
+  m_requesting = name;
+  m_c->connectHost(p, "");
+  m_requesting.clear();
+  auto *s = m_c->session(id);
+  if (!s || s->state == Session::State::Disconnected) {
+    if (m_passwordFor == name) {
+      log(c.who(), "connect", "Waiting for the user to enter the password for '" + name + "'");
+      return c.succeed(QJsonObject{{"state", ipc::StateDisconnected}, {"passwordRequired", true}, {"profile", profileJson(p)}});
     }
-    succeed(QJsonObject{{"state", s->stateName()}, {"profile", profileJson(p)}});
-  } else if (op == agentops::OpDisconnect) {
-    Failure f;
-    auto *s = resolve(a, &f);
-    bool all = a.value("all").toBool();
-    if (f.code && !all)
-      return fail(f.code, f.message);
-    bool explicitProfile = !a.value("profile").toString().isEmpty();
-    QJsonObject r;
-    if (all) {
-      QJsonArray closed;
-      for (auto *o : m_c->allSessions())
-        if (o->state != Session::State::Disconnected)
-          closed.append(profileJson(o->profile));
-      r["closed"] = closed;
-      r["promptDismissed"] = !m_passwordFor.isEmpty();
-      if (!closed.isEmpty() || !m_passwordFor.isEmpty()) {
-        note("disconnect all");
-        log(label(client), "connect", "Disconnect all consoles");
-      }
+    return c.fail(agentops::ErrFailed, m_c->message());
+  }
+  c.succeed(QJsonObject{{"state", s->stateName()}, {"profile", profileJson(p)}});
+}
+void AgentApi::opDisconnect(Call &c) {
+  Failure f;
+  auto *s = resolve(c.args, &f);
+  bool all = c.args.value("all").toBool();
+  if (f.code && !all)
+    return c.fail(f.code, f.message);
+  bool explicitProfile = !c.args.value("profile").toString().isEmpty();
+  QJsonObject r;
+  if (all) {
+    QJsonArray closed;
+    for (auto *o : m_c->allSessions())
+      if (o->state != Session::State::Disconnected)
+        closed.append(profileJson(o->profile));
+    r["closed"] = closed;
+    r["promptDismissed"] = !m_passwordFor.isEmpty();
+    if (!closed.isEmpty() || !m_passwordFor.isEmpty())
+      audit(c.who(), "connect", "Disconnect all consoles", "disconnect all");
+    m_passwordFor.clear();
+    m_c->disconnectAll();
+  } else {
+    auto prof = explicitProfile ? findProfile(c.args.value("profile").toString()) : QVariantMap{};
+    bool promptHere = !m_passwordFor.isEmpty() &&
+                      (!explicitProfile || prof.value("name").toString() == m_passwordFor);
+    bool open = s && s->state != Session::State::Disconnected;
+    r["previous"] = s ? s->stateName() : QString(ipc::StateDisconnected);
+    r["promptDismissed"] = promptHere;
+    if (open)
+      r["profile"] = profileJson(s->profile);
+    if (open || promptHere)
+      audit(c.who(), "connect", "Disconnect", "disconnect");
+    // What to close: the targeted console, else the profile named, else,
+    // without a prompt to dismiss, the console in front.
+    QString target;
+    if (s)
+      target = s->id;
+    else if (explicitProfile)
+      target = prof.value("id").toString();
+    else if (m_passwordFor.isEmpty())
+      target = m_c->shownId();
+    if (promptHere)
       m_passwordFor.clear();
-      m_c->disconnectAll();
-    } else {
-      auto prof = explicitProfile ? findProfile(a.value("profile").toString()) : QVariantMap{};
-      bool promptHere = !m_passwordFor.isEmpty() &&
-                        (!explicitProfile || prof.value("name").toString() == m_passwordFor);
-      r["previous"] = s ? s->stateName() : QString(ipc::StateDisconnected);
-      r["promptDismissed"] = promptHere;
-      if (s && s->state != Session::State::Disconnected)
-        r["profile"] = profileJson(s->profile);
-      if ((s && s->state != Session::State::Disconnected) || promptHere) {
-        note("disconnect");
-        log(label(client), "connect", "Disconnect");
-      }
-      QString target = s ? s->id : explicitProfile ? prof.value("id").toString()
-                                   : (m_passwordFor.isEmpty() ? m_c->shownId() : QString());
-      if (promptHere)
-        m_passwordFor.clear();
-      m_c->disconnectProfile(target);
-    }
-    r["state"] = ipc::StateDisconnected;
-    QJsonArray remaining;
-    for (const auto &id : m_c->openIds())
-      remaining.append(profileJson(m_c->session(id)->profile));
-    r["stillOpen"] = remaining;
-    succeed(r);
-  } else if (op == agentops::OpScreenshot) {
-    Failure f;
-    auto *s = resolve(a, &f);
-    if (f.code)
-      return fail(f.code, f.message);
-    auto img = s ? s->lastFrame : QImage();
-    if (img.isNull())
-      return fail(agentops::ErrNoFrame, "No frame yet (state: " + (s ? s->stateName() : QString(ipc::StateDisconnected)) +
+    m_c->disconnectProfile(target);
+  }
+  r["state"] = ipc::StateDisconnected;
+  QJsonArray remaining;
+  for (const auto &id : m_c->openIds())
+    remaining.append(profileJson(m_c->session(id)->profile));
+  r["stillOpen"] = remaining;
+  c.succeed(r);
+}
+void AgentApi::opScreenshot(Call &c) {
+  Failure f;
+  auto *s = resolve(c.args, &f);
+  if (f.code)
+    return c.fail(f.code, f.message);
+  auto img = s ? s->lastFrame : QImage();
+  if (img.isNull())
+    return c.fail(agentops::ErrNoFrame, "No frame yet (state: " + (s ? s->stateName() : QString(ipc::StateDisconnected)) +
                                             "). Connect first, or wait_for_change after connecting.");
-    int fw = img.width(), fh = img.height();
-    int x = a.value("x").toInt(0), y = a.value("y").toInt(0);
-    int w = a.value("width").toInt(fw - x), h = a.value("height").toInt(fh - y);
-    if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > fw || y + h > fh)
-      return fail(agentops::ErrBadArgs, QString("Region outside the %1x%2 framebuffer.").arg(fw).arg(fh));
-    double scale = a.value("scale").toDouble(1.0);
-    if (scale < 0.1 || scale > 1.0)
-      return fail(agentops::ErrBadArgs, "scale must be between 0.1 and 1.0.");
-    int maxSize = a.value("maxSize").toInt(0);
-    if (maxSize > 0 && qMax(w, h) * scale > maxSize)
-      scale = double(maxSize) / qMax(w, h);
-    QImage out = img.copy(x, y, w, h);
-    if (scale < 1.0)
-      out = out.scaled(qMax(1, int(w * scale)), qMax(1, int(h * scale)), Qt::IgnoreAspectRatio,
-                       Qt::SmoothTransformation);
-    QByteArray png;
-    QBuffer buf(&png);
-    buf.open(QIODevice::WriteOnly);
-    if (!out.convertToFormat(QImage::Format_RGB888).save(&buf, "PNG"))
-      return fail(agentops::ErrFailed, "Could not encode the screenshot.");
-    log(label(client), "screenshot", "Screenshot ×%1", true);
-    succeed(QJsonObject{{"png", QString::fromLatin1(png.toBase64())}, {"width", out.width()},
+  const auto &a = c.args;
+  int fw = img.width(), fh = img.height();
+  int x = a.value("x").toInt(0), y = a.value("y").toInt(0);
+  int w = a.value("width").toInt(fw - x), h = a.value("height").toInt(fh - y);
+  if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > fw || y + h > fh)
+    return c.fail(agentops::ErrBadArgs, QString("Region outside the %1x%2 framebuffer.").arg(fw).arg(fh));
+  double scale = a.value("scale").toDouble(1.0);
+  if (scale < 0.1 || scale > 1.0)
+    return c.fail(agentops::ErrBadArgs, "scale must be between 0.1 and 1.0.");
+  int maxSize = a.value("maxSize").toInt(0);
+  if (maxSize > 0 && qMax(w, h) * scale > maxSize)
+    scale = double(maxSize) / qMax(w, h);
+  QImage out = img.copy(x, y, w, h);
+  if (scale < 1.0)
+    out = out.scaled(qMax(1, int(w * scale)), qMax(1, int(h * scale)), Qt::IgnoreAspectRatio,
+                     Qt::SmoothTransformation);
+  QByteArray png;
+  QBuffer buf(&png);
+  buf.open(QIODevice::WriteOnly);
+  if (!out.convertToFormat(QImage::Format_RGB888).save(&buf, "PNG"))
+    return c.fail(agentops::ErrFailed, "Could not encode the screenshot.");
+  log(c.who(), "screenshot", "Screenshot ×%1", true);
+  c.succeed(QJsonObject{{"png", QString::fromLatin1(png.toBase64())}, {"width", out.width()},
                         {"height", out.height()}, {"fullWidth", fw}, {"fullHeight", fh},
                         {"x", x}, {"y", y}, {"regionW", w}, {"regionH", h}});
-  } else if (op == agentops::OpKey) {
-    auto *s = needConnected();
-    if (!s)
-      return;
-    int u = a.value("usage").toInt();
-    if (u < 4 || u > 231)
-      return fail(agentops::ErrBadArgs, "Invalid key usage.");
-    bool down = a.value("down").toBool();
-    s->key(u, down);
-    if (client) {
-      if (down)
-        client->held[s->id].keys.insert(u);
-      else
-        client->held[s->id].keys.remove(u);
-    }
-    if (down) // never log which key: the agent may be typing a password
-      log(label(client), "keys", "Keyboard input: %1 key presses", true);
-    succeed(QJsonObject{});
-  } else if (op == agentops::OpPointer) {
-    auto *s = needConnected();
-    if (!s)
-      return;
-    auto img = s->lastFrame;
-    if (img.isNull())
-      return fail(agentops::ErrNoFrame, "No frame yet.");
-    int x = a.value("x").toInt(), y = a.value("y").toInt();
-    if (x < 0 || y < 0 || x >= img.width() || y >= img.height())
-      return fail(agentops::ErrBadArgs, QString("Point %1,%2 is outside the %3x%4 framebuffer.")
-                                            .arg(x).arg(y).arg(img.width()).arg(img.height()));
-    int buttons = a.value("buttons").toInt() & 7;
-    s->pointer(x, y, buttons, qBound(-1, a.value("wheel").toInt(), 1));
-    if (client) {
-      auto &h = client->held[s->id];
-      h.buttons = buttons;
-      h.x = x;
-      h.y = y;
-    }
-    log(who, "pointer", "Pointer input ×%1, last at " + QString::number(x) + "," + QString::number(y), true);
-    succeed(QJsonObject{});
-  } else if (op == agentops::OpRelease) {
-    Failure f;
-    auto key = a.value("profile").toString();
-    Session *only = nullptr;
-    if (!key.isEmpty()) {
-      only = resolve(a, &f);
-      if (f.code)
-        return fail(f.code, f.message);
-    }
-    for (auto *s : m_c->allSessions())
-      if (!only || s == only)
-        s->releaseInput();
-    for (auto &cl : m_clients) {
-      if (only)
-        cl->held.remove(only->id);
-      else
-        cl->held.clear();
-    }
-    log(who, "release", "Released all keys and buttons");
-    succeed(QJsonObject{});
-  } else if (op == agentops::OpPower) {
-    auto *s = needConnected();
-    if (!s)
-      return;
-    auto action = a.value("action").toString();
-    if (!QStringList{ipc::PowerOn, ipc::PowerOff, ipc::PowerReset, ipc::PowerSoft}.contains(action))
-      return fail(agentops::ErrBadArgs, "Unknown power action.");
-    s->releaseInput();
-    note("power " + action);
-    log(label(client), "power", "Power " + action + " requested");
-    s->power(action, this, [this, action, done, who](bool ok, QString m) {
-      note(ok ? "power " + action + " accepted" : "power " + action + " failed: " + m);
-      log(who, "power", ok ? "Power " + action + " accepted" : "Power " + action + " failed");
-      done(ok, ok ? "Power action '" + action + "' accepted." : m);
-    });
-  } else if (op == agentops::OpMount) {
-    auto *s = needConnected();
-    if (!s)
-      return;
-    QFileInfo f(a.value("path").toString());
-    if (!f.isAbsolute() || !f.isFile() || !f.isReadable() ||
-        f.suffix().compare("iso", Qt::CaseInsensitive) != 0)
-      return fail(agentops::ErrBadArgs, "path must be an absolute, readable .iso file.");
-    note("mount " + f.fileName());
-    log(label(client), "media", "Mount ISO " + f.fileName());
-    s->mount(f.canonicalFilePath(), this, done);
-  } else if (op == agentops::OpEject) {
-    auto *s = needConnected();
-    if (!s)
-      return;
-    note("eject ISO");
-    log(label(client), "media", "Eject ISO");
-    s->eject(this, done);
-  } else {
-    fail(agentops::ErrUnknownOp, "Unknown operation '" + op + "'.");
+}
+void AgentApi::opKey(Call &c) {
+  auto *s = connected(c);
+  if (!s)
+    return;
+  int u = c.args.value("usage").toInt();
+  if (u < 4 || u > 231)
+    return c.fail(agentops::ErrBadArgs, "Invalid key usage.");
+  bool down = c.args.value("down").toBool();
+  s->key(u, down);
+  if (c.client) {
+    if (down)
+      c.client->held[s->id].keys.insert(u);
+    else
+      c.client->held[s->id].keys.remove(u);
   }
+  if (down) // never log which key: the agent may be typing a password
+    log(c.who(), "keys", "Keyboard input: %1 key presses", true);
+  c.succeed(QJsonObject{});
+}
+void AgentApi::opPointer(Call &c) {
+  auto *s = connected(c);
+  if (!s)
+    return;
+  auto img = s->lastFrame;
+  if (img.isNull())
+    return c.fail(agentops::ErrNoFrame, "No frame yet.");
+  int x = c.args.value("x").toInt(), y = c.args.value("y").toInt();
+  if (x < 0 || y < 0 || x >= img.width() || y >= img.height())
+    return c.fail(agentops::ErrBadArgs, QString("Point %1,%2 is outside the %3x%4 framebuffer.")
+                                            .arg(x).arg(y).arg(img.width()).arg(img.height()));
+  int buttons = c.args.value("buttons").toInt() & 7;
+  s->pointer(x, y, buttons, qBound(-1, c.args.value("wheel").toInt(), 1));
+  if (c.client) {
+    auto &h = c.client->held[s->id];
+    h.buttons = buttons;
+    h.x = x;
+    h.y = y;
+  }
+  log(c.who(), "pointer", "Pointer input ×%1, last at " + QString::number(x) + "," + QString::number(y), true);
+  c.succeed(QJsonObject{});
+}
+void AgentApi::opRelease(Call &c) {
+  Session *only = nullptr;
+  if (!c.args.value("profile").toString().isEmpty()) {
+    Failure f;
+    only = resolve(c.args, &f);
+    if (f.code)
+      return c.fail(f.code, f.message);
+  }
+  for (auto *s : m_c->allSessions())
+    if (!only || s == only)
+      s->releaseInput();
+  for (auto &cl : m_clients) {
+    if (only)
+      cl->held.remove(only->id);
+    else
+      cl->held.clear();
+  }
+  log(c.who(), "release", "Released all keys and buttons");
+  c.succeed(QJsonObject{});
+}
+void AgentApi::opPower(Call &c) {
+  auto *s = connected(c);
+  if (!s)
+    return;
+  auto action = c.args.value("action").toString();
+  if (!QStringList{ipc::PowerOn, ipc::PowerOff, ipc::PowerReset, ipc::PowerSoft}.contains(action))
+    return c.fail(agentops::ErrBadArgs, "Unknown power action.");
+  s->releaseInput();
+  audit(c.who(), "power", "Power " + action + " requested", "power " + action);
+  s->power(action, this, [this, action, who = c.who(), done = slowReply(c.reply)](bool ok, QString m) {
+    audit(who, "power", ok ? "Power " + action + " accepted" : "Power " + action + " failed",
+          ok ? "power " + action + " accepted" : "power " + action + " failed: " + m);
+    done(ok, ok ? "Power action '" + action + "' accepted." : m);
+  });
+}
+void AgentApi::opMount(Call &c) {
+  auto *s = connected(c);
+  if (!s)
+    return;
+  QFileInfo f(c.args.value("path").toString());
+  if (!f.isAbsolute() || !f.isFile() || !f.isReadable() ||
+      f.suffix().compare("iso", Qt::CaseInsensitive) != 0)
+    return c.fail(agentops::ErrBadArgs, "path must be an absolute, readable .iso file.");
+  audit(c.who(), "media", "Mount ISO " + f.fileName(), "mount " + f.fileName());
+  s->mount(f.canonicalFilePath(), this, slowReply(c.reply));
+}
+void AgentApi::opEject(Call &c) {
+  auto *s = connected(c);
+  if (!s)
+    return;
+  audit(c.who(), "media", "Eject ISO", "eject ISO");
+  s->eject(this, slowReply(c.reply));
 }
