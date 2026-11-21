@@ -9,7 +9,8 @@ Usage: packaging/fedora/publish-rpm.sh SIGNED_RPM [SIGNED_RPM...]
 Each package must be an OldIPMI binary RPM for Fedora 43 or later.
 The Fedora release and architecture in its RPM header select the RepoMan target.
 Use one RPM per target, with the same version and release across targets.
-REPOMAN_TOKEN or REPOMAN_TOKEN_FILE authenticates publication to repo.uggs.io.
+REPOMAN_TOKEN or REPOMAN_TOKEN_FILE authenticates publication; REPOMAN_URL
+selects the server (default https://repo.uggs.io).
 Keep the signed files and pass them in any order to retry the same publication.
 EOF
 }
@@ -25,7 +26,7 @@ for tool in jq realpath repoman rpm; do
 	command -v "$tool" >/dev/null || die "$tool not found"
 done
 [[ -n ${REPOMAN_TOKEN:-}${REPOMAN_TOKEN_FILE:-} ]] || die "set REPOMAN_TOKEN or REPOMAN_TOKEN_FILE"
-export REPOMAN_URL=https://repo.uggs.io
+export REPOMAN_URL=${REPOMAN_URL:-https://repo.uggs.io}
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
