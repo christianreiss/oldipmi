@@ -35,7 +35,7 @@ add_custom_target(mcp ALL DEPENDS ${CMAKE_BINARY_DIR}/oldipmi-mcp)
 add_dependencies(oldipmi core mcp)
 install(TARGETS oldipmi RUNTIME DESTINATION bin)
 install(PROGRAMS ${CMAKE_BINARY_DIR}/oldipmi-core ${CMAKE_BINARY_DIR}/oldipmi-mcp DESTINATION bin)
-install(FILES packaging/net.alpha_labs.OldIPMI.desktop DESTINATION share/applications)
+install(FILES packaging/io.uggs.OldIPMI.desktop DESTINATION share/applications)
 install(FILES packaging/oldipmi.svg DESTINATION share/icons/hicolor/scalable/apps)
 enable_testing()
 # Every test runs with a fresh, private home and runtime directory (tools/isolated.sh).

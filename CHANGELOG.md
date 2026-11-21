@@ -20,6 +20,11 @@
   rest have no name yet, so the list says nothing about them.
 
 ### Changed
+* **New app id `io.uggs.OldIPMI`** (`net.alpha_labs.OldIPMI` before). The
+  desktop file is now `io.uggs.OldIPMI.desktop`, and the window reports this id
+  to the desktop. A launcher pinned to the task bar or the favourites with an
+  older version points to the old file: pin OldIPMI again once. Profiles,
+  settings and saved passwords stay where they are.
 * **One version number, in `VERSION`.** CMake, both Go programs and the RPM build
   read it from there; `oldipmi-mcp` kept its own copy before. `oldipmi-core
   --version` prints it, and the User-Agent of the BMC web login names it

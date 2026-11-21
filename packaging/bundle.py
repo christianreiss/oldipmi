@@ -97,7 +97,7 @@ copy(ROOT / 'LICENSE', APP / 'usr/share/licenses/OldIPMI/LICENSE')
 for name in ('README.md', 'THIRD_PARTY.md', 'CHANGELOG.md'):
     copy(ROOT / name, APP / 'usr/share/doc/OldIPMI' / name)
 copy(Path('/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf'), APP / 'usr/share/fonts/DejaVuSans.ttf')
-copy(ROOT / 'packaging/net.alpha_labs.OldIPMI.desktop', APP / 'net.alpha_labs.OldIPMI.desktop')
+copy(ROOT / 'packaging/io.uggs.OldIPMI.desktop', APP / 'io.uggs.OldIPMI.desktop')
 copy(ROOT / 'packaging/oldipmi.svg', APP / 'oldipmi.svg')
 copy(ROOT / 'packaging/AppRun', APP / 'AppRun')
 (APP / 'AppRun').chmod(0o755)

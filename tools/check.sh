@@ -79,5 +79,5 @@ if ! $package; then
 fi
 
 step desktop-file-validate
-desktop-file-validate packaging/net.alpha_labs.OldIPMI.desktop
+desktop-file-validate packaging/io.uggs.OldIPMI.desktop
 step "all checks passed"
