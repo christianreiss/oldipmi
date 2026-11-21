@@ -90,7 +90,7 @@ Rectangle {
             }
             IconButton {
                 id: menuButton
-                objectName: "mcpButton"
+                objectName: "mainMenuButton"
                 icon.name: "application-menu"
                 text: appMenu.visible ? "" : "Main menu"
                 Accessible.name: "Main menu"

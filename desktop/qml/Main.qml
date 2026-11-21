@@ -63,7 +63,9 @@ Kirigami.ApplicationWindow {
     }
     function openSettings(module) {
         // ConfigurationView only raises an open window; reopen it on the requested page.
-        if (settingsView.configViewItem) settingsView.configViewItem.close();
+        // On the desktop, the item is the settings window.
+        const shown = settingsView.configViewItem as Window;
+        if (shown) shown.close();
         settingsView.open(module || "general");
     }
     function showMcpInstructions() { mcpDialog.open() }
@@ -254,10 +256,9 @@ Kirigami.ApplicationWindow {
         iconName: info.icon
         tone: destructive ? Theme.negative : window.pendingPower === "soft" ? Theme.warning : Theme.accent
         closeButton: false
-        preferredWidth: Math.round(Theme.gu * 25)
         QQC2.Label {
             text: powerDialog.info.text
-            color: Theme.mix(Theme.text, Theme.card, 0.12)
+            color: Theme.cardText
             wrapMode: Text.Wrap
             Layout.fillWidth: true
         }
@@ -289,10 +290,9 @@ Kirigami.ApplicationWindow {
         iconName: "edit-delete"
         tone: Theme.negative
         closeButton: false
-        preferredWidth: Math.round(Theme.gu * 25)
         QQC2.Label {
             text: "The connection is removed" + (deleteDialog.profile.remember ? " together with its password in KWallet." : ".") + " This cannot be undone."
-            color: Theme.mix(Theme.text, Theme.card, 0.12)
+            color: Theme.cardText
             wrapMode: Text.Wrap
             Layout.fillWidth: true
         }
@@ -332,10 +332,9 @@ Kirigami.ApplicationWindow {
         iconName: quitting ? "application-exit" : "network-disconnect"
         tone: Theme.warning
         closeButton: false
-        preferredWidth: Math.round(Theme.gu * 25)
         QQC2.Label {
             text: "Their remote consoles close. The servers keep running, and the connections stay in the list."
-            color: Theme.mix(Theme.text, Theme.card, 0.12)
+            color: Theme.cardText
             wrapMode: Text.Wrap
             Layout.fillWidth: true
         }
@@ -451,17 +450,16 @@ Kirigami.ApplicationWindow {
         iconName: "dialog-warning"
         tone: Theme.warning
         closeButton: false
-        preferredWidth: Math.round(Theme.gu * 25)
         QQC2.Label {
             text: controller.message
             visible: text !== ""
-            color: Theme.mix(Theme.text, Theme.card, 0.12)
+            color: Theme.cardText
             wrapMode: Text.Wrap
             Layout.fillWidth: true
         }
         QQC2.Label {
             text: "You can still connect; the password is then used for this session only."
-            color: Theme.mix(Theme.text, Theme.card, 0.12)
+            color: Theme.cardText
             wrapMode: Text.Wrap
             Layout.fillWidth: true
         }
@@ -484,7 +482,6 @@ Kirigami.ApplicationWindow {
         preferredHeight: Math.min(window.height - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 34)
         QQC2.TextArea {
             id: mcpText
-            objectName: "mcpText"
             readOnly: true
             wrapMode: TextEdit.Wrap
             selectByMouse: true

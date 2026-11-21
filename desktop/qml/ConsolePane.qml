@@ -619,7 +619,7 @@ ColumnLayout {
                         z: 5
                         width: quitCorner.implicitWidth + 8
                         height: quitCorner.implicitHeight + 8
-                        radius: Theme.radius + 3
+                        radius: Theme.radiusPanel
                         color: Theme.alpha(Theme.stagePopup, 0.9)
                         border.width: 1
                         border.color: Theme.stageLine
@@ -675,7 +675,7 @@ ColumnLayout {
                         z: 4
                         width: Math.min(toastGrid.implicitWidth + 2 * pad, room)
                         height: toastGrid.implicitHeight + Math.round(Theme.gu * 0.8)
-                        radius: Theme.radius + 3
+                        radius: Theme.radiusPanel
                         color: Theme.alpha(Theme.stagePopup, 0.95)
                         border.width: 1
                         border.color: Theme.stageLine
@@ -943,7 +943,9 @@ ColumnLayout {
 
     Component { id: menuSeparator; QQC2.MenuSeparator {} }
     // The full-screen bar opens its own menus (so it can stay up while they are
-    // open) built from the same actions as the header.
+    // open) built from the same actions as the header. A separator has no
+    // parent: a Menu is no item, and the one addItem() puts it in keeps it
+    // alive (checked with gc()).
     function fillMenu(menu, actions) {
         for (const a of actions) {
             if (a.separator)

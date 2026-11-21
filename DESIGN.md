@@ -34,19 +34,20 @@ base colours (window, text, view, accent, positive, warning, negative, the fixed
 width font) are bound by `Main.qml` from `Kirigami.Theme`, because a singleton is in
 no window; everything else is derived from them:
 
-* **Surfaces:** sidebar, card, card footer, raised (tiles, secondary buttons),
-  hover/pressed overlays, lines, scrim and shadow. Mixing is per channel in sRGB, so
-  a colour keeps its hue when it is darkened or lightened.
+* **Surfaces:** sidebar, card, card footer, raised (tiles, secondary buttons) and
+  `raisedHover`, hover/pressed overlays, lines, scrim and shadow. Mixing is per
+  channel in sRGB, so a colour keeps its hue when it is darkened or lightened.
 * **Accent:** `accentStrong` (filled buttons; darkened until white text reaches
   4.6:1), `accentTint` (selection, tiles), `accentEdge`. `toneText()` moves a state
   colour towards the text colour until it reaches 4.8:1 on its surface (chips,
-  warnings); `dangerStrong` is the filled red of destructive confirmations.
+  warnings), and `tint()` lays a state colour thinly under a chip or a dialog's
+  icon tile; `dangerStrong` is the filled red of destructive confirmations.
 * **Stage:** constant dark colours for the stage, its strip, text and controls on it.
 * **Sizes:** `gu` is the height of a line of text (the larger of Kirigami's grid unit
   and the font's line height), so a larger system font grows the chrome with it.
   Control and header heights, margins and panel widths are multiples of `gu`. Corner
   radii are fixed: the tokens are 6/9/14/16 px (`radiusSmall`, `radius`,
-  `radiusLarge`, `radiusHuge`); grouped panels and menus use `radius + 3` (12 px),
+  `radiusLarge`, `radiusHuge`); grouped panels and menus use `radiusPanel` (12 px),
   focus outlines their item's radius plus 2 or 3, round items half their size, and
   a few small marks fixed values of 2 to 10 px.
 * **Type:** factors of the system font (small, tiny, title, heading, display, hero).
@@ -225,4 +226,6 @@ contrast on those PNGs. The console states legitimately contain a large dark are
 
 Secondary text (addresses, captions, group headings, key hints) uses `Theme.muted`,
 the text colour mixed 28% (dark: 30%) towards the window colour, not
-`disabledTextColor`, which measured 2.5–2.8:1 in Breeze Light.
+`disabledTextColor`, which measured 2.5–2.8:1 in Breeze Light. Body text on cards
+(dialog messages, the host on a connection's page) uses `Theme.cardText`, the text
+colour mixed 12% towards the card.

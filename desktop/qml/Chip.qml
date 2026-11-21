@@ -26,7 +26,7 @@ Rectangle {
     implicitWidth: row.implicitWidth + padding * 2
     radius: height / 2
     color: neutral ? (onStage ? Theme.stageRaised : Theme.raised)
-                   : Theme.alpha(tone, onStage ? 0.22 : Theme.dark ? 0.2 : 0.14)
+                   : onStage ? Theme.alpha(tone, 0.22) : Theme.tint(tone)
 
     Accessible.role: Accessible.StaticText
     Accessible.name: text

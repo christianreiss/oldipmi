@@ -75,7 +75,7 @@ QQC2.Button {
                      : control.tone === "secondary" ? Theme.stageSubtle : "transparent";
             if (control.tone === "secondary")
                 return control.down ? Theme.mix(Theme.raised, Theme.text, 0.1)
-                     : control.hovered ? Theme.mix(Theme.raised, Theme.text, 0.05) : Theme.raised;
+                     : control.hovered ? Theme.raisedHover : Theme.raised;
             return control.down ? Theme.pressed : control.hovered ? Theme.hover : "transparent";
         }
         border.width: control.tone === "secondary" ? 1 : 0

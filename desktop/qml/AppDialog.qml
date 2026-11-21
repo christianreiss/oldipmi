@@ -37,6 +37,19 @@ Kirigami.Dialog {
     y: parent ? Math.round(Math.max(edge, Math.min(parent.height - implicitHeight - edge,
                                                    (parent.height - implicitHeight) / 2 + Theme.gu * 2 * (1 - opacity)))) : 0
 
+    // Scrolls the body until the top of item is margin below its top edge.
+    // Kirigami's Dialog puts the body into a ScrollView around a Flickable;
+    // false while that is not there yet.
+    function scrollTo(item, margin) {
+        const view = dialog.contentItem as QQC2.ScrollView;
+        const flick = view ? view.contentItem as Flickable : null;
+        if (!flick)
+            return false;
+        const top = item.mapToItem(flick.contentItem, 0, 0).y - margin;
+        flick.contentY = Math.max(0, Math.min(top, flick.contentHeight - flick.height));
+        return true;
+    }
+
     QQC2.Overlay.modal: Rectangle {
         color: Theme.scrim
         Behavior on opacity { OpacityAnimator { duration: Kirigami.Units.longDuration } }
@@ -61,8 +74,8 @@ Kirigami.Dialog {
             Layout.alignment: Qt.AlignTop
             Layout.leftMargin: Math.round(Theme.gu * 1.25)
             Layout.topMargin: Math.round(Theme.gu * 1.2)
-            radius: Theme.radius + 3
-            color: Theme.alpha(dialog.tone, Theme.dark ? 0.2 : 0.14)
+            radius: Theme.radiusPanel
+            color: Theme.tint(dialog.tone)
             Kirigami.Icon {
                 anchors.centerIn: parent
                 width: Kirigami.Units.iconSizes.smallMedium

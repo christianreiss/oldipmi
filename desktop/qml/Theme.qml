@@ -29,8 +29,9 @@ Item {
     readonly property color card: dark ? mix(window, white, 0.05) : mix(view, white, 0.6)
     // Tinted band at the bottom of a card (dialog footers).
     readonly property color cardFooter: dark ? mix(card, black, 0.18) : mix(card, text, 0.025)
-    // Secondary buttons, tiles, inset boxes.
+    // Secondary buttons, tiles, inset boxes, and the same under the pointer.
     readonly property color raised: dark ? mix(window, white, 0.09) : mix(view, text, 0.035)
+    readonly property color raisedHover: mix(raised, text, 0.05)
     readonly property color hover: alpha(text, dark ? 0.08 : 0.06)
     // Dimmed window behind a modal dialog, and the drop shadow of raised cards.
     readonly property color scrim: Qt.rgba(0.07, 0.08, 0.09, dark ? 0.6 : 0.46)
@@ -40,12 +41,13 @@ Item {
     readonly property color lineSoft: mix(window, text, dark ? 0.13 : 0.1)
     // Secondary text: addresses, captions, group headers (≥ 4.5:1 on window and card).
     readonly property color muted: mix(text, window, dark ? 0.3 : 0.28)
+    // Body text on cards: dialog messages, the host on a connection's page.
+    readonly property color cardText: mix(text, card, 0.12)
 
     // Accent. Filled surfaces with white text use a darker step until white reaches 4.6:1.
     readonly property color accentStrong: forWhiteText(accent)
     readonly property color accentTint: alpha(accent, dark ? 0.22 : 0.14)
     readonly property color accentEdge: alpha(accent, dark ? 0.6 : 0.55)
-    readonly property color accentText: toneText(accent)
     readonly property color dangerStrong: forWhiteText(negative)
 
     // The console stage, its status strip and everything drawn on them. These are
@@ -68,6 +70,7 @@ Item {
     readonly property real gu: Math.max(Kirigami.Units.gridUnit, Math.round(fontHeight))
     readonly property int radiusSmall: 6
     readonly property int radius: 9
+    readonly property int radiusPanel: radius + 3 // grouped panels and menus
     readonly property int radiusLarge: 14
     readonly property int radiusHuge: 16
     readonly property int controlHeight: Math.round(gu * 2)
@@ -76,7 +79,6 @@ Item {
     // The stage's status strip: one fixed height whatever it shows, so the remote
     // screen above it never moves.
     readonly property int stripHeight: Math.round(gu * 2.35)
-    readonly property int gap: Kirigami.Units.largeSpacing
     readonly property int stageMargin: Math.round(gu * 0.67)
 
     // Font sizes as factors of the system font.
@@ -134,6 +136,9 @@ Item {
         return Qt.rgba(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, a.a + (b.a - a.a) * t);
     }
     function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
+    // A state colour laid thinly under its own text or icon (chips, the icon tile
+    // of a dialog).
+    function tint(c) { return alpha(c, dark ? 0.2 : 0.14) }
     function luminance(c) {
         const f = v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
         return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);

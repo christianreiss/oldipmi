@@ -122,7 +122,7 @@ Item {
                                 text: page.profile.host || ""
                                 font.family: Theme.mono.family
                                 font.pointSize: Theme.fontBase * 1.05
-                                color: Theme.mix(Theme.text, Theme.card, 0.12)
+                                color: Theme.cardText
                                 elide: Text.ElideMiddle
                                 Layout.fillWidth: true
                                 Layout.maximumWidth: Math.ceil(implicitWidth)

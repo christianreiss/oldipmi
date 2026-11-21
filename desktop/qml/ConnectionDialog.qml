@@ -31,12 +31,8 @@ AppDialog {
         tryReveal();
     }
     function tryReveal() {
-        const flick = dialog.contentItem ? dialog.contentItem.contentItem : null;
-        if (!revealPending || !flick || advancedSection.height <= 0)
-            return;
-        revealPending = false;
-        const top = advancedToggle.mapToItem(flick.contentItem, 0, 0).y - Math.round(Theme.gu * 0.5);
-        flick.contentY = Math.max(0, Math.min(top, flick.contentHeight - flick.height));
+        if (revealPending && advancedSection.height > 0 && dialog.scrollTo(advancedToggle, Math.round(Theme.gu * 0.5)))
+            revealPending = false;
     }
 
     // A short window (large text on a small screen): the console type takes one
@@ -252,9 +248,9 @@ AppDialog {
                     Keys.onRightPressed: choose(index + 1)
                     Keys.onSpacePressed: dialog.familyIndex = index
                     background: Rectangle {
-                        radius: Theme.radius + 3
+                        radius: Theme.radiusPanel
                         color: tile.selected ? Theme.accentTint
-                             : tile.hovered ? Theme.mix(Theme.raised, Theme.text, 0.05) : Theme.raised
+                             : tile.hovered ? Theme.raisedHover : Theme.raised
                         border.width: tile.selected ? 2 : 1
                         border.color: tile.selected ? Theme.accent : Theme.lineSoft
                         Rectangle {
@@ -427,7 +423,7 @@ AppDialog {
         visible: dialog.account
         Layout.fillWidth: true
         implicitHeight: rememberSwitch.implicitHeight + Math.round(Theme.gu * 1.3)
-        radius: Theme.radius + 3
+        radius: Theme.radiusPanel
         color: Theme.raised
         border.width: 1
         border.color: Theme.lineSoft
@@ -453,7 +449,7 @@ AppDialog {
                 dialog.revealAdvanced();
         }
         background: Rectangle {
-            radius: Theme.radius + 3
+            radius: Theme.radiusPanel
             color: advancedToggle.down ? Theme.pressed : advancedToggle.hovered ? Theme.hover : "transparent"
             border.width: 1
             border.color: Theme.lineSoft

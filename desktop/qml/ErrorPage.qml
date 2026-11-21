@@ -77,7 +77,7 @@ Rectangle {
             QQC2.Label {
                 visible: page.hint !== ""
                 text: page.hint
-                font.pointSize: Theme.fontBase * 1.12
+                font.pointSize: Theme.title
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
@@ -112,7 +112,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.topMargin: Math.round(Theme.gu * 0.3)
                 implicitHeight: detailColumn.implicitHeight
-                radius: Theme.radius + 3
+                radius: Theme.radiusPanel
                 color: Theme.dark ? Theme.mix(Theme.card, Theme.black, 0.3) : Theme.mix(Theme.card, Theme.text, 0.03)
                 border.width: 1
                 border.color: Theme.lineSoft

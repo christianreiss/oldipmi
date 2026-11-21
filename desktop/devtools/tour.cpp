@@ -284,7 +284,7 @@ int runScreenshotTour(QApplication &app, QQmlApplicationEngine &engine, Controll
          closeOtherWindows();
          call("showMcpInstructions");
        }, 700, [=] { return popupOpen("mcpDialog") && visibleWindows().size() == 1; }},
-      {"05c-main-menu", [=] { closePopups(); invoke(find("mcpButton"), "clicked"); }, 500,
+      {"05c-main-menu", [=] { closePopups(); invoke(find("mainMenuButton"), "clicked"); }, 500,
        [=] { return popupOpen("mainMenu"); }},
       // The menu key opens the selected row's context menu below the row.
       {"05d-row-menu", [=] {
