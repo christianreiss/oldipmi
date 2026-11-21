@@ -388,15 +388,9 @@ Kirigami.ApplicationWindow {
         MonoCaption {
             text: (credentialsDialog.profile.username || "") + "@" + (credentialsDialog.profile.host || "")
         }
-        Kirigami.PasswordField {
+        FormPasswordField {
             id: credentialsPassword
-            color: Theme.text
-            implicitHeight: Math.max(Theme.controlHeight + 2, contentHeight + topPadding + bottomPadding)
-            leftPadding: Math.round(Theme.gu * 0.65)
-            verticalAlignment: TextInput.AlignVCenter
-            background: InputBackground { control: credentialsPassword }
             Accessible.name: "Password"
-            Layout.fillWidth: true
             onAccepted: if (text !== "") credentialsDialog.accept()
         }
         QQC2.CheckBox {

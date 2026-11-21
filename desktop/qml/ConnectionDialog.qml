@@ -316,20 +316,13 @@ AppDialog {
             Layout.preferredWidth: 1
             Layout.alignment: Qt.AlignTop
             FieldLabel { text: "BMC address" }
-            QQC2.TextField {
+            FormField {
                 id: hostField
                 placeholderText: "bmc.example.net or 192.0.2.10"
-                placeholderTextColor: Theme.muted
                 font.family: Theme.mono.family
-                color: Theme.text
                 inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
-                implicitHeight: Math.max(Theme.controlHeight + 2, contentHeight + topPadding + bottomPadding)
-                leftPadding: Math.round(Theme.gu * 0.65)
-                rightPadding: Math.round(Theme.gu * 0.65)
-                verticalAlignment: TextInput.AlignVCenter
-                background: InputBackground { control: hostField; invalid: dialog.hostProblem !== "" }
+                invalid: dialog.hostProblem !== ""
                 Accessible.name: "BMC address"
-                Layout.fillWidth: true
             }
             QQC2.Label {
                 visible: dialog.hostProblem !== ""
@@ -346,18 +339,10 @@ AppDialog {
             Layout.preferredWidth: 1
             Layout.alignment: Qt.AlignTop
             FieldLabel { text: "Name" }
-            QQC2.TextField {
+            FormField {
                 id: nameField
                 placeholderText: dialog.host || "Shown in the connection list"
-                placeholderTextColor: Theme.muted
-                color: Theme.text
-                implicitHeight: Math.max(Theme.controlHeight + 2, contentHeight + topPadding + bottomPadding)
-                leftPadding: Math.round(Theme.gu * 0.65)
-                rightPadding: Math.round(Theme.gu * 0.65)
-                verticalAlignment: TextInput.AlignVCenter
-                background: InputBackground { control: nameField }
                 Accessible.name: "Name"
-                Layout.fillWidth: true
             }
         }
         ColumnLayout {
@@ -367,18 +352,11 @@ AppDialog {
             Layout.preferredWidth: 1
             Layout.alignment: Qt.AlignTop
             FieldLabel { text: "Username" }
-            QQC2.TextField {
+            FormField {
                 id: userField
                 font.family: Theme.mono.family
-                color: Theme.text
                 inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
-                implicitHeight: Math.max(Theme.controlHeight + 2, contentHeight + topPadding + bottomPadding)
-                leftPadding: Math.round(Theme.gu * 0.65)
-                rightPadding: Math.round(Theme.gu * 0.65)
-                verticalAlignment: TextInput.AlignVCenter
-                background: InputBackground { control: userField }
                 Accessible.name: "Username"
-                Layout.fillWidth: true
             }
         }
         ColumnLayout {
@@ -388,19 +366,13 @@ AppDialog {
             Layout.preferredWidth: 1
             Layout.alignment: Qt.AlignTop
             FieldLabel { text: "Password" }
-            Kirigami.PasswordField {
+            FormPasswordField {
                 id: passwordField
                 placeholderText: dialog.editing && dialog.original.remember && rememberSwitch.checked
                     ? "Saved in KWallet; leave empty to keep it"
                     : rememberSwitch.checked ? "Optional; asked for on first connect" : "Asked for on every connect"
                 placeholderTextColor: Theme.muted
-                color: Theme.text
-                implicitHeight: Math.max(Theme.controlHeight + 2, contentHeight + topPadding + bottomPadding)
-                leftPadding: Math.round(Theme.gu * 0.65)
-                verticalAlignment: TextInput.AlignVCenter
-                background: InputBackground { control: passwordField }
                 Accessible.name: "Password"
-                Layout.fillWidth: true
                 onAccepted: if (dialog.valid) dialog.save(!dialog.openNow)
             }
         }
@@ -513,19 +485,11 @@ AppDialog {
                 spacing: Kirigami.Units.smallSpacing
                 Layout.fillWidth: true
                 FieldLabel { text: "JNLP endpoint override" }
-                QQC2.TextField {
+                FormField {
                     id: jnlpField
                     placeholderText: "Automatic"
-                    placeholderTextColor: Theme.muted
                     font.family: Theme.mono.family
-                    color: Theme.text
-                    implicitHeight: Math.max(Theme.controlHeight + 2, contentHeight + topPadding + bottomPadding)
-                    leftPadding: Math.round(Theme.gu * 0.65)
-                    rightPadding: Math.round(Theme.gu * 0.65)
-                    verticalAlignment: TextInput.AlignVCenter
-                    background: InputBackground { control: jnlpField }
                     Accessible.name: "JNLP endpoint override"
-                    Layout.fillWidth: true
                 }
             }
         }
