@@ -136,7 +136,7 @@ void Session::begin(const QString &password) {
             emit frameReady(QImage());
             if (message.startsWith("Connected") || message.startsWith("Opening") ||
                 message.startsWith("Logging") || message.startsWith("Discovering") ||
-                message.startsWith("Connecting"))
+                message.startsWith("Connecting") || message.startsWith(isoGoneText))
               setMessage("Connection ended. Reconnect to obtain a fresh session.");
             emit changed();
           });

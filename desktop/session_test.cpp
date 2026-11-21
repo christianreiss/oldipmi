@@ -171,6 +171,15 @@ private slots:
     delete s;
   }
 
+  // A core that ends after an ISO went away says that the connection ended:
+  // the ISO's notice is not why the session is gone.
+  void coreThatEndsReplacesTheIsoNotice() {
+    auto *s = start({expect("connect"), send(event(3)), send(event(9)), QJsonObject{{"exit", 2}}});
+    QTRY_COMPARE(s->state, QString("disconnected"));
+    QCOMPARE(s->message, QString("Connection ended. Reconnect to obtain a fresh session."));
+    delete s;
+  }
+
   // An ISO that goes away without an eject says why (events.json 9), until an
   // ISO is mounted again; a media event without a reason (6) leaves the
   // message alone (eventsDriveTheState).

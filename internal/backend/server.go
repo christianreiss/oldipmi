@@ -234,7 +234,9 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 		ev := Event{ID: c.ID, Type: EventOK}
 		if c.Op == OpMount || c.Op == OpEject {
 			mounted := isMounted()
-			wasMounted = mounted
+			// An ISO that a successful mount finds gone again ended by itself:
+			// the next tick sends the media event that says why.
+			wasMounted = mounted || c.Op == OpMount
 			ev.Mounted = &mounted
 		}
 		emit(ev)

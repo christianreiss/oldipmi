@@ -23,6 +23,9 @@ type blockingConsole struct {
 	mounting, mounted, closed, closedEarly bool
 	releases                               int
 	mediaErr                               error
+	// goneAtOnce, set before serve starts, lets the ISO go away again, with
+	// this error, before Mount returns.
+	goneAtOnce error
 }
 
 func newBlockingConsole() *blockingConsole {
@@ -50,7 +53,11 @@ func (c *blockingConsole) Mount(ctx context.Context, _ string) error {
 	defer c.set(&c.mounting, false)
 	select {
 	case <-c.release:
-		c.set(&c.mounted, true)
+		if c.goneAtOnce != nil {
+			c.endMedia(c.goneAtOnce)
+		} else {
+			c.set(&c.mounted, true)
+		}
 		time.Sleep(c.settle)
 		return nil
 	case <-ctx.Done():
@@ -242,6 +249,26 @@ func TestMediaEventSaysWhy(t *testing.T) {
 	}
 	console.endMedia(errors.New("vmedia: read request: EOF"))
 	if e := readEvent(t, peer); e.Type != EventMedia || e.Mounted == nil || *e.Mounted || e.Message != "vmedia: read request: EOF" {
+		t.Fatalf("the media event: %+v", e)
+	}
+	writeCommand(t, peer, Command{Op: OpDisconnect})
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A mount whose ISO goes away again before the reply still says why: in the
+// media event after the reply.
+func TestMountThatEndsAtOnceSaysWhy(t *testing.T) {
+	console := newBlockingConsole()
+	console.goneAtOnce = errors.New("the BMC ended the virtual media")
+	close(console.release)
+	peer, done := startServe(t, console)
+	writeCommand(t, peer, Command{ID: 2, Op: OpMount, Path: "/boot.iso"})
+	if e := readEvent(t, peer); e.ID != 2 || e.Type != EventOK || e.Mounted == nil || *e.Mounted {
+		t.Fatalf("the mount's reply: %+v", e)
+	}
+	if e := readEvent(t, peer); e.Type != EventMedia || e.Mounted == nil || *e.Mounted || e.Message != "the BMC ended the virtual media" {
 		t.Fatalf("the media event: %+v", e)
 	}
 	writeCommand(t, peer, Command{Op: OpDisconnect})
