@@ -30,7 +30,8 @@ target_link_libraries(oldipmi_desktop PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets Qt6
 # Code in subdirectories includes the desktop headers by name ("controller.h").
 target_include_directories(oldipmi_desktop PUBLIC ${CMAKE_SOURCE_DIR}/desktop)
 # The application; desktop/devtools holds what only --self-test and its tour run.
-qt_add_executable(oldipmi desktop/main.cpp desktop/app/exitcode.h desktop/devtools/qmlwarnings.cpp desktop/devtools/qmlwarnings.h
+qt_add_executable(oldipmi desktop/main.cpp desktop/app/exitcode.h desktop/devtools/probeui.cpp desktop/devtools/probeui.h
+                  desktop/devtools/qmlwarnings.cpp desktop/devtools/qmlwarnings.h
                   desktop/devtools/selftest.cpp desktop/devtools/selftest.h desktop/devtools/tour.cpp desktop/devtools/tour.h)
 target_compile_definitions(oldipmi PRIVATE OLDIPMI_VERSION="${PROJECT_VERSION}" OLDIPMI_APP_ID="${OLDIPMI_APP_ID}")
 # One instruction text for the GUI button and the MCP server's initialize reply.

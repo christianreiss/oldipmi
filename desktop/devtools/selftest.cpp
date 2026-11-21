@@ -1,6 +1,9 @@
 #include "devtools/selftest.h"
+#include "app/exitcode.h"
 #include "console.h"
 #include "controller.h"
+#include "devtools/qmlwarnings.h"
+#include <QApplication>
 #include <QClipboard>
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -10,10 +13,12 @@
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QMouseEvent>
+#include <QQmlApplicationEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTimer>
 #include <QWindow>
+#include <cstdio>
 #include <functional>
 
 namespace devtools {
@@ -267,5 +272,33 @@ QString unknownFamilyFails(QQuickWindow *w) {
   if (p.value("consoleMode") != "java" || p.value("jnlpPath") != "/kvm.jnlp")
     return "it drops the stored console options";
   return {};
+}
+void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *console, Controller &controller) {
+  QTimer::singleShot(600, &app, [&app, &engine, console, &controller] {
+    auto w = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    if (!w || w->grabWindow().isNull())
+      app.exit(code(ExitCode::NoScreenshot));
+    else if (QString why = consoleSizeChanges(w, console); !why.isEmpty()) {
+      fprintf(stderr, "Console view changed size: %s\n", qPrintable(why));
+      app.exit(code(ExitCode::CheckFailed));
+    } else if (QString why = copyFails(w, console); !why.isEmpty()) {
+      fprintf(stderr, "Copy: %s\n", qPrintable(why));
+      app.exit(code(ExitCode::CheckFailed));
+    } else if (QString why = keyboardFails(w, console, controller); !why.isEmpty()) {
+      fprintf(stderr, "Keyboard: %s\n", qPrintable(why));
+      app.exit(code(ExitCode::CheckFailed));
+    } else if (QString why = fullScreenFails(w, console, controller); !why.isEmpty()) {
+      fprintf(stderr, "Full screen: %s\n", qPrintable(why));
+      app.exit(code(ExitCode::CheckFailed));
+    } else if (QString why = unknownFamilyFails(w); !why.isEmpty()) {
+      fprintf(stderr, "Unknown family: %s\n", qPrintable(why));
+      app.exit(code(ExitCode::CheckFailed));
+    } else {
+      QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");
+      if (!path.isEmpty())
+        w->grabWindow().save(path);
+      app.exit(code(qmlWarningsResult()));
+    }
+  });
 }
 } // namespace devtools

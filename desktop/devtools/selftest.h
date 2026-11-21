@@ -4,6 +4,8 @@
 
 class Console;
 class Controller;
+class QApplication;
+class QQmlApplicationEngine;
 class QQuickWindow;
 
 // The checks of --self-test, which runs them on the demo console.
@@ -37,4 +39,8 @@ QString fullScreenFails(QQuickWindow *w, Console *console, Controller &controlle
 // keeps it: the dialog selects no tile and saves the stored family and console
 // options. Returns what failed, or "".
 QString unknownFamilyFails(QQuickWindow *w);
+// --self-test: 600 ms after the start, checks that the window renders and runs
+// the checks above, then makes the application exit with the first failure, or
+// with qmlWarningsResult() when they all pass.
+void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *console, Controller &controller);
 } // namespace devtools

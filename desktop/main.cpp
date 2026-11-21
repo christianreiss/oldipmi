@@ -2,6 +2,7 @@
 #include "app/exitcode.h"
 #include "console.h"
 #include "controller.h"
+#include "devtools/probeui.h"
 #include "devtools/qmlwarnings.h"
 #include "devtools/selftest.h"
 #include "devtools/tour.h"
@@ -156,72 +157,8 @@ int main(int argc, char **argv) {
                    &Controller::pointer);
   QObject::connect(console, &Console::releaseInput, &controller,
                    &Controller::releaseInput);
-  if (probe) {
-    QFile input;
-    if (!input.open(stdin, QIODevice::ReadOnly))
-      return code(ExitCode::ProbeFailed);
-    auto json = QJsonDocument::fromJson(input.readAll()).object();
-    auto profile = json["profile"].toObject().toVariantMap();
-    if (profile.value("id").toString().isEmpty()) {
-      for (const auto &v : controller.hosts()) {
-        auto saved = v.toMap();
-        if (saved.value("host") == profile.value("host")) {
-          for (auto it = profile.cbegin(); it != profile.cend(); ++it)
-            saved[it.key()] = it.value();
-          profile = saved;
-          break;
-        }
-      }
-    }
-    QObject::connect(&controller, &Controller::changed, &app, [&] {
-      // Probe diagnostics use the same allowlisted metadata as the GUI.
-      QJsonObject event{{"state", controller.state()},
-                        {"message", controller.message()},
-                        {"info", QJsonObject::fromVariantMap(controller.consoleInfo())}};
-      auto bytes = QJsonDocument(event).toJson(QJsonDocument::Compact);
-      fprintf(stdout, "%s\n", bytes.constData());
-      fflush(stdout);
-      if (controller.state() == ipc::StateDisconnected && controller.message().contains(" failed:")) {
-        fprintf(stderr, "%s\n", qPrintable(controller.message()));
-        app.exit(code(ExitCode::ProbeFailed));
-      }
-    });
-    QTimer::singleShot(0, &controller, [&, json, profile] {
-      QMetaObject::invokeMethod(
-          engine.rootObjects().first(), "loadHost",
-          Q_ARG(QVariant, QVariant(profile)));
-      auto details = engine.rootObjects().first()->findChild<QObject *>("consoleDetails");
-      if (details) details->setProperty("checked", true);
-      controller.connectHost(profile,
-                             json["password"].toString());
-    });
-    // Without a password there is nothing to probe: a prompt would wait for the user.
-    QObject::connect(&controller, &Controller::passwordRequired, &app, [&] {
-      fprintf(stderr, "%s\n", qPrintable(controller.message()));
-      app.exit(code(ExitCode::NoPassword));
-    });
-    QObject::connect(
-        &controller, &Controller::frameReady, &app, [&, framed = false](QImage im) mutable {
-          if (im.isNull() || framed)
-            return;
-          framed = true;
-          QJsonObject size{{"width", im.width()}, {"height", im.height()}};
-          fprintf(stdout, "%s\n", QJsonDocument(QJsonObject{{"frame", size}}).toJson(QJsonDocument::Compact).constData());
-          fflush(stdout);
-          QTimer::singleShot(200, &app, [&] {
-            auto w = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-            QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");
-            if (!path.isEmpty())
-              w->grabWindow().save(path);
-            app.exit(code(ExitCode::Ok));
-          });
-        });
-    QTimer::singleShot(30000, &app, [&] {
-      fprintf(stderr, "GUI probe timed out: %s\n",
-              qPrintable(controller.message()));
-      app.exit(code(ExitCode::ProbeFailed));
-    });
-  }
+  if (probe && !devtools::startProbeUi(app, engine, controller))
+    return code(ExitCode::ProbeFailed);
   if (tour) {
     QSize size;
     if (int s = app.arguments().indexOf("--size"); s > 0 && s + 1 < app.arguments().size()) {
@@ -238,31 +175,6 @@ int main(int argc, char **argv) {
   if (test || preview)
     QTimer::singleShot(100, &controller, &Controller::preview);
   if (test)
-    QTimer::singleShot(600, &app, [&] {
-      auto w = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-      if (!w || w->grabWindow().isNull())
-        app.exit(code(ExitCode::NoScreenshot));
-      else if (QString why = devtools::consoleSizeChanges(w, console); !why.isEmpty()) {
-        fprintf(stderr, "Console view changed size: %s\n", qPrintable(why));
-        app.exit(code(ExitCode::CheckFailed));
-      } else if (QString why = devtools::copyFails(w, console); !why.isEmpty()) {
-        fprintf(stderr, "Copy: %s\n", qPrintable(why));
-        app.exit(code(ExitCode::CheckFailed));
-      } else if (QString why = devtools::keyboardFails(w, console, controller); !why.isEmpty()) {
-        fprintf(stderr, "Keyboard: %s\n", qPrintable(why));
-        app.exit(code(ExitCode::CheckFailed));
-      } else if (QString why = devtools::fullScreenFails(w, console, controller); !why.isEmpty()) {
-        fprintf(stderr, "Full screen: %s\n", qPrintable(why));
-        app.exit(code(ExitCode::CheckFailed));
-      } else if (QString why = devtools::unknownFamilyFails(w); !why.isEmpty()) {
-        fprintf(stderr, "Unknown family: %s\n", qPrintable(why));
-        app.exit(code(ExitCode::CheckFailed));
-      } else {
-        QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");
-        if (!path.isEmpty())
-          w->grabWindow().save(path);
-        app.exit(code(devtools::qmlWarningsResult()));
-      }
-    });
+    devtools::startSelfTest(app, engine, console, controller);
   return app.exec();
 }
