@@ -82,13 +82,7 @@ QQC2.Button {
         border.color: control.onStage ? Theme.stageEdge : Theme.line
 
         // Keyboard focus ring, outside the button so it never covers the label.
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -3
-            radius: parent.radius + 3
-            color: "transparent"
-            border.width: 2
-            border.color: Theme.accent
+        FocusRing {
             visible: control.visualFocus
         }
     }

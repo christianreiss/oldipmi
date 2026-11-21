@@ -310,12 +310,8 @@ ColumnLayout {
                     Layout.fillWidth: true
                     Layout.leftMargin: Math.round(Theme.gu * 0.9)
                     Layout.rightMargin: Math.round(Theme.gu * 0.9)
-                    QQC2.Label {
+                    Caption {
                         text: infoRow.modelData.label.toUpperCase()
-                        font.pointSize: Theme.tiny
-                        font.weight: Font.DemiBold
-                        font.letterSpacing: 0.6
-                        color: Theme.muted
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
@@ -337,32 +333,10 @@ ColumnLayout {
                 Layout.leftMargin: Math.round(Theme.gu * 0.9)
                 Layout.rightMargin: Math.round(Theme.gu * 0.9)
             }
-            Rectangle {
+            NoticeBox {
                 visible: !!controller.consoleInfo.legacyTLS
-                Layout.fillWidth: true
                 Layout.margins: Math.round(Theme.gu * 0.9)
-                implicitHeight: tlsRow.implicitHeight + Math.round(Theme.gu * 0.9)
-                radius: Theme.radius
-                color: Theme.alpha(Theme.warning, Theme.dark ? 0.18 : 0.12)
-                RowLayout {
-                    id: tlsRow
-                    anchors { fill: parent; margins: Math.round(Theme.gu * 0.45) }
-                    spacing: Kirigami.Units.smallSpacing
-                    Kirigami.Icon {
-                        source: "security-medium"
-                        implicitWidth: Kirigami.Units.iconSizes.small
-                        implicitHeight: implicitWidth
-                        color: Theme.toneText(Theme.warning, Theme.card)
-                        isMask: true
-                        Layout.alignment: Qt.AlignTop
-                    }
-                    QQC2.Label {
-                        text: "Legacy TLS is enabled; the BMC certificate is not verified."
-                        color: Theme.toneText(Theme.warning, Theme.card)
-                        wrapMode: Text.Wrap
-                        Layout.fillWidth: true
-                    }
-                }
+                text: "Legacy TLS is enabled; the BMC certificate is not verified."
             }
             Item { Layout.preferredHeight: Math.round(Theme.gu * 0.4) }
         }

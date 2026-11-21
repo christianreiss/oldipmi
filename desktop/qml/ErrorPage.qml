@@ -126,12 +126,8 @@ Rectangle {
                         Layout.rightMargin: Kirigami.Units.smallSpacing
                         Layout.topMargin: Kirigami.Units.smallSpacing
                         Layout.bottomMargin: Kirigami.Units.smallSpacing
-                        QQC2.Label {
+                        Caption {
                             text: "TECHNICAL DETAILS"
-                            font.pointSize: Theme.tiny
-                            font.weight: Font.DemiBold
-                            font.letterSpacing: 0.6
-                            color: Theme.muted
                             Layout.fillWidth: true
                         }
                         ActionButton {

@@ -120,13 +120,8 @@ Rectangle {
                     Layout.fillWidth: false
                     Layout.alignment: Qt.AlignHCenter
                     Layout.maximumWidth: content.width
-                    QQC2.Label {
+                    MonoCaption {
                         text: (page.profile.username ? page.profile.username + "@" : "") + (page.profile.host || "")
-                        font.family: Theme.mono.family
-                        font.pointSize: Theme.small
-                        color: Theme.muted
-                        elide: Text.ElideMiddle
-                        Layout.fillWidth: true
                         Layout.maximumWidth: Math.ceil(implicitWidth)
                     }
                     QQC2.Label {

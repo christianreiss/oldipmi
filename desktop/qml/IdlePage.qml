@@ -160,12 +160,8 @@ Item {
                                     spacing: 2
                                     Layout.fillWidth: true
                                     Layout.preferredWidth: 1
-                                    QQC2.Label {
+                                    Caption {
                                         text: fact.modelData.label.toUpperCase()
-                                        font.pointSize: Theme.tiny
-                                        font.weight: Font.DemiBold
-                                        font.letterSpacing: 0.6
-                                        color: Theme.muted
                                     }
                                     QQC2.Label {
                                         text: fact.modelData.value

@@ -262,13 +262,8 @@ Kirigami.ApplicationWindow {
             wrapMode: Text.Wrap
             Layout.fillWidth: true
         }
-        QQC2.Label {
+        MonoCaption {
             text: "BMC " + (powerDialog.target.host || "")
-            font.family: Theme.mono.family
-            font.pointSize: Theme.small
-            color: Theme.muted
-            elide: Text.ElideMiddle
-            Layout.fillWidth: true
         }
         buttons: [
             ActionButton { tone: "ghost"; text: "Cancel"; onClicked: powerDialog.close() },
@@ -296,13 +291,8 @@ Kirigami.ApplicationWindow {
             wrapMode: Text.Wrap
             Layout.fillWidth: true
         }
-        QQC2.Label {
+        MonoCaption {
             text: deleteDialog.profile.host || ""
-            font.family: Theme.mono.family
-            font.pointSize: Theme.small
-            color: Theme.muted
-            elide: Text.ElideMiddle
-            Layout.fillWidth: true
         }
         buttons: [
             ActionButton { tone: "ghost"; text: "Cancel"; onClicked: deleteDialog.close() },
@@ -352,13 +342,8 @@ Kirigami.ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.maximumWidth: Math.ceil(implicitWidth)
                 }
-                QQC2.Label {
+                MonoCaption {
                     text: openRow.modelData.host || ""
-                    font.family: Theme.mono.family
-                    font.pointSize: Theme.small
-                    color: Theme.muted
-                    elide: Text.ElideMiddle
-                    Layout.fillWidth: true
                 }
             }
         }
@@ -400,13 +385,8 @@ Kirigami.ApplicationWindow {
         title: "Password for " + (profile.name || profile.host || "")
         iconName: "dialog-password"
         preferredWidth: Math.round(Theme.gu * 23)
-        QQC2.Label {
+        MonoCaption {
             text: (credentialsDialog.profile.username || "") + "@" + (credentialsDialog.profile.host || "")
-            font.family: Theme.mono.family
-            font.pointSize: Theme.small
-            color: Theme.muted
-            elide: Text.ElideMiddle
-            Layout.fillWidth: true
         }
         Kirigami.PasswordField {
             id: credentialsPassword

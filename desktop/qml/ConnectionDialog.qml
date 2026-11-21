@@ -147,14 +147,6 @@ AppDialog {
         onActivated: dialog.save(true)
     }
 
-    // A small upper-case label above a group or field.
-    component Caption: QQC2.Label {
-        font.pointSize: Theme.tiny
-        font.weight: Font.DemiBold
-        font.letterSpacing: 0.6
-        color: Theme.muted
-        Layout.fillWidth: true
-    }
     component FieldLabel: QQC2.Label {
         font.pointSize: Theme.small
         font.weight: Font.DemiBold
@@ -203,7 +195,7 @@ AppDialog {
     ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
         Layout.fillWidth: true
-        Caption { text: "CONSOLE TYPE" }
+        Caption { text: "CONSOLE TYPE"; Layout.fillWidth: true }
         QQC2.ComboBox {
             id: familyBox
             visible: dialog.compact
@@ -270,14 +262,8 @@ AppDialog {
                                 isMask: true
                             }
                         }
-                        Rectangle {
+                        FocusRing {
                             visible: tile.visualFocus
-                            anchors.fill: parent
-                            anchors.margins: -3
-                            radius: parent.radius + 3
-                            color: "transparent"
-                            border.width: 2
-                            border.color: Theme.accent
                         }
                     }
                     contentItem: ColumnLayout {
@@ -454,14 +440,8 @@ AppDialog {
             color: advancedToggle.down ? Theme.pressed : advancedToggle.hovered ? Theme.hover : "transparent"
             border.width: 1
             border.color: Theme.lineSoft
-            Rectangle {
+            FocusRing {
                 visible: advancedToggle.visualFocus
-                anchors.fill: parent
-                anchors.margins: -3
-                radius: parent.radius + 3
-                color: "transparent"
-                border.width: 2
-                border.color: Theme.accent
             }
         }
         contentItem: RowLayout {
@@ -502,7 +482,7 @@ AppDialog {
             visible: Families.offers(dialog.family, "consoleMode") || Families.offers(dialog.family, "jnlp")
             spacing: Kirigami.Units.largeSpacing
             Layout.fillWidth: true
-            Caption { text: "CONSOLE" }
+            Caption { text: "CONSOLE"; Layout.fillWidth: true }
             RowLayout {
                 visible: Families.offers(dialog.family, "consoleMode")
                 spacing: Kirigami.Units.largeSpacing
@@ -553,7 +533,7 @@ AppDialog {
         ColumnLayout {
             spacing: Kirigami.Units.largeSpacing
             Layout.fillWidth: true
-            Caption { text: "SECURITY EXCEPTIONS FOR THIS HOST" }
+            Caption { text: "SECURITY EXCEPTIONS FOR THIS HOST"; Layout.fillWidth: true }
             SwitchRow {
                 id: httpSwitch
                 title: "Log in over plain HTTP"
@@ -569,31 +549,9 @@ AppDialog {
                 title: "Allow unencrypted console and media"
                 description: "Keystrokes and screen content travel in clear text."
             }
-            Rectangle {
+            NoticeBox {
                 visible: httpSwitch.checked || tlsSwitch.checked || plainSwitch.checked
-                Layout.fillWidth: true
-                implicitHeight: warnRow.implicitHeight + Math.round(Theme.gu * 0.9)
-                radius: Theme.radius
-                color: Theme.alpha(Theme.warning, Theme.dark ? 0.18 : 0.12)
-                RowLayout {
-                    id: warnRow
-                    anchors { fill: parent; margins: Math.round(Theme.gu * 0.45) }
-                    spacing: Kirigami.Units.smallSpacing
-                    Kirigami.Icon {
-                        source: "security-medium"
-                        implicitWidth: Kirigami.Units.iconSizes.small
-                        implicitHeight: implicitWidth
-                        color: Theme.toneText(Theme.warning, Theme.card)
-                        isMask: true
-                        Layout.alignment: Qt.AlignTop
-                    }
-                    QQC2.Label {
-                        text: "Security exceptions are enabled for this host. Use them only on a trusted management network."
-                        color: Theme.toneText(Theme.warning, Theme.card)
-                        wrapMode: Text.Wrap
-                        Layout.fillWidth: true
-                    }
-                }
+                text: "Security exceptions are enabled for this host. Use them only on a trusted management network."
             }
         }
 
@@ -601,7 +559,7 @@ AppDialog {
             visible: Families.offers(dialog.family, "clientCertificate")
             spacing: Kirigami.Units.largeSpacing
             Layout.fillWidth: true
-            Caption { text: "CLIENT CERTIFICATE (MUTUAL TLS)" }
+            Caption { text: "CLIENT CERTIFICATE (MUTUAL TLS)"; Layout.fillWidth: true }
             Repeater {
                 model: [{label: "Certificate", key: false}, {label: "Private key", key: true}]
                 delegate: RowLayout {
