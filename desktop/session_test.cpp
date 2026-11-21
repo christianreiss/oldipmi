@@ -176,12 +176,30 @@ private slots:
                        "connected | Connected — click the console to control it.",
                        "connected | Connected — click the console to control it.", // the resolution
                        "connected | Connected — click the console to control it.", // the first frame
-                       "connected | Connected — click the console to control it.", // the key's reply
                        "connected | Connected — click the console to control it. | mounted",
                        "connected | Connected — click the console to control it.", // the media event
                        "connected | power control requires account credentials",
                        "disconnected | Console connection failed: EOF",
                    }));
+    delete s;
+  }
+
+  // changed() fires once for each change to what QML shows, and not for the
+  // replies to key and pointer commands, most of the traffic (C-03).
+  void onlyChangesAreSignalled() {
+    auto *s = start({expect("connect"), send(event(3)), expect("key"), reply(event(4)), expect("pointer"),
+                     reply(event(4)), send(event(9))});
+    QTRY_VERIFY(s->connected());
+    QSignalSpy changed(s, &Session::changed);
+    QStringList results; // each reply, with the changes signalled until it came
+    auto record = [&](bool ok, QString) { results << QString::number(ok) + " after " + QString::number(changed.count()); };
+    s->command({{"op", "key"}, {"input", QJsonObject{{"usage", 4}, {"down", true}}}}, this, record);
+    s->command({{"op", "pointer"}, {"input", QJsonObject{{"x", 1}, {"y", 2}, {"buttons", 0}, {"wheel", 0}}}}, this, record);
+    QTRY_COMPARE(results, (QStringList{"1 after 0", "1 after 0"}));
+    QTRY_COMPARE(changed.count(), 1); // the ISO that went away
+    QCOMPARE(s->message, QString("The ISO is no longer mounted: the BMC ended the virtual media"));
+    QTest::qWait(50);
+    QCOMPARE(changed.count(), 1);
     delete s;
   }
 

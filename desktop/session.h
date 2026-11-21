@@ -76,6 +76,8 @@ public:
 
   void preview(); // synthetic framebuffer, no backend
 signals:
+  // What QML shows of the session changed: state, errorStage, message,
+  // errorCode, consoleInfo, mounted, or whether there is a frame.
   void changed();
   void frameReady(QImage image);
 

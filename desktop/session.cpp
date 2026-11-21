@@ -197,6 +197,11 @@ void Session::readControl() {
     case ControlChannel::Status::Event:
       break;
     }
+    // What QML shows of the session: changed() fires only when the message
+    // changes some of it. The replies to key and pointer commands, most of
+    // the traffic, change none (C-03).
+    const auto shown = [this] { return std::make_tuple(state, errorStage, message, errorCode, messageStamp, consoleInfo, mounted); };
+    const auto before = shown();
     // A reply carries its command's id; only an event's error is the console's.
     const bool consoleError = e.type == ipc::EventError && e.id == 0;
     if (consoleError && state != State::Connected && state != State::Disconnected)
@@ -237,7 +242,8 @@ void Session::readControl() {
       m_pending.erase(e.id);
       settle(p, e.type == ipc::EventOK, e.message);
     }
-    emit changed();
+    if (shown() != before)
+      emit changed();
   }
 }
 void Session::readVideo() {
