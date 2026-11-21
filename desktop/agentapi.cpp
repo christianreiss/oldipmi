@@ -593,7 +593,7 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
     s->releaseInput();
     note("power " + action);
     log(label(client), "power", "Power " + action + " requested");
-    s->command({{"op", ipc::OpPower}, {"action", action}}, this, [this, action, done, who](bool ok, QString m) {
+    s->power(action, this, [this, action, done, who](bool ok, QString m) {
       note(ok ? "power " + action + " accepted" : "power " + action + " failed: " + m);
       log(who, "power", ok ? "Power " + action + " accepted" : "Power " + action + " failed");
       done(ok, ok ? "Power action '" + action + "' accepted." : m);
@@ -608,14 +608,14 @@ void AgentApi::dispatch(const QString &op, const QJsonObject &a, Reply reply, Cl
       return fail("path must be an absolute, readable .iso file.");
     note("mount " + f.fileName());
     log(label(client), "media", "Mount ISO " + f.fileName());
-    s->command({{"op", ipc::OpMount}, {"path", f.canonicalFilePath()}}, this, done);
+    s->mount(f.canonicalFilePath(), this, done);
   } else if (op == "eject") {
     auto *s = needConnected();
     if (!s)
       return;
     note("eject ISO");
     log(label(client), "media", "Eject ISO");
-    s->command({{"op", ipc::OpEject}}, this, done);
+    s->eject(this, done);
   } else {
     fail("Unknown operation '" + op + "'.");
   }

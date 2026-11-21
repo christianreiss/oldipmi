@@ -119,17 +119,17 @@ private slots:
     QCOMPARE(commands()[1], (QJsonObject{{"version", 1}, {"id", 2}, {"op", "disconnect"}}));
   }
 
-  // Every further command: what Session builds (key, pointer, release,
-  // disconnect) and the version and id each one gets.
+  // Every further command: what Session builds (key, pointer, release, mount,
+  // eject, power, disconnect) and the version and id each one gets.
   void commandsMatchTheContract() {
     auto *s = start({expect("connect"), send(event(3)), expect("power")});
     QTRY_VERIFY(s->connected());
     s->key(4, true);
     s->pointer(640, 360, 1, -1);
     s->releaseInput();
-    s->command({{"op", "mount"}, {"path", "/srv/iso/install.iso"}});
-    s->command({{"op", "eject"}});
-    s->command({{"op", "power"}, {"action", "soft"}});
+    s->mount("/srv/iso/install.iso");
+    s->eject();
+    s->power(ipc::PowerSoft);
     QTRY_COMPARE(commands().size(), 7);
     delete s;
     QTRY_COMPARE(commands().size(), 8);

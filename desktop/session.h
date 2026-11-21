@@ -45,6 +45,11 @@ public:
   void pointer(int x, int y, int buttons, int wheel);
   void releaseInput();
   void sendKeys(const QVariantList &usages);
+  // The console's actions. done gets the core's answer, as with command();
+  // action is an ipc::Power*.
+  void mount(const QString &isoPath, const QObject *context = nullptr, Result done = {});
+  void eject(const QObject *context = nullptr, Result done = {});
+  void power(const QString &action, const QObject *context = nullptr, Result done = {});
   bool connected() const { return state == State::Connected; }
   QString stateName() const;
   QString errorStageName() const; // empty without an error stage

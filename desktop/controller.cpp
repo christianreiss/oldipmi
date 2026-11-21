@@ -400,18 +400,18 @@ void Controller::mountISO() {
   auto f = QFileDialog::getOpenFileName(nullptr, "Mount read-only ISO", {},
                                         "ISO images (*.iso)");
   if (auto *s = any ? m_sessions.value(target) : nullptr; s && !f.isEmpty())
-    s->command({{"op", ipc::OpMount}, {"path", f}});
+    s->mount(f);
 }
 void Controller::ejectISO() {
   if (m_shown)
-    m_shown->command({{"op", ipc::OpEject}});
+    m_shown->eject();
 }
 void Controller::powerFor(QString id, QString action) {
   auto *s = id.isEmpty() ? m_shown : m_sessions.value(id);
   if (!s)
     return;
   s->releaseInput();
-  s->command({{"op", ipc::OpPower}, {"action", action}});
+  s->power(action);
 }
 QString Controller::chooseCertificate(bool key) {
   return QFileDialog::getOpenFileName(

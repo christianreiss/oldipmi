@@ -293,6 +293,15 @@ void Session::sendKeys(const QVariantList &usages) {
   for (auto it = usages.crbegin(); it != usages.crend(); ++it)
     key(it->toInt(), false);
 }
+void Session::mount(const QString &isoPath, const QObject *context, Result done) {
+  command({{"op", ipc::OpMount}, {"path", isoPath}}, context, std::move(done));
+}
+void Session::eject(const QObject *context, Result done) {
+  command({{"op", ipc::OpEject}}, context, std::move(done));
+}
+void Session::power(const QString &action, const QObject *context, Result done) {
+  command({{"op", ipc::OpPower}, {"action", action}}, context, std::move(done));
+}
 void Session::preview() {
   startedAt = QDateTime::currentMSecsSinceEpoch();
   QImage im(800, 600, QImage::Format_RGBA8888);
