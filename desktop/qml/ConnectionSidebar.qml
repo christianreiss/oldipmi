@@ -308,31 +308,19 @@ Rectangle {
                                     radius: 4
                                     profileId: entry.thumbnail ? entry.profile.id : ""
                                 }
-                                Image {
+                                FamilyImage {
                                     visible: !thumb.hasFrame
                                     anchors.centerIn: parent
-                                    height: Math.round(parent.height * 0.78)
-                                    width: height
-                                    source: Families.image(entry.profile.family)
-                                    sourceSize.width: width * 2
-                                    sourceSize.height: height * 2
-                                    fillMode: Image.PreserveAspectFit
-                                    smooth: true
                                     opacity: entry.failed ? 0.6 : 1
+                                    family: entry.profile.family
+                                    side: Math.round(parent.height * 0.78)
                                 }
                             }
-                            Image {
+                            FamilyImage {
                                 visible: !entry.thumbnail
-                                Layout.preferredWidth: Math.round(Theme.gu * 2)
-                                Layout.preferredHeight: Layout.preferredWidth
                                 Layout.alignment: Qt.AlignVCenter
-                                source: Families.image(entry.profile.family)
-                                // From the layout's size: width follows the picture until the layout
-                                // has run, so a sourceSize from width would double it on every load.
-                                sourceSize.width: Layout.preferredWidth * 2
-                                sourceSize.height: Layout.preferredHeight * 2
-                                fillMode: Image.PreserveAspectFit
-                                smooth: true
+                                family: entry.profile.family
+                                side: Math.round(Theme.gu * 2)
                             }
 
                             ColumnLayout {

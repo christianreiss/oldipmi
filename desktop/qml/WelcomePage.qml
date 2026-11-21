@@ -101,16 +101,9 @@ Item {
                         id: familyEntry
                         required property var modelData
                         spacing: Kirigami.Units.smallSpacing
-                        Image {
-                            Layout.preferredWidth: Math.round(Theme.gu * 1.7)
-                            Layout.preferredHeight: Layout.preferredWidth
-                            source: Families.image(familyEntry.modelData.id)
-                            // From the layout's size: width follows the picture until the layout
-                            // has run, so a sourceSize from width would double it on every load.
-                            sourceSize.width: Layout.preferredWidth * 2
-                            sourceSize.height: Layout.preferredHeight * 2
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
+                        FamilyImage {
+                            family: familyEntry.modelData.id
+                            side: Math.round(Theme.gu * 1.7)
                         }
                         QQC2.Label {
                             text: familyEntry.modelData.name

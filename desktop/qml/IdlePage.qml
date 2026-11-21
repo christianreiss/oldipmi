@@ -74,15 +74,10 @@ Item {
                         Layout.alignment: page.wide ? Qt.AlignVCenter : Qt.AlignLeft
                         radius: side / 2
                         color: Theme.raised
-                        Image {
+                        FamilyImage {
                             anchors.centerIn: parent
-                            width: parent.width * 0.88
-                            height: width
-                            source: Families.image(page.profile.family)
-                            sourceSize.width: width * 2
-                            sourceSize.height: height * 2
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
+                            family: page.profile.family
+                            side: parent.width * 0.88
                         }
                     }
 

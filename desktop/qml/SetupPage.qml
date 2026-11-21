@@ -90,15 +90,10 @@ Rectangle {
                         running: page.visible && !page.waiting && Kirigami.Units.longDuration > 1 && Theme.clockRunning
                     }
                 }
-                Image {
+                FamilyImage {
                     anchors.centerIn: parent
-                    width: parent.width * 0.68
-                    height: width
-                    source: Families.image(page.profile.family)
-                    sourceSize.width: width * 2
-                    sourceSize.height: height * 2
-                    fillMode: Image.PreserveAspectFit
-                    smooth: true
+                    family: page.profile.family
+                    side: parent.width * 0.68
                 }
             }
 

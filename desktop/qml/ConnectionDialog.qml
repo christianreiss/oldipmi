@@ -269,16 +269,10 @@ AppDialog {
                     contentItem: ColumnLayout {
                         id: tileContent
                         spacing: 2
-                        Image {
-                            readonly property real side: Math.round(Theme.gu * (tiles.columns < 5 ? 2 : 2.55))
-                            Layout.preferredWidth: side
-                            Layout.preferredHeight: side
+                        FamilyImage {
                             Layout.alignment: Qt.AlignHCenter
-                            source: Families.image(tile.modelData.id)
-                            sourceSize.width: side * 2
-                            sourceSize.height: side * 2
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
+                            family: tile.modelData.id
+                            side: Math.round(Theme.gu * (tiles.columns < 5 ? 2 : 2.55))
                         }
                         QQC2.Label {
                             text: tile.modelData.short

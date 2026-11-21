@@ -82,17 +82,10 @@ ColumnLayout {
             }
 
             // Identity of the console being opened, failed or shown.
-            Image {
+            FamilyImage {
                 visible: (root.mode === "console" || root.mode === "setup" || root.mode === "error") && header.width >= Theme.gu * 20
-                Layout.preferredWidth: Math.round(Theme.gu * 1.9)
-                Layout.preferredHeight: Layout.preferredWidth
-                source: Families.image(root.shown.family)
-                // From the layout's size: width follows the picture until the layout
-                // has run, so a sourceSize from width would double it on every load.
-                sourceSize.width: Layout.preferredWidth * 2
-                sourceSize.height: Layout.preferredHeight * 2
-                fillMode: Image.PreserveAspectFit
-                smooth: true
+                family: root.shown.family
+                side: Math.round(Theme.gu * 1.9)
             }
             ColumnLayout {
                 visible: root.mode === "console" || root.mode === "setup" || root.mode === "error"
@@ -473,17 +466,11 @@ ColumnLayout {
                             id: barRow
                             anchors { fill: parent; margins: 6 }
                             spacing: 4
-                            Image {
+                            FamilyImage {
                                 visible: !fsBar.narrow
-                                Layout.preferredWidth: Math.round(Theme.gu * 1.35)
-                                Layout.preferredHeight: Layout.preferredWidth
                                 Layout.leftMargin: 4
-                                source: Families.image(root.shown.family)
-                                // From the layout's size: width follows the picture until the layout
-                                // has run, so a sourceSize from width would double it on every load.
-                                sourceSize.width: Layout.preferredWidth * 2
-                                sourceSize.height: Layout.preferredHeight * 2
-                                fillMode: Image.PreserveAspectFit
+                                family: root.shown.family
+                                side: Math.round(Theme.gu * 1.35)
                             }
                             QQC2.Label {
                                 text: root.displayName
