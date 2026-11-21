@@ -2,9 +2,7 @@
 #include <QColor>
 #include <QCoreApplication>
 #include <QDateTime>
-#include <QJsonDocument>
 #include <QTimer>
-#include <QtEndian>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -70,8 +68,8 @@ void Session::stop() {
   delete m_control;
   delete m_video;
   m_control = m_video = nullptr;
-  m_controlBuffer.clear();
-  m_videoBuffer.clear();
+  m_controlIn.clear();
+  m_videoIn.clear();
   mounted = false;
 }
 void Session::begin(const QString &password) {
@@ -177,77 +175,73 @@ void Session::command(QJsonObject o, const QObject *context, Result done) {
   o["id"] = ++m_id;
   if (p.done)
     m_pending[m_id] = std::move(p);
-  QByteArray b = QJsonDocument(o).toJson(QJsonDocument::Compact);
-  QByteArray h(4, 0);
-  qToBigEndian<quint32>(b.size(), h.data());
   if (m_control->bytesToWrite() > 1024 * 1024) {
     fail("Input queue is full; disconnect and reconnect.");
     m_process->terminate();
     failPending("Input queue is full.");
     return;
   }
-  m_control->write(h + b);
+  m_control->write(ControlChannel::frame(o));
   m_control->flush();
 }
 void Session::readControl() {
   if (!m_control)
     return;
-  m_controlBuffer += m_control->readAll();
-  while (m_controlBuffer.size() >= 4) {
-    quint32 n = qFromBigEndian<quint32>(m_controlBuffer.constData());
-    if (n == 0 || n > 1024 * 1024) {
+  m_controlIn.append(m_control->readAll());
+  for (ControlEvent e;;) {
+    switch (m_controlIn.next(e)) {
+    case ControlChannel::Status::NeedMore:
+      return;
+    case ControlChannel::Status::BadLength:
       fail("Invalid backend control message.");
       m_process->terminate();
       return;
-    }
-    if (m_controlBuffer.size() < 4 + n)
-      return;
-    auto o = QJsonDocument::fromJson(m_controlBuffer.mid(4, n)).object();
-    m_controlBuffer.remove(0, 4 + n);
-    if (o.value("version").toInt() != 1) {
+    case ControlChannel::Status::BadVersion:
       fail("Incompatible backend version.");
       m_process->terminate();
       return;
+    case ControlChannel::Status::Event:
+      break;
     }
     // A reply carries its command's id; only an event's error is the console's.
-    const bool consoleError = o["type"] == ipc::EventError && o.value("id").toInt() == 0;
+    const bool consoleError = e.type == ipc::EventError && e.id == 0;
     if (consoleError && state != ipc::StateConnected && state != ipc::StateDisconnected)
       errorStage = state;
     // A console that never delivered a picture failed while connecting.
     if (consoleError && state == ipc::StateConnected && lastFrame.isNull())
       errorStage = ipc::StageConnecting;
-    if (o.contains("state"))
-      state = o["state"].toString();
-    if (o["type"] == ipc::EventError)
-      setMessage(o["message"].toString());
-    else if (o["type"] == ipc::EventMedia && !o["message"].toString().isEmpty())
-      setMessage(isoGoneText + o["message"].toString());
-    else if (o["state"] == ipc::StageLoggingIn)
+    if (e.state)
+      state = *e.state;
+    const QString newState = e.state.value_or(QString());
+    if (e.type == ipc::EventError)
+      setMessage(e.message);
+    else if (e.type == ipc::EventMedia && !e.message.isEmpty())
+      setMessage(isoGoneText + e.message);
+    else if (newState == ipc::StageLoggingIn)
       setMessage("Logging in…");
-    else if (o["state"] == ipc::StageDiscovering)
+    else if (newState == ipc::StageDiscovering)
       setMessage("Discovering console…");
-    else if (o["state"] == ipc::StageConnecting)
+    else if (newState == ipc::StageConnecting)
       setMessage("Connecting to console…");
-    else if (o["state"] == ipc::StateConnected)
+    else if (newState == ipc::StateConnected)
       setMessage(connectedText);
     if (consoleError)
-      errorCode = o["code"].toString(); // for the error page's hint
-    if (o.contains("info")) {
+      errorCode = e.code; // for the error page's hint
+    if (e.info) {
       auto resolution = consoleInfo.value("resolution");
-      consoleInfo = o["info"].toObject().toVariantMap();
+      consoleInfo = *e.info;
       if (resolution.isValid())
         consoleInfo["resolution"] = resolution;
     }
-    if (o.contains("mounted")) {
-      mounted = o["mounted"].toBool();
+    if (e.mounted) {
+      mounted = *e.mounted;
       if (mounted && message.startsWith(isoGoneText))
         setMessage(connectedText);
     }
-    if (int id = o.value("id").toInt(); id && m_pending.count(id) &&
-        (o["type"] == ipc::EventOK || o["type"] == ipc::EventError)) {
-      auto p = std::move(m_pending[id]);
-      m_pending.erase(id);
-      settle(p, o["type"] == ipc::EventOK, o["message"].toString());
+    if (e.id && m_pending.count(e.id) && (e.type == ipc::EventOK || e.type == ipc::EventError)) {
+      auto p = std::move(m_pending[e.id]);
+      m_pending.erase(e.id);
+      settle(p, e.type == ipc::EventOK, e.message);
     }
     emit changed();
   }
@@ -255,23 +249,12 @@ void Session::readControl() {
 void Session::readVideo() {
   if (!m_video)
     return;
-  m_videoBuffer += m_video->readAll();
+  m_videoIn.append(m_video->readAll());
   QImage latest;
-  while (m_videoBuffer.size() >= 12) {
-    quint32 n = qFromBigEndian<quint32>(m_videoBuffer.constData()),
-            w = qFromBigEndian<quint32>(m_videoBuffer.constData() + 4),
-            h = qFromBigEndian<quint32>(m_videoBuffer.constData() + 8);
-    if (w == 0 || h == 0 || w > ipc::MaxFrameWidth || h > ipc::MaxFrameHeight || n != 8 + w * h * 4) {
-      fail("Invalid framebuffer from backend.");
-      m_process->terminate();
-      return;
-    }
-    if (m_videoBuffer.size() < 4 + n)
-      break;
-    latest = QImage(reinterpret_cast<const uchar *>(m_videoBuffer.constData() + 12), w, h, w * 4,
-                    QImage::Format_RGBA8888)
-                 .copy();
-    m_videoBuffer.remove(0, 4 + n);
+  if (m_videoIn.take(latest) == VideoChannel::Status::BadFrame) {
+    fail("Invalid framebuffer from backend.");
+    m_process->terminate();
+    return;
   }
   if (!latest.isNull()) {
     auto resolution = QString::number(latest.width()) + " × " + QString::number(latest.height());

@@ -1,4 +1,5 @@
 #pragma once
+#include "channels.h"
 #include "ipc.h"
 #include <QElapsedTimer>
 #include <QImage>
@@ -66,7 +67,8 @@ signals:
 private:
   QProcess *m_process = nullptr;
   QLocalSocket *m_control = nullptr, *m_video = nullptr;
-  QByteArray m_controlBuffer, m_videoBuffer;
+  ControlChannel m_controlIn;
+  VideoChannel m_videoIn;
   int m_id = 0;
   bool m_disconnectSent = false;
   size_t m_frameHash = 0;
