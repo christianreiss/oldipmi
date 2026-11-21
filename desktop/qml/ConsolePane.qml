@@ -43,7 +43,8 @@ ColumnLayout {
     readonly property bool immersive: fullscreen && mode === "console"
     // Said where the keyboard takes control, when only the mouse can release.
     readonly property string mouseOnlyRelease: "Releasing needs the mouse: tapping Right Ctrl is off in Settings."
-    function has(capability) { return (controller.consoleInfo.capabilities || []).indexOf(capability) >= 0 }
+    // What the console supports, by the core's feature names (testdata/ipc/names.json, features).
+    function has(feature) { return (controller.consoleInfo.features || []).indexOf(feature) >= 0 }
     // The remote screen on the clipboard, at its own resolution and without the stage.
     function copyScreen() {
         const size = controller.copyFrame();
@@ -199,7 +200,7 @@ ColumnLayout {
         id: mediaAction
         text: controller.mounted ? "Eject ISO" : "Mount ISO…"
         icon.name: controller.mounted ? "media-eject" : "media-optical"
-        visible: root.has("Read-only ISO")
+        visible: root.has("media")
         // Only its icon while the header is tight, so Power keeps its label.
         displayHint: header.width >= Theme.gu * 56 ? Kirigami.DisplayHint.NoPreference : Kirigami.DisplayHint.IconOnly
         tooltip: controller.mounted ? "Eject ISO: disconnect the virtual CD-ROM" : "Mount ISO: attach a local ISO image read-only as a virtual CD-ROM"
