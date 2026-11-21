@@ -82,6 +82,15 @@ class AgentApiTest : public QObject {
     api.dispatch(op, args, [r](bool ok, QJsonValue v, QString code) { *r = {ok, v, code, true}; });
     return r;
   }
+  // The activity list as "client: text", newest first.
+  static QStringList trail(const AgentApi &api) {
+    QStringList out;
+    for (const auto &v : api.activity()) {
+      const auto e = v.toMap();
+      out << e["client"].toString() + ": " + e["text"].toString();
+    }
+    return out;
+  }
   static QJsonObject request(QLocalSocket &s, const QByteArray &line) {
     s.write(line + "\n");
     if (!QTest::qWaitFor([&] { return s.canReadLine(); }, 5000))
@@ -589,10 +598,8 @@ private slots:
     delete s; // the agent process goes away while holding Shift and the left button
     QTRY_COMPARE(api.clientCount(), 0);
     QTRY_VERIFY(c.shown()->changeSeq > before); // the demo screen redraws for the key-up/button-up
-    bool released = false;
-    for (auto v : api.activity())
-      released = released || v.toMap()["text"].toString().contains("Released 2 held");
-    QVERIFY(released);
+    QCOMPARE(trail(api).mid(0, 2), (QStringList{"unidentified client: Agent disconnected",
+                                                "unidentified client: Released 2 held key(s)/button(s) of this agent"}));
     c.disconnectHost();
   }
   void activityIsBoundedNewestFirstAndCoalesced() {
@@ -615,6 +622,83 @@ private slots:
     api.clearActivity();
     QVERIFY(api.activity().isEmpty());
   }
+  // What the operations leave for the user: the entries of the activity list
+  // in Settings → AI agents, and the notes in the status bar. A request that
+  // fails, and one that changes nothing, leaves none.
+  void everyOperationLeavesItsTrail() {
+    QTemporaryDir dir; NoCredentials w;
+    QStringList notes; // outlives the controller, whose changed() fills it
+    Controller c(nullptr, &w, writeProfiles(dir));
+    connect(&c, &Controller::changed, &c, [&] {
+      if (c.message().startsWith("Agent: ") && (notes.isEmpty() || notes.last() != c.message()))
+        notes << c.message();
+    });
+    QFile iso(dir.filePath("fixture.iso"));
+    QVERIFY(iso.open(QIODevice::WriteOnly) && iso.write(QByteArray(8 * 2048, 0)) > 0);
+    iso.close();
+    const QString path = dir.filePath("agent.sock");
+    AgentApi api(&c, path);
+    QVERIFY(api.start());
+    api.clearActivity(); // "Agent control started"
+    auto *s = new QLocalSocket;
+    s->connectToServer(path);
+    QTRY_COMPARE(s->state(), QLocalSocket::ConnectedState);
+    auto ok = [&](const QByteArray &line) { return request(*s, line)["ok"].toBool(); };
+    QVERIFY(ok(R"({"id":1,"op":"hello","args":{"name":"fixture-agent","version":"1.0"}})"));
+    QVERIFY(ok(R"({"id":2,"op":"list_profiles","args":{}})"));
+    QVERIFY(ok(R"({"id":3,"op":"connect","args":{"profile":"Demo"}})"));
+    QTRY_VERIFY_WITH_TIMEOUT(c.session("demo-1") && c.session("demo-1")->connected(), 10000);
+    QTRY_VERIFY(!c.session("demo-1")->lastFrame.isNull());
+    QVERIFY(ok(R"({"id":4,"op":"connect","args":{"profile":"Demo"}})")); // already open
+    QVERIFY(ok(R"({"id":5,"op":"status","args":{}})"));
+    QVERIFY(ok(R"({"id":6,"op":"screenshot","args":{}})"));
+    QVERIFY(ok(R"({"id":7,"op":"key","args":{"usage":4,"down":true}})"));
+    QVERIFY(ok(R"({"id":8,"op":"key","args":{"usage":4,"down":false}})"));
+    QVERIFY(!ok(R"({"id":9,"op":"key","args":{"usage":300,"down":true}})"));
+    QVERIFY(ok(R"({"id":10,"op":"pointer","args":{"x":10,"y":10,"buttons":0}})"));
+    QVERIFY(!ok(R"({"id":11,"op":"nope","args":{}})"));
+    QVERIFY(ok(R"({"id":12,"op":"release","args":{}})"));
+    QVERIFY(ok(R"({"id":13,"op":"power","args":{"action":"reset"}})"));
+    QJsonObject mount{{"id", 14}, {"op", "mount"}, {"args", QJsonObject{{"path", iso.fileName()}}}};
+    QVERIFY(ok(QJsonDocument(mount).toJson(QJsonDocument::Compact)));
+    QVERIFY(ok(R"({"id":15,"op":"eject","args":{}})"));
+    QVERIFY(ok(R"({"id":16,"op":"disconnect","args":{}})"));
+    QCOMPARE(trail(api), (QStringList{
+                             "fixture-agent 1.0: Disconnect",
+                             "fixture-agent 1.0: Eject ISO",
+                             "fixture-agent 1.0: Mount ISO fixture.iso",
+                             "fixture-agent 1.0: Power reset accepted",
+                             "fixture-agent 1.0: Power reset requested",
+                             "fixture-agent 1.0: Released all keys and buttons",
+                             "fixture-agent 1.0: Pointer input ×1, last at 10,10",
+                             "fixture-agent 1.0: Keyboard input: 1 key presses",
+                             "fixture-agent 1.0: Screenshot ×1",
+                             "fixture-agent 1.0: Open console 'Demo'",
+                             "fixture-agent 1.0: Listed profiles ×1",
+                             "fixture-agent 1.0: Agent identified itself",
+                             "unidentified client: Agent connected",
+                         }));
+    api.clearActivity();
+    QVERIFY(ok(R"({"id":17,"op":"connect","args":{"profile":"Demo"}})"));
+    QTRY_VERIFY_WITH_TIMEOUT(c.session("demo-1") && c.session("demo-1")->connected(), 10000);
+    QVERIFY(ok(R"({"id":18,"op":"disconnect","args":{"all":true}})"));
+    QVERIFY(request(*s, R"({"id":19,"op":"connect","args":{"profile":"Fake"}})")["result"].toObject()["passwordRequired"].toBool());
+    QVERIFY(ok(R"({"id":20,"op":"disconnect","args":{}})")); // dismisses the prompt
+    delete s;
+    QTRY_COMPARE(api.clientCount(), 0);
+    QCOMPARE(trail(api), (QStringList{
+                             "fixture-agent 1.0: Agent disconnected",
+                             "fixture-agent 1.0: Disconnect",
+                             "fixture-agent 1.0: Waiting for the user to enter the password for 'Fake'",
+                             "fixture-agent 1.0: Open console 'Fake'",
+                             "fixture-agent 1.0: Disconnect all consoles",
+                             "fixture-agent 1.0: Open console 'Demo'",
+                         }));
+    QCOMPARE(notes, (QStringList{"Agent: opening Demo", "Agent: power reset", "Agent: power reset accepted",
+                                 "Agent: mount fixture.iso", "Agent: eject ISO", "Agent: disconnect",
+                                 "Agent: opening Demo", "Agent: disconnect all", "Agent: opening Fake",
+                                 "Agent: disconnect"}));
+  }
   // A command the console refuses fails with the console's message, as failed.
   void aRefusedCommandFails() {
     QTemporaryDir dir;
@@ -631,6 +715,8 @@ private slots:
     QVERIFY(!power->ok);
     QCOMPARE(power->value.toString(), QString("power control requires account credentials"));
     QCOMPARE(power->code, QString(agentops::ErrFailed));
+    QCOMPARE(trail(api).mid(0, 2), (QStringList{"OldIPMI: Power soft failed", "OldIPMI: Power soft requested"}));
+    QCOMPARE(c.message(), QString("Agent: power soft failed: power control requires account credentials"));
   }
   // Quitting while a power command waits for its answer: the agent API goes
   // first, then the controller, whose sessions settle their callbacks. None may
