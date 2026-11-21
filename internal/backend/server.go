@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/video/raster"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -184,9 +185,25 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 			}
 		}
 	}()
+	// A frame that the desktop would refuse ends the console with what is
+	// wrong with it, and nothing after it goes out. Every driver checks its
+	// sizes already, so this guards against a bug in one; the desktop's own
+	// check stays as the last guard. Run gets a context of its own, so that
+	// the loop still reports the error when Run ends.
+	runCtx, stopRun := context.WithCancel(ctx)
+	defer stopRun()
+	var badFrame atomic.Pointer[error]
 	done := make(chan error, 1)
 	go func() {
-		done <- session.Run(ctx, func(f protocol.Frame) {
+		err := session.Run(runCtx, func(f protocol.Frame) {
+			if badFrame.Load() != nil {
+				return
+			}
+			if e := checkFrame(f); e != nil {
+				badFrame.CompareAndSwap(nil, &e)
+				stopRun()
+				return
+			}
 			f.Pixels = append([]byte(nil), f.Pixels...)
 			select {
 			case latest <- f:
@@ -201,6 +218,10 @@ func serve(parent context.Context, control, video net.Conn, open func(context.Co
 				}
 			}
 		})
+		if e := badFrame.Load(); e != nil {
+			err = *e
+		}
+		done <- err
 	}()
 	emit(Event{Type: EventState, State: StateConnected})
 	// Mount, eject and power can take seconds. They run off this loop, one at
@@ -358,4 +379,19 @@ func withTimeout(ctx context.Context, d time.Duration, what string, op func(cont
 		return fmt.Errorf("%s within %v: %w", what, d, err)
 	}
 	return err
+}
+
+// checkFrame refuses what the desktop refuses (session.cpp, readVideo): an
+// empty frame, one over raster's limits, and one whose pixels are not
+// width × height × 4 bytes.
+func checkFrame(f protocol.Frame) error {
+	switch {
+	case f.Width < 1 || f.Height < 1:
+		return fmt.Errorf("the console sent an empty picture (%d × %d)", f.Width, f.Height)
+	case !raster.ValidSize(f.Width, f.Height):
+		return fmt.Errorf("the console sent a %d × %d picture, over the limit of %d × %d", f.Width, f.Height, raster.MaxWidth, raster.MaxHeight)
+	case len(f.Pixels) != f.Width*f.Height*4:
+		return fmt.Errorf("the console sent a %d × %d picture in %d bytes instead of %d", f.Width, f.Height, len(f.Pixels), f.Width*f.Height*4)
+	}
+	return nil
 }
