@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import OldIPMI 1.0
 import "families.js" as Families
+import "shortcuts.js" as Shortcuts
 
 // Right-hand side: the selected connection, its setup, a failure, or the live
 // console on its dark stage.
@@ -76,7 +77,7 @@ ColumnLayout {
             IconButton {
                 icon.name: "sidebar-show-symbolic"
                 text: root.sidebarShown ? "Hide connection list" : "Show connection list"
-                shortcut: "F9"
+                shortcut: Shortcuts.connectionList
                 Layout.minimumWidth: implicitWidth
                 onClicked: root.toggleSidebar()
             }
@@ -150,7 +151,7 @@ ColumnLayout {
                 text: "Disconnect"
                 icon.name: "network-disconnect"
                 display: header.roomy ? QQC2.AbstractButton.TextBesideIcon : QQC2.AbstractButton.IconOnly
-                tooltip: "Close this console session (Ctrl+D)"
+                tooltip: "Close this console session (" + Shortcuts.disconnect + ")"
                 Layout.minimumWidth: implicitWidth
                 onClicked: controller.disconnectHost()
             }
@@ -158,7 +159,7 @@ ColumnLayout {
                 visible: root.fullscreen && !root.immersive
                 icon.name: "view-restore"
                 text: "Leave full screen"
-                shortcut: "F11"
+                shortcut: Shortcuts.fullScreen
                 Layout.minimumWidth: implicitWidth
                 onClicked: root.toggleFullscreen()
             }
@@ -166,7 +167,7 @@ ColumnLayout {
                 objectName: "headerQuitButton"
                 icon.name: "application-exit"
                 text: "Quit OldIPMI"
-                shortcut: "Ctrl+Q"
+                shortcut: Shortcuts.quit
                 Layout.minimumWidth: implicitWidth
                 onClicked: root.quitRequested()
             }
@@ -218,7 +219,7 @@ ColumnLayout {
         text: "Copy screen image"
         icon.name: "edit-copy"
         displayHint: Kirigami.DisplayHint.IconOnly
-        tooltip: "Copy the remote screen as an image (Ctrl+Shift+C)"
+        tooltip: "Copy the remote screen as an image (" + Shortcuts.copyScreen + ")"
         onTriggered: root.copyScreen()
     }
     Kirigami.Action {
@@ -234,7 +235,7 @@ ColumnLayout {
         text: root.fullscreen ? "Leave full screen" : "Full screen"
         icon.name: root.fullscreen ? "view-restore" : "view-fullscreen"
         displayHint: Kirigami.DisplayHint.IconOnly
-        tooltip: text + " (F11)"
+        tooltip: text + " (" + Shortcuts.fullScreen + ")"
         onTriggered: root.toggleFullscreen()
     }
     Kirigami.Action {
@@ -541,7 +542,7 @@ ColumnLayout {
                                 visible: !fsBar.narrow
                                 icon.name: copyAction.icon.name
                                 text: copyAction.text
-                                shortcut: "Ctrl+Shift+C"
+                                shortcut: Shortcuts.copyScreen
                                 onClicked: copyAction.trigger()
                             }
                             BarButton {
@@ -552,7 +553,7 @@ ColumnLayout {
                             BarButton {
                                 icon.name: "view-restore"
                                 text: "Leave full screen"
-                                shortcut: "F11"
+                                shortcut: Shortcuts.fullScreen
                                 onClicked: root.toggleFullscreen()
                             }
                             ActionButton {
@@ -592,7 +593,7 @@ ColumnLayout {
                             anchors.centerIn: parent
                             icon.name: "application-exit"
                             text: "Quit OldIPMI"
-                            shortcut: "Ctrl+Q"
+                            shortcut: Shortcuts.quit
                             onClicked: root.quitRequested()
                         }
                     }

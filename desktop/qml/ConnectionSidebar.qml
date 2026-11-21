@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import OldIPMI 1.0
 import "families.js" as Families
+import "shortcuts.js" as Shortcuts
 
 // Connection manager: open consoles first (with a live picture), then every
 // saved BMC with its state and actions.
@@ -86,7 +87,7 @@ Rectangle {
             IconButton {
                 icon.name: "list-add"
                 text: "New connection…"
-                shortcut: "Ctrl+N"
+                shortcut: Shortcuts.newConnection
                 onClicked: root.newRequested("")
             }
             IconButton {
@@ -159,7 +160,7 @@ Rectangle {
                 visible: search.text === "" && search.width - search.leftPadding - implicitWidth
                          - Math.round(Theme.gu * 0.6) >= Math.ceil(placeholderMetrics.advanceWidth)
                 anchors { right: parent.right; rightMargin: Math.round(Theme.gu * 0.4); verticalCenter: parent.verticalCenter }
-                keys: "Ctrl+F"
+                keys: Shortcuts.find
             }
             IconButton {
                 id: clearButton
@@ -494,7 +495,7 @@ Rectangle {
                 tone: "ghost"
                 icon.name: "configure"
                 text: "Settings"
-                tooltip: "Settings (Ctrl+,)"
+                tooltip: "Settings (" + Shortcuts.settings + ")"
                 onClicked: root.settingsRequested("general")
             }
             Item { Layout.fillWidth: true }
@@ -504,7 +505,7 @@ Rectangle {
                 text: "Disconnect all"
                 enabled: controller.openCount > 0
                 tooltip: (controller.openCount > 1 ? "Close all " + controller.openCount + " open consoles"
-                          : controller.openCount === 1 ? "Close the open console" : "No console is open") + " (Ctrl+Shift+D)"
+                          : controller.openCount === 1 ? "Close the open console" : "No console is open") + " (" + Shortcuts.disconnectAll + ")"
                 // Only its icon in a narrow list, rather than a clipped label.
                 display: root.width >= Theme.gu * 15 ? QQC2.AbstractButton.TextBesideIcon : QQC2.AbstractButton.IconOnly
                 onClicked: root.disconnectAllRequested()

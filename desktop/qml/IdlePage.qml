@@ -4,6 +4,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import "families.js" as Families
+import "shortcuts.js" as Shortcuts
 
 // The selected connection, ready to open: what it is, how it logs in, and one
 // primary action.
@@ -216,7 +217,7 @@ Item {
                 KeyHint { keys: "Enter"; label: "Connect" }
                 KeyHint { keys: "F2"; label: "Edit" }
                 KeyHint { keys: "Del"; label: "Delete" }
-                KeyHint { keys: "Ctrl+F"; label: "Find a server" }
+                KeyHint { keys: Shortcuts.find; label: "Find a server" }
             }
 
             QQC2.Label {

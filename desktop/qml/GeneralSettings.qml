@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
 import org.kde.kirigamiaddons.formcard as FormCard
+import "shortcuts.js" as Shortcuts
 
 FormCard.FormCardPage {
     objectName: "generalSettings"
@@ -39,10 +40,10 @@ FormCard.FormCardPage {
     FormCard.FormCard {
         Repeater {
             model: [
-                ["New connection", "Ctrl+N"], ["Filter connections", "Ctrl+F"],
-                ["Show or hide the connection list", "F9"], ["Full screen", "F11"],
-                ["Copy screen image", "Ctrl+Shift+C"],
-                ["Disconnect", "Ctrl+D"], ["Settings", "Ctrl+,"], ["Quit", "Ctrl+Q"]
+                ["New connection", Shortcuts.newConnection], ["Filter connections", Shortcuts.find],
+                ["Show or hide the connection list", Shortcuts.connectionList], ["Full screen", Shortcuts.fullScreen],
+                ["Copy screen image", Shortcuts.copyScreen],
+                ["Disconnect", Shortcuts.disconnect], ["Settings", Shortcuts.settings], ["Quit", Shortcuts.quit]
             ]
             delegate: FormCard.FormTextDelegate {
                 id: shortcutRow

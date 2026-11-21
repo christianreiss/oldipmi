@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.kirigamiaddons.settings as KirigamiSettings
+import "shortcuts.js" as Shortcuts
 
 Kirigami.ApplicationWindow {
     id: window
@@ -136,15 +137,15 @@ Kirigami.ApplicationWindow {
     }
 
     Shortcut { sequences: [StandardKey.New]; onActivated: window.newConnection() }
-    Shortcut { sequence: "Ctrl+,"; onActivated: window.openSettings("general") }
+    Shortcut { sequence: Shortcuts.settings; onActivated: window.openSettings("general") }
     Shortcut { sequences: [StandardKey.Find]; onActivated: { settings.showSidebar = true; sidebar.focusSearch() } }
-    Shortcut { sequence: "F9"; onActivated: settings.showSidebar = !settings.showSidebar }
-    Shortcut { sequences: [StandardKey.FullScreen, "F11"]; onActivated: window.toggleFullscreen() }
-    Shortcut { sequence: "Ctrl+D"; enabled: controller.state !== "disconnected"; onActivated: controller.disconnectHost() }
-    Shortcut { sequence: "Ctrl+Shift+D"; enabled: controller.openCount > 0; onActivated: window.disconnectAll() }
+    Shortcut { sequence: Shortcuts.connectionList; onActivated: settings.showSidebar = !settings.showSidebar }
+    Shortcut { sequences: [StandardKey.FullScreen, Shortcuts.fullScreen]; onActivated: window.toggleFullscreen() }
+    Shortcut { sequence: Shortcuts.disconnect; enabled: controller.state !== "disconnected"; onActivated: controller.disconnectHost() }
+    Shortcut { sequence: Shortcuts.disconnectAll; enabled: controller.openCount > 0; onActivated: window.disconnectAll() }
     Shortcut {
         objectName: "copyScreenShortcut"
-        sequence: "Ctrl+Shift+C"
+        sequence: Shortcuts.copyScreen
         enabled: controller.hasFrame && !consolePane.consoleView.captured
         onActivated: consolePane.copyScreen()
     }
