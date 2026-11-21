@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+* **A garbled message from the backend says so.** A control message from
+  `oldipmi-core` that was not a JSON object ended the console with
+  "Incompatible backend version.", which only a backend of another version
+  should cause. It now ends it with "Invalid backend control message.", like a
+  message of an impossible length.
+
 ## 0.4.0 (2026-11-21)
 
 ### Added

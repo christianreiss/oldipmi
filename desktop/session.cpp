@@ -193,6 +193,7 @@ void Session::readControl() {
     case ControlChannel::Status::NeedMore:
       return;
     case ControlChannel::Status::BadLength:
+    case ControlChannel::Status::BadMessage:
       fail("Invalid backend control message.");
       m_process->terminate();
       return;

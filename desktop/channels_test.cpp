@@ -125,7 +125,6 @@ private slots:
     QTest::addColumn<QByteArray>("json");
     QTest::newRow("version 2") << QByteArray(R"({"version":2,"type":"ok","id":1})");
     QTest::newRow("no version") << QByteArray(R"({"type":"ok","id":1})");
-    QTest::newRow("not JSON") << QByteArray("{\"version\":1,");
   }
   void otherVersionIsTakenOut() {
     QFETCH(QByteArray, json);
@@ -133,6 +132,24 @@ private slots:
     c.append(framed(json) + framed(R"({"version":1,"type":"ok","id":2})"));
     ControlEvent e;
     QCOMPARE(c.next(e), ControlChannel::Status::BadVersion);
+    QCOMPARE(c.next(e), ControlChannel::Status::Event);
+    QCOMPARE(e.id, 2);
+  }
+
+  // So is a message that is not a JSON object.
+  void notAnObjectIsTakenOut_data() {
+    QTest::addColumn<QByteArray>("json");
+    QTest::newRow("cut off") << QByteArray("{\"version\":1,");
+    QTest::newRow("not JSON") << QByteArray("version 1");
+    QTest::newRow("array") << QByteArray(R"([{"version":1}])");
+    QTest::newRow("string") << QByteArray(R"("version 1")");
+  }
+  void notAnObjectIsTakenOut() {
+    QFETCH(QByteArray, json);
+    ControlChannel c;
+    c.append(framed(json) + framed(R"({"version":1,"type":"ok","id":2})"));
+    ControlEvent e;
+    QCOMPARE(c.next(e), ControlChannel::Status::BadMessage);
     QCOMPARE(c.next(e), ControlChannel::Status::Event);
     QCOMPARE(e.id, 2);
   }

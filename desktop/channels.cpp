@@ -18,8 +18,12 @@ ControlChannel::Status ControlChannel::next(ControlEvent &event) {
     return Status::BadLength;
   if (m_buffer.size() < 4 + n)
     return Status::NeedMore;
-  auto o = QJsonDocument::fromJson(m_buffer.mid(4, n)).object();
+  QJsonParseError error;
+  const auto doc = QJsonDocument::fromJson(m_buffer.mid(4, n), &error);
   m_buffer.remove(0, 4 + n);
+  if (error.error != QJsonParseError::NoError || !doc.isObject())
+    return Status::BadMessage;
+  const auto o = doc.object();
   if (o.value("version").toInt() != 1)
     return Status::BadVersion;
   event = ControlEvent{};

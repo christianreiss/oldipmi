@@ -31,6 +31,7 @@ public:
     Event,      // the next message is in the event
     NeedMore,   // no complete message yet
     BadLength,  // a length of 0 or over MaxMessage; the bytes stay, so it repeats
+    BadMessage, // a message that is not a JSON object, taken out
     BadVersion, // a message without version 1, taken out
   };
   // A command as the core reads it.

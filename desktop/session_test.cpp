@@ -307,6 +307,11 @@ private slots:
     QTest::addColumn<QString>("message");
     QTest::newRow("empty control message") << QJsonObject{{"raw", "00000000"}} << "Invalid backend control message.";
     QTest::newRow("control message over 1 MiB") << QJsonObject{{"raw", "00100001"}} << "Invalid backend control message.";
+    // "not JSON" and "[1]", each with its length.
+    QTest::newRow("control message that is not JSON") << QJsonObject{{"raw", "000000086e6f74204a534f4e"}}
+                                                      << "Invalid backend control message.";
+    QTest::newRow("control message that is no object") << QJsonObject{{"raw", "000000035b315d"}}
+                                                       << "Invalid backend control message.";
     QTest::newRow("another IPC version")
         << send({{"version", 2}, {"type", "state"}, {"state", "connected"}}) << "Incompatible backend version.";
     QTest::newRow("picture without a size") << QJsonObject{{"videoRaw", "000000080000000000000000"}}
