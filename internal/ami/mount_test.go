@@ -40,15 +40,22 @@ func mediaBMC(ln net.Listener, ack <-chan struct{}) (conns <-chan net.Conn, auth
 		}
 		close(a)
 		<-ack
-		// The ACK: opcode 0xf1 at payload[9], status 1 (accepted) at payload[30].
-		p := make([]byte, iusb.HeaderLen+32)
-		h := iusb.Header{Major: iusb.Major, Minor: iusb.Minor, DataPacketLen: 32}
-		h.Marshal(p)
-		p[iusb.HeaderLen+9], p[iusb.HeaderLen+30] = 0xf1, 1
+		// The ACK, with status 1 (accepted) at payload[30].
+		p := iusbPacket(0xf1)
+		p[iusb.HeaderLen+30] = 1
 		conn.Write(p)
 		c <- conn
 	}()
 	return c, a
+}
+
+// iusbPacket is a packet of the BMC with the opcode op at payload[9].
+func iusbPacket(op byte) []byte {
+	p := make([]byte, iusb.HeaderLen+32)
+	h := iusb.Header{Major: iusb.Major, Minor: iusb.Minor, DataPacketLen: 32}
+	h.Marshal(p)
+	p[iusb.HeaderLen+9] = op
+	return p
 }
 
 func mediaClient(port int) *Client {
@@ -77,6 +84,53 @@ func TestMountLastsUntilEject(t *testing.T) {
 	c.Eject()
 	if !testkit.Closed(t, conn, 5*time.Second) || c.Mounted() {
 		t.Fatal("the ISO stayed mounted after Eject")
+	}
+	time.Sleep(100 * time.Millisecond) // the media's goroutine ends meanwhile
+	if err := c.MediaErr(); err != nil {
+		t.Fatalf("MediaErr after Eject: %v", err)
+	}
+}
+
+// When the virtual media ends by itself, the ISO counts as gone and MediaErr
+// says why; an Eject clears it.
+func TestMediaEndsByItself(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		end  func(net.Conn)
+		want string
+	}{
+		{"connection lost", func(conn net.Conn) { conn.Close() }, "vmedia: read request: EOF"},
+		{"killed by the BMC", func(conn net.Conn) { conn.Write(iusbPacket(0xf6)) }, "the BMC ended the virtual media"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ln, port := listen(t, nil)
+			ack := make(chan struct{})
+			close(ack)
+			conns, _ := mediaBMC(ln, ack)
+			c := mediaClient(port)
+			defer c.Close()
+			if err := c.Mount(context.Background(), isoFile(t)); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.MediaErr(); err != nil {
+				t.Fatalf("MediaErr while mounted: %v", err)
+			}
+			conn := <-conns
+			defer conn.Close()
+			tc.end(conn)
+			for deadline := time.Now().Add(5 * time.Second); c.Mounted(); time.Sleep(time.Millisecond) {
+				if time.Now().After(deadline) {
+					t.Fatal("still mounted")
+				}
+			}
+			if err := c.MediaErr(); err == nil || err.Error() != tc.want {
+				t.Fatalf("MediaErr %v, want %q", err, tc.want)
+			}
+			c.Eject()
+			if err := c.MediaErr(); err != nil {
+				t.Fatalf("MediaErr after Eject: %v", err)
+			}
+		})
 	}
 }
 

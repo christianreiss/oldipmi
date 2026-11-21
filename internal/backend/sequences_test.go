@@ -88,6 +88,7 @@ func (s *scriptedConsole) Mounted() bool {
 	}
 	return m
 }
+func (s *scriptedConsole) MediaErr() error { return nil }
 func (s *scriptedConsole) Power(context.Context, protocol.PowerAction) error {
 	close(s.end)
 	return errors.New("power control requires account credentials")

@@ -30,6 +30,7 @@ type Client struct {
 	seq           uint32
 	media         *vmedia.Session
 	mediaCancel   context.CancelFunc
+	mediaErr      error
 	once          sync.Once
 	// mediaMu keeps Mount and Eject in order. Mount holds it while it sets
 	// the virtual media up, and c.mu only to install it, so that input and
@@ -319,20 +320,19 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 	}
 	mctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	c.mu.Lock()
-	c.media = s
-	c.mediaCancel = cancel
+	c.media, c.mediaCancel, c.mediaErr = s, cancel, nil
 	c.mu.Unlock()
 	go func() {
 		defer file.Close()
 		defer s.Close()
 		defer cancel()
-		if err := s.Serve(mctx, vmedia.NewCDROM(file)); err != nil && mctx.Err() == nil {
+		err := s.Serve(mctx, vmedia.NewCDROM(file))
+		if err != nil && mctx.Err() == nil {
 			log.Printf("virtual media ended: %v", err)
 		}
 		c.mu.Lock()
-		if c.media == s {
-			c.media = nil
-			c.mediaCancel = nil
+		if c.media == s { // not ejected: the virtual media ended by itself
+			c.media, c.mediaCancel, c.mediaErr = nil, nil, protocol.MediaEnd(err)
 		}
 		c.mu.Unlock()
 	}()
@@ -349,9 +349,9 @@ func (c *Client) Eject() error {
 	if c.media != nil {
 		c.media.Close()
 	}
-	c.media = nil
-	c.mediaCancel = nil
+	c.media, c.mediaCancel, c.mediaErr = nil, nil, nil
 	return nil
 }
 
-func (c *Client) Mounted() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.media != nil }
+func (c *Client) Mounted() bool   { c.mu.Lock(); defer c.mu.Unlock(); return c.media != nil }
+func (c *Client) MediaErr() error { c.mu.Lock(); defer c.mu.Unlock(); return c.mediaErr }

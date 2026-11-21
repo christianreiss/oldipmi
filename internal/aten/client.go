@@ -26,6 +26,7 @@ type Client struct {
 	controlling bool
 	dec         decoder
 	media       *mediaSession
+	mediaErr    error
 	once        sync.Once
 	ast         *ast.Decoder // HTML5 mode video decoder
 	reqW, reqH  int          // HTML5 mode update-request size
@@ -461,14 +462,17 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 		return e
 	}
 	c.mu.Lock()
-	c.media = s
+	c.media, c.mediaErr = s, nil
 	c.mu.Unlock()
 	go func() {
-		s.serve()
+		err := s.serve()
 		s.close()
+		if err != nil {
+			err = fmt.Errorf("ATEN virtual media: %w", err)
+		}
 		c.mu.Lock()
-		if c.media == s {
-			c.media = nil
+		if c.media == s { // not ejected: the virtual media ended by itself
+			c.media, c.mediaErr = nil, protocol.MediaEnd(err)
 		}
 		c.mu.Unlock()
 	}()
@@ -481,9 +485,10 @@ func (c *Client) Eject() error {
 	defer c.mu.Unlock()
 	if c.media != nil {
 		c.media.close()
-		c.media = nil
 	}
+	c.media, c.mediaErr = nil, nil
 	return nil
 }
 
-func (c *Client) Mounted() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.media != nil }
+func (c *Client) Mounted() bool   { c.mu.Lock(); defer c.mu.Unlock(); return c.media != nil }
+func (c *Client) MediaErr() error { c.mu.Lock(); defer c.mu.Unlock(); return c.mediaErr }

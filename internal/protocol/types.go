@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"oldipmi/internal/transport"
@@ -79,6 +80,22 @@ type Media interface {
 	Mount(context.Context, string) error
 	Eject() error
 	Mounted() bool
+	// MediaErr is why the last ISO went away without an Eject: the error that
+	// ended its virtual media, or ErrMediaEnded. It is nil while an ISO is
+	// mounted and after an Eject.
+	MediaErr() error
+}
+
+// ErrMediaEnded is why an ISO went away when the BMC ended its virtual media
+// without an error.
+var ErrMediaEnded = errors.New("the BMC ended the virtual media")
+
+// MediaEnd is why an ISO went away when its virtual media ended with err.
+func MediaEnd(err error) error {
+	if err == nil {
+		return ErrMediaEnded
+	}
+	return err
 }
 
 // Power is a console's chassis power control.

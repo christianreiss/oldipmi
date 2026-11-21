@@ -287,6 +287,9 @@ func (s *Session) Eject() error {
 
 func (s *Session) Mounted() bool { s.mu.Lock(); defer s.mu.Unlock(); return s.media != "" }
 
+// MediaErr is always nil: the demo's ISO goes away only by Eject.
+func (s *Session) MediaErr() error { return nil }
+
 func (s *Session) Power(_ context.Context, action protocol.PowerAction) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

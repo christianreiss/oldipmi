@@ -56,8 +56,9 @@ func (c *blockingConsole) Mount(ctx context.Context, _ string) error {
 		return ctx.Err()
 	}
 }
-func (c *blockingConsole) Eject() error  { c.set(&c.mounted, false); return nil }
-func (c *blockingConsole) Mounted() bool { return c.get(&c.mounted) }
+func (c *blockingConsole) Eject() error    { c.set(&c.mounted, false); return nil }
+func (c *blockingConsole) Mounted() bool   { return c.get(&c.mounted) }
+func (c *blockingConsole) MediaErr() error { return nil }
 func (c *blockingConsole) Power(ctx context.Context, _ protocol.PowerAction) error {
 	<-ctx.Done()
 	return ctx.Err()
