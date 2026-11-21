@@ -53,6 +53,10 @@
   has answered a mount, and the picture of an AMI console no longer stands still
   meanwhile. A mount now gives up after 30 seconds and a power command after 15,
   each with an error that says so; a mount had no time limit of its own before.
+* **A long message in the status strip can be read whole.** A message that
+  does not fit beside the console's picture is cut short with “…”, and nothing
+  showed the rest. Hovering it now shows all of it, for example why an ISO went
+  away or which time limit a mount ran into.
 * **An ISO that goes away by itself says why.** When the BMC ends the virtual
   media or its connection drops, the status strip now says “The ISO is no
   longer mounted:” with the reason, until an ISO is mounted again. Before, only

@@ -825,9 +825,14 @@ ColumnLayout {
                             color: Theme.stageMuted
                             font.pointSize: Theme.small
                             elide: Text.ElideRight
-                            // Gives way first: it repeats what the page already shows.
+                            // Gives way first; hovering shows what is cut off, such
+                            // as why an ISO went away.
                             Layout.fillWidth: true
                             Layout.maximumWidth: Math.min(Math.ceil(implicitWidth), strip.width / 3)
+                            QQC2.ToolTip.visible: messageHover.hovered && truncated
+                            QQC2.ToolTip.text: text
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                            HoverHandler { id: messageHover }
                         }
                         Chip {
                             id: isoChip
