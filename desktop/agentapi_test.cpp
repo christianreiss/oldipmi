@@ -140,7 +140,7 @@ private slots:
         if (e["wait"] == "connected")
           QTRY_VERIFY_WITH_TIMEOUT((s = c.session(e["profile"].toString())) && s->connected() && !s->lastFrame.isNull(), 10000);
         else
-          QTRY_VERIFY_WITH_TIMEOUT((s = c.session(e["profile"].toString())) && s->state == "disconnected", 10000);
+          QTRY_VERIFY_WITH_TIMEOUT((s = c.session(e["profile"].toString())) && s->state == Session::State::Disconnected, 10000);
         continue;
       }
       QJsonObject args = e["args"].toObject();

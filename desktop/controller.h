@@ -37,13 +37,13 @@ public:
   ~Controller();
   QVariantList hosts() const { return m_hosts; }
   // The single-session properties describe the shown session (or "disconnected").
-  QString state() const { return m_shown ? m_shown->state : QString(ipc::StateDisconnected); }
+  QString state() const { return m_shown ? m_shown->stateName() : QString(ipc::StateDisconnected); }
   QString message() const;
   QString errorCode() const;
   QVariantMap consoleInfo() const { return m_shown ? m_shown->consoleInfo : QVariantMap(); }
   bool mounted() const { return m_shown && m_shown->mounted; }
   QVariantMap activeProfile() const { return m_shown ? m_shown->profile : QVariantMap(); }
-  QString errorStage() const { return m_shown ? m_shown->errorStage : QString(); }
+  QString errorStage() const { return m_shown ? m_shown->errorStageName() : QString(); }
   bool hasFrame() const { return m_shown && !m_shown->lastFrame.isNull(); }
   QVariantMap sessions() const;
   int openCount() const;

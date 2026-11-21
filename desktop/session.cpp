@@ -9,6 +9,35 @@
 static const QString connectedText = "Connected — click the console to control it.";
 static const QString isoGoneText = "The ISO is no longer mounted: ";
 
+// The name the core and QML give a state.
+static QString nameOf(Session::State state) {
+  switch (state) {
+  case Session::State::Disconnected:
+    return ipc::StateDisconnected;
+  case Session::State::LoggingIn:
+    return ipc::StageLoggingIn;
+  case Session::State::Discovering:
+    return ipc::StageDiscovering;
+  case Session::State::Connecting:
+    return ipc::StageConnecting;
+  case Session::State::Connected:
+    return ipc::StateConnected;
+  }
+  return {};
+}
+// The state the core names. A name this app does not know has none and
+// leaves the state as it was: the core and the app ship together, and
+// ipc_names checks that both spell the same names.
+static std::optional<Session::State> stateNamed(const QString &name) {
+  using State = Session::State;
+  for (State state : {State::Disconnected, State::LoggingIn, State::Discovering, State::Connecting, State::Connected})
+    if (nameOf(state) == name)
+      return state;
+  return std::nullopt;
+}
+QString Session::stateName() const { return nameOf(state); }
+QString Session::errorStageName() const { return errorStage ? nameOf(*errorStage) : QString(); }
+
 quint64 Session::nextStamp() {
   static quint64 clock = 0;
   return ++clock;
@@ -70,9 +99,9 @@ void Session::stop() {
 void Session::begin(const QString &password) {
   m_disconnectSent = false;
   consoleInfo.clear();
-  errorStage.clear();
+  errorStage.reset();
   startedAt = QDateTime::currentMSecsSinceEpoch();
-  state = ipc::StageLoggingIn;
+  state = State::LoggingIn;
   setMessage("Opening console on " + profile.value("host").toString() + "…");
   emit changed();
   launch(password);
@@ -86,7 +115,7 @@ void Session::launch(const QString &password) {
   }
   m_backend = new BackendProcess(host, this);
   connect(m_backend, &BackendProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
-    state = ipc::StateDisconnected;
+    state = State::Disconnected;
     if (error == QProcess::FailedToStart)
       fail("The native backend could not run. Check the application bundle.");
     else if (error == QProcess::Crashed)
@@ -98,7 +127,7 @@ void Session::launch(const QString &password) {
     readControl();
     failPending("Connection ended.");
     lastFrame = QImage();
-    state = ipc::StateDisconnected;
+    state = State::Disconnected;
     mounted = false;
     emit frameReady(QImage());
     if (message.startsWith("Connected") || message.startsWith("Opening") ||
@@ -112,7 +141,7 @@ void Session::launch(const QString &password) {
       started == BackendProcess::Start::NoDescriptors) {
     delete m_backend;
     m_backend = nullptr;
-    state = ipc::StateDisconnected;
+    state = State::Disconnected;
     fail(started == BackendProcess::Start::NoControlPair ? "Cannot create private IPC."
          : started == BackendProcess::Start::NoVideoPair ? "Cannot create video IPC."
                                                          : "Cannot pass private IPC descriptors.");
@@ -170,25 +199,25 @@ void Session::readControl() {
     }
     // A reply carries its command's id; only an event's error is the console's.
     const bool consoleError = e.type == ipc::EventError && e.id == 0;
-    if (consoleError && state != ipc::StateConnected && state != ipc::StateDisconnected)
+    if (consoleError && state != State::Connected && state != State::Disconnected)
       errorStage = state;
     // A console that never delivered a picture failed while connecting.
-    if (consoleError && state == ipc::StateConnected && lastFrame.isNull())
-      errorStage = ipc::StageConnecting;
-    if (e.state)
-      state = *e.state;
-    const QString newState = e.state.value_or(QString());
+    if (consoleError && state == State::Connected && lastFrame.isNull())
+      errorStage = State::Connecting;
+    const std::optional<State> newState = e.state ? stateNamed(*e.state) : std::nullopt;
+    if (newState)
+      state = *newState;
     if (e.type == ipc::EventError)
       setMessage(e.message);
     else if (e.type == ipc::EventMedia && !e.message.isEmpty())
       setMessage(isoGoneText + e.message);
-    else if (newState == ipc::StageLoggingIn)
+    else if (newState == State::LoggingIn)
       setMessage("Logging in…");
-    else if (newState == ipc::StageDiscovering)
+    else if (newState == State::Discovering)
       setMessage("Discovering console…");
-    else if (newState == ipc::StageConnecting)
+    else if (newState == State::Connecting)
       setMessage("Connecting to console…");
-    else if (newState == ipc::StateConnected)
+    else if (newState == State::Connected)
       setMessage(connectedText);
     if (consoleError)
       errorCode = e.code; // for the error page's hint
@@ -268,7 +297,7 @@ void Session::preview() {
   startedAt = QDateTime::currentMSecsSinceEpoch();
   QImage im(800, 600, QImage::Format_RGBA8888);
   im.fill(QColor("#223548")); // slop-ok: synthetic framebuffer content, not UI chrome
-  state = ipc::StateConnected; // a framebuffer without a backend; input and power go nowhere
+  state = State::Connected; // a framebuffer without a backend; input and power go nowhere
   lastFrame = im;
   ++frameSeq;
   ++changeSeq;

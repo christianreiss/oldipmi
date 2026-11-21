@@ -9,6 +9,7 @@
 #include <QVariantMap>
 #include <functional>
 #include <map>
+#include <optional>
 
 class BackendProcess;
 
@@ -17,6 +18,10 @@ class BackendProcess;
 class Session : public QObject {
   Q_OBJECT
 public:
+  // A console's state: disconnected, one of the setup stages in order, or
+  // connected. The core and QML know them by name (ipc::Stage*, ipc::State*).
+  enum class State { Disconnected, LoggingIn, Discovering, Connecting, Connected };
+  Q_ENUM(State)
   using Result = std::function<void(bool, QString)>;
   // Monotonic stamp shared with Controller so the newest message wins.
   static quint64 nextStamp();
@@ -40,13 +45,17 @@ public:
   void pointer(int x, int y, int buttons, int wheel);
   void releaseInput();
   void sendKeys(const QVariantList &usages);
-  bool connected() const { return state == ipc::StateConnected; }
+  bool connected() const { return state == State::Connected; }
+  QString stateName() const;
+  QString errorStageName() const; // empty without an error stage
   qint64 msSinceChange() const { return sinceChange.isValid() ? sinceChange.elapsed() : 0; }
   void setMessage(const QString &m);
 
   const QString id;       // profile id; unique among open sessions
   QVariantMap profile;
-  QString state = ipc::StateDisconnected, message, errorStage;
+  State state = State::Disconnected;
+  std::optional<State> errorStage; // the setup stage the console failed in
+  QString message;
   // The class of the error in message (an ipc::Code*), if the core named one;
   // setMessage drops it.
   QString errorCode;

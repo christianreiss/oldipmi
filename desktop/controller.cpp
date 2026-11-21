@@ -59,14 +59,14 @@ QString Controller::errorCode() const {
 QVariantMap Controller::sessions() const {
   QVariantMap out;
   for (auto *s : m_sessions)
-    out[s->id] = QVariantMap{{"state", s->state}, {"errorStage", s->errorStage},
+    out[s->id] = QVariantMap{{"state", s->stateName()}, {"errorStage", s->errorStageName()},
                              {"message", s->message}, {"startedAt", s->startedAt}};
   return out;
 }
 QStringList Controller::openIds() const {
   QStringList out;
   for (auto *s : m_sessions)
-    if (s->state != ipc::StateDisconnected)
+    if (s->state != Session::State::Disconnected)
       out << s->id;
   out.sort();
   return out;
@@ -74,7 +74,7 @@ QStringList Controller::openIds() const {
 int Controller::openCount() const { return int(openIds().size()); }
 bool Controller::isOpen(QString id) const {
   auto *s = m_sessions.value(id);
-  return s && s->state != ipc::StateDisconnected;
+  return s && s->state != Session::State::Disconnected;
 }
 void Controller::setShown(Session *s) {
   if (s == m_shown)
@@ -364,7 +364,7 @@ void Controller::disconnectProfile(QString id) {
                       (id.isEmpty() || m_pendingProfile.value("id").toString() == id);
   // Nothing open and no password prompt: only dismiss a shown failure and keep
   // the last message, instead of reporting a cancellation that did not happen.
-  if (!promptIsOurs && (!s || s->state == ipc::StateDisconnected)) {
+  if (!promptIsOurs && (!s || s->state == Session::State::Disconnected)) {
     if (s) {
       setMessage(s->message); // the failure text stays visible after its session is gone
       removeSession(s);
@@ -372,7 +372,7 @@ void Controller::disconnectProfile(QString id) {
     }
     return;
   }
-  bool cancelled = !s || s->state != ipc::StateConnected;
+  bool cancelled = !s || s->state != Session::State::Connected;
   if (promptIsOurs)
     cancelCredentials();
   removeSession(s);

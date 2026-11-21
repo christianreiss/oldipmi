@@ -29,7 +29,7 @@ class SessionTest : public QObject {
   }
   static QJsonObject event(int i) { return fixture("events.json").array()[i].toObject(); }
   static QString snapshot(const Session *s) {
-    return s->state + " | " + s->message + (s->mounted ? " | mounted" : "");
+    return s->stateName() + " | " + s->message + (s->mounted ? " | mounted" : "");
   }
   // start runs a Session against the stand-in core, which plays steps; with
   // sameLog, that core records into the log of the one before.
@@ -165,9 +165,9 @@ private slots:
     s->command({{"op", "mount"}, {"path", "/srv/iso/install.iso"}}, this, record);
     QTRY_VERIFY(results.size() == 2 && !s->mounted);
     s->command({{"op", "power"}, {"action", "soft"}}, this, record);
-    QTRY_COMPARE(s->state, QString("disconnected"));
+    QTRY_COMPARE(s->state, Session::State::Disconnected);
     QCOMPARE(results, (QStringList{"1", "1", "0 power control requires account credentials"}));
-    QCOMPARE(s->errorStage, QString());
+    QCOMPARE(s->errorStageName(), QString());
     QCOMPARE(seen, (QStringList{
                        "logging_in | Opening console on bmc1.example.net…",
                        "logging_in | Logging in…",
@@ -189,7 +189,7 @@ private slots:
   // the ISO's notice is not why the session is gone.
   void coreThatEndsReplacesTheIsoNotice() {
     auto *s = start({expect("connect"), send(event(3)), send(event(9)), QJsonObject{{"exit", 2}}});
-    QTRY_COMPARE(s->state, QString("disconnected"));
+    QTRY_COMPARE(s->state, Session::State::Disconnected);
     QCOMPARE(s->message, QString("Connection ended. Reconnect to obtain a fresh session."));
     delete s;
   }
@@ -237,8 +237,8 @@ private slots:
   void errorBeforeThePictureNamesTheStage() {
     auto *s = start({expect("connect"), send(event(0)), send(event(1)),
                      send({{"version", 1}, {"type", "error"}, {"state", "disconnected"}, {"message", "Console discovery failed: no JNLP"}})});
-    QTRY_COMPARE(s->state, QString("disconnected"));
-    QCOMPARE(s->errorStage, QString("discovering"));
+    QTRY_COMPARE(s->state, Session::State::Disconnected);
+    QCOMPARE(s->errorStageName(), QString("discovering"));
     QCOMPARE(s->message, QString("Console discovery failed: no JNLP"));
     delete s;
   }
@@ -250,9 +250,9 @@ private slots:
     auto *s = start({expect("connect"), send(event(3)), expect("power"), reply(event(7)), QJsonObject{{"exit", 0}}});
     QTRY_VERIFY(s->connected());
     s->command({{"op", "power"}, {"action", "soft"}});
-    QTRY_COMPARE(s->state, QString("disconnected"));
+    QTRY_COMPARE(s->state, Session::State::Disconnected);
     QCOMPARE(s->message, QString("power control requires account credentials"));
-    QCOMPARE(s->errorStage, QString());
+    QCOMPARE(s->errorStageName(), QString());
     delete s;
   }
 
@@ -305,12 +305,12 @@ private slots:
       s->command(c, this, record);
       QTRY_COMPARE(got.size(), i);
     }
-    QTRY_COMPARE(s->state, QString(ipc::StateDisconnected));
+    QTRY_COMPARE(s->state, Session::State::Disconnected);
     QTRY_COMPARE(commands().size(), desktop.size());
     QCOMPARE(commands(), desktop);
     QCOMPARE(got, results);
     QCOMPARE(s->message, last["message"].toString());
-    QCOMPARE(s->errorStage, errorStage);
+    QCOMPARE(s->errorStageName(), errorStage);
     QVERIFY(!s->mounted);
     delete s;
   }
@@ -337,7 +337,7 @@ private slots:
     QFETCH(QJsonObject, step);
     QFETCH(QString, message);
     auto *s = start({expect("connect"), step});
-    QTRY_COMPARE(s->state, QString("disconnected"));
+    QTRY_COMPARE(s->state, Session::State::Disconnected);
     QCOMPARE(s->message, message);
     delete s;
   }
@@ -360,7 +360,7 @@ private slots:
     QTRY_VERIFY(s->connected());
     QStringList results;
     s->command(cmd, this, [&results](bool ok, QString m) { results << QString::number(ok) + " " + m; });
-    QTRY_COMPARE(s->state, QString("disconnected"));
+    QTRY_COMPARE(s->state, Session::State::Disconnected);
     QCOMPARE(results, QStringList{"0 Connection ended."});
     QCOMPARE(s->message, QString("Connection ended. Reconnect to obtain a fresh session."));
     QVERIFY(s->lastFrame.isNull());
@@ -385,7 +385,7 @@ private slots:
     QFETCH(QJsonArray, steps);
     QFETCH(QString, message);
     auto *s = start(steps, {{"host", "bmc1.example.net"}}, binDir);
-    QTRY_COMPARE(s->state, QString("disconnected"));
+    QTRY_COMPARE(s->state, Session::State::Disconnected);
     QTRY_COMPARE(s->message, message);
     QVERIFY(s->lastFrame.isNull());
     delete s;
@@ -403,6 +403,16 @@ private slots:
     QCOMPARE(results, QStringList{"0 Connection closed."});
     s->command({{"op", "eject"}}, this, record);
     QCOMPARE(results, (QStringList{"0 Connection closed.", "0 Not connected."}));
+    delete s;
+  }
+
+  // A state this app does not know leaves the state as it was. Only a core of
+  // another build sends one: ipc_names checks that both spell the same names.
+  void unknownStateLeavesTheState() {
+    auto *s = start({expect("connect"), send({{"version", 1}, {"type", "state"}, {"state", "warping"}}), send(event(3))});
+    QTRY_VERIFY(s->connected());
+    for (const QString &snapshot : std::as_const(seen))
+      QVERIFY2(!snapshot.contains("warping"), qPrintable(snapshot));
     delete s;
   }
 
