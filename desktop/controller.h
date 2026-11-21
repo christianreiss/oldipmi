@@ -1,13 +1,13 @@
 #pragma once
 #include "credentials.h"
 #include "session.h"
+#include "sessionmanager.h"
 #include <QImage>
 #include <QJsonObject>
 #include <QLocalSocket>
 #include <QObject>
 #include <QProcess>
 #include <QVariantList>
-#include <QHash>
 #include <functional>
 #include <memory>
 
@@ -39,20 +39,20 @@ public:
   ~Controller();
   QVariantList hosts() const;
   // The single-session properties describe the shown session (or "disconnected").
-  QString state() const { return m_shown ? m_shown->stateName() : QString(ipc::StateDisconnected); }
+  QString state() const { return shown() ? shown()->stateName() : QString(ipc::StateDisconnected); }
   QString message() const;
   QString errorCode() const;
-  QVariantMap consoleInfo() const { return m_shown ? m_shown->consoleInfo : QVariantMap(); }
-  bool mounted() const { return m_shown && m_shown->mounted; }
-  QVariantMap activeProfile() const { return m_shown ? m_shown->profile : QVariantMap(); }
-  QString errorStage() const { return m_shown ? m_shown->errorStageName() : QString(); }
-  bool hasFrame() const { return m_shown && !m_shown->lastFrame.isNull(); }
+  QVariantMap consoleInfo() const { return shown() ? shown()->consoleInfo : QVariantMap(); }
+  bool mounted() const { return shown() && shown()->mounted; }
+  QVariantMap activeProfile() const { return shown() ? shown()->profile : QVariantMap(); }
+  QString errorStage() const { return shown() ? shown()->errorStageName() : QString(); }
+  bool hasFrame() const { return shown() && !shown()->lastFrame.isNull(); }
   QVariantMap sessions() const;
   int openCount() const;
-  QString shownId() const { return m_shown ? m_shown->id : QString(); }
-  Session *shown() const { return m_shown; }
-  Session *session(const QString &id) const { return m_sessions.value(id); }
-  QList<Session *> allSessions() const { return m_sessions.values(); }
+  QString shownId() const { return shown() ? shown()->id : QString(); }
+  Session *shown() const { return m_sessions->shown(); }
+  Session *session(const QString &id) const { return m_sessions->session(id); }
+  QList<Session *> allSessions() const { return m_sessions->all(); }
   // Profile ids of sessions that are set up or connected (not failed/ended ones).
   QStringList openIds() const;
   Q_INVOKABLE bool isOpen(QString id) const;
@@ -100,11 +100,7 @@ private:
   quint64 m_messageStamp = 0;
   std::unique_ptr<Credentials> m_ownedCredentials;
   std::unique_ptr<ProfileStore> m_profiles; // uses the credentials
-  QHash<QString, Session *> m_sessions;
-  Session *m_shown = nullptr;
+  std::unique_ptr<SessionManager> m_sessions; // the last member: it goes first
   void setMessage(const QString &m);
   void fail(QString message);
-  void start(QVariantMap profile, QString password);
-  void setShown(Session *s);
-  void removeSession(Session *s);
 };

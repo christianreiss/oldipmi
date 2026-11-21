@@ -1,18 +1,19 @@
 #include "controller.h"
-#include "backendprocess.h"
 #include "families.h"
 #include "profilestore.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QFileDialog>
 #include <QStandardPaths>
-#include <QUuid>
 
 static QString configPath() {
   return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
          "/hosts.json";
 }
 Controller::Controller(QObject *p, Credentials *credentials, QString configFile) : QObject(p) {
+  m_sessions = std::make_unique<SessionManager>();
+  connect(m_sessions.get(), &SessionManager::changed, this, &Controller::changed);
+  connect(m_sessions.get(), &SessionManager::frameReady, this, &Controller::frameReady);
   if (!credentials)
     m_ownedCredentials = kdeCredentials();
   m_profiles = std::make_unique<ProfileStore>(configFile.isEmpty() ? configPath() : configFile,
@@ -28,17 +29,9 @@ Controller::Controller(QObject *p, Credentials *credentials, QString configFile)
 }
 QVariantList Controller::hosts() const { return m_profiles->profiles(); }
 QString Controller::profilesPath() const { return m_profiles->path(); }
-Controller::~Controller() {
-  m_shown = nullptr;
-  const auto all = m_sessions.values();
-  for (auto *s : all) {
-    disconnect(s, nullptr, this, nullptr);
-    delete s; // its core logs out in the background
-  }
-  // Quitting waits for every core still logging out of its BMC, from the
-  // consoles closed now and those closed before; the logouts overlap.
-  qDeleteAll(findChildren<BackendProcess *>(Qt::FindDirectChildrenOnly));
-}
+// The sessions go first, as m_sessions is the last member: quitting waits
+// there for every core still logging out of its BMC.
+Controller::~Controller() = default;
 void Controller::setMessage(const QString &m) {
   m_message = m;
   m_messageStamp = Session::nextStamp();
@@ -49,58 +42,27 @@ void Controller::fail(QString message) {
 }
 QString Controller::message() const {
   // Whichever was written last: a session's own status or an app-level notice.
-  return m_shown && m_shown->messageStamp > m_messageStamp ? m_shown->message : m_message;
+  return shown() && shown()->messageStamp > m_messageStamp ? shown()->message : m_message;
 }
 QString Controller::errorCode() const {
   // A notice written after the session's message has no class.
-  return m_shown && m_shown->messageStamp > m_messageStamp ? m_shown->errorCode : QString();
+  return shown() && shown()->messageStamp > m_messageStamp ? shown()->errorCode : QString();
 }
 QVariantMap Controller::sessions() const {
   QVariantMap out;
-  for (auto *s : m_sessions)
+  for (auto *s : m_sessions->all())
     out[s->id] = QVariantMap{{"state", s->stateName()}, {"errorStage", s->errorStageName()},
                              {"message", s->message}, {"startedAt", s->startedAt}};
   return out;
 }
-QStringList Controller::openIds() const {
-  QStringList out;
-  for (auto *s : m_sessions)
-    if (s->state != Session::State::Disconnected)
-      out << s->id;
-  out.sort();
-  return out;
-}
+QStringList Controller::openIds() const { return m_sessions->openIds(); }
 int Controller::openCount() const { return int(openIds().size()); }
-bool Controller::isOpen(QString id) const {
-  auto *s = m_sessions.value(id);
-  return s && s->state != Session::State::Disconnected;
-}
-void Controller::setShown(Session *s) {
-  if (s == m_shown)
-    return;
-  if (m_shown)
-    m_shown->releaseInput(); // nothing stays held on a console that is no longer in front
-  m_shown = s;
-  emit frameReady(s ? s->lastFrame : QImage());
-  emit changed();
-}
-void Controller::show(QString id) { setShown(m_sessions.value(id)); }
-void Controller::removeSession(Session *s) {
-  if (!s)
-    return;
-  m_sessions.remove(s->id);
-  if (s == m_shown) {
-    m_shown = nullptr;
-    emit frameReady(QImage());
-  }
-  s->releaseInput();
-  disconnect(s, nullptr, this, nullptr);
-  delete s; // its core logs out in the background, while this keeps it
-}
+bool Controller::isOpen(QString id) const { return m_sessions->isOpen(id); }
+void Controller::show(QString id) { m_sessions->show(m_sessions->session(id)); }
 void Controller::disconnectAll() {
   cancelCredentials();
-  for (auto *s : m_sessions.values()) // none waits for another: the logouts overlap
-    removeSession(s);
+  for (auto *s : m_sessions->all()) // none waits for another: the logouts overlap
+    m_sessions->remove(s);
   emit changed();
 }
 QVariantMap Controller::saveHost(QVariantMap p, QString password, bool remember) {
@@ -122,13 +84,13 @@ QVariantMap Controller::duplicateHost(QString id) {
   return saved;
 }
 void Controller::sendKeys(QVariantList usages) {
-  if (m_shown)
-    m_shown->sendKeys(usages);
+  if (shown())
+    shown()->sendKeys(usages);
 }
 QSize Controller::copyFrame() {
   if (!hasFrame())
     return {};
-  const QImage image = m_shown->lastFrame.convertToFormat(QImage::Format_RGB888);
+  const QImage image = shown()->lastFrame.convertToFormat(QImage::Format_RGB888);
   QGuiApplication::clipboard()->setImage(image);
   return image.size();
 }
@@ -165,7 +127,7 @@ void Controller::connectHost(QVariantMap p, QString password) {
   }
   m_pendingProfile.clear();
   emit profileActivated(saved);
-  start(saved, password);
+  m_sessions->start(saved, password);
   m_profiles->stamp(saved.value("id").toString());
 }
 void Controller::continueWithoutWallet() {
@@ -174,7 +136,7 @@ void Controller::continueWithoutWallet() {
   auto profile = m_pendingProfile;
   auto password = m_pendingPassword;
   cancelCredentials();
-  start(profile, password);
+  m_sessions->start(profile, password);
 }
 void Controller::cancelCredentials() {
   m_pendingPassword.clear();
@@ -184,25 +146,9 @@ void Controller::cancelCredentials() {
     emit changed();
   }
 }
-void Controller::start(QVariantMap p, QString password) {
-  auto id = p.value("id").toString();
-  if (id.isEmpty())
-    id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-  if (auto *old = m_sessions.value(id))
-    removeSession(old); // a failed or ended session of this profile makes way for the new one
-  auto *s = new Session(id, p, this);
-  connect(s, &Session::changed, this, &Controller::changed);
-  connect(s, &Session::frameReady, this, [this, s](QImage im) {
-    if (s == m_shown)
-      emit frameReady(im);
-  });
-  m_sessions[id] = s;
-  setShown(s);
-  s->begin(password);
-}
 void Controller::disconnectHost() { disconnectProfile(shownId()); }
 void Controller::disconnectProfile(QString id) {
-  auto *s = m_sessions.value(id);
+  auto *s = m_sessions->session(id);
   bool promptIsOurs = !m_pendingProfile.isEmpty() &&
                       (id.isEmpty() || m_pendingProfile.value("id").toString() == id);
   // Nothing open and no password prompt: only dismiss a shown failure and keep
@@ -210,7 +156,7 @@ void Controller::disconnectProfile(QString id) {
   if (!promptIsOurs && (!s || s->state == Session::State::Disconnected)) {
     if (s) {
       setMessage(s->message); // the failure text stays visible after its session is gone
-      removeSession(s);
+      m_sessions->remove(s);
       emit changed();
     }
     return;
@@ -218,39 +164,39 @@ void Controller::disconnectProfile(QString id) {
   bool cancelled = !s || s->state != Session::State::Connected;
   if (promptIsOurs)
     cancelCredentials();
-  removeSession(s);
+  m_sessions->remove(s);
   setMessage(cancelled ? "Connection cancelled." : "Disconnected.");
   emit changed();
 }
 void Controller::key(int usage, bool down) {
-  if (m_shown)
-    m_shown->key(usage, down);
+  if (shown())
+    shown()->key(usage, down);
 }
 void Controller::pointer(int x, int y, int buttons, int wheel) {
-  if (m_shown)
-    m_shown->pointer(x, y, buttons, wheel);
+  if (shown())
+    shown()->pointer(x, y, buttons, wheel);
 }
 void Controller::releaseInput() {
-  if (m_shown)
-    m_shown->releaseInput();
+  if (shown())
+    shown()->releaseInput();
 }
 void Controller::mountISO() {
   releaseInput();
   // The console in front now gets the ISO. The dialog runs its own event loop,
   // in which an agent may bring another console to the front (C-09).
-  const bool any = m_shown;
-  const QString target = any ? m_shown->id : QString();
+  const bool any = shown();
+  const QString target = any ? shown()->id : QString();
   auto f = QFileDialog::getOpenFileName(nullptr, "Mount read-only ISO", {},
                                         "ISO images (*.iso)");
-  if (auto *s = any ? m_sessions.value(target) : nullptr; s && !f.isEmpty())
+  if (auto *s = any ? m_sessions->session(target) : nullptr; s && !f.isEmpty())
     s->mount(f);
 }
 void Controller::ejectISO() {
-  if (m_shown)
-    m_shown->eject();
+  if (shown())
+    shown()->eject();
 }
 void Controller::powerFor(QString id, QString action) {
-  auto *s = id.isEmpty() ? m_shown : m_sessions.value(id);
+  auto *s = id.isEmpty() ? shown() : m_sessions->session(id);
   if (!s)
     return;
   s->releaseInput();
@@ -261,16 +207,4 @@ QString Controller::chooseCertificate(bool key) {
       nullptr, key ? "Client private key" : "Client certificate", {},
       "PEM files (*.pem *.crt *.key)");
 }
-void Controller::preview() {
-  auto *s = new Session("", {{"id", ""}, {"name", "Preview"}, {"host", "synthetic framebuffer"}}, this);
-  connect(s, &Session::changed, this, &Controller::changed);
-  connect(s, &Session::frameReady, this, [this, s](QImage im) {
-    if (s == m_shown)
-      emit frameReady(im);
-  });
-  if (auto *old = m_sessions.value(s->id))
-    removeSession(old);
-  m_sessions[s->id] = s;
-  setShown(s);
-  s->preview();
-}
+void Controller::preview() { m_sessions->preview(); }

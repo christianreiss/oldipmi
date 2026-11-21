@@ -14,7 +14,7 @@
 class BackendProcess;
 
 // One console connection: its own oldipmi-core (BackendProcess), state and
-// latest frame. Controller owns zero or more of them.
+// latest frame. SessionManager owns zero or more of them.
 class Session : public QObject {
   Q_OBJECT
 public:
