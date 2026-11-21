@@ -400,7 +400,8 @@ driver's own word for word, and the `error_hints` test checks that each message
 gets the hint of its class. `sequences.json` holds whole
 dialogues: the core must send exactly their events, in order, and a Session that
 plays them must send exactly their commands.
-`testdata/agent` does the same for the agent socket: requests as `oldipmi-mcp`
+`testdata/agent` does the same for the agent socket, which
+[docs/agent-api.md](docs/agent-api.md) describes: requests as `oldipmi-mcp`
 sends them and the replies the app gave on its demo console. The `agent_api`
 test replays them (`UPDATE_GOLDEN=1` records the replies anew), and the MCP
 tools are tested on those replies.

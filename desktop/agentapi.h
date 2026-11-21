@@ -13,7 +13,7 @@
 // Local, authentication-less control socket used by oldipmi-mcp. It only calls
 // Controller and Session methods on the GUI thread; the socket file is owner-only.
 //
-// Protocol: one JSON object per line, {"id":N,"op":"...","args":{...}} ->
+// Protocol (docs/agent-api.md): one JSON object per line, {"id":N,"op":"...","args":{...}} ->
 // {"id":N,"ok":true,"result":{...}} or {"id":N,"ok":false,"error":"...",
 // "code":"..."}, where code is the kind of error (agentops::Err*).
 // Zero or more console sessions can be open at once; session-bound operations take an
