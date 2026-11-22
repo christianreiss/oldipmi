@@ -165,6 +165,8 @@ Kirigami.ApplicationWindow {
             onConnectRequested: p => window.connectProfile(p)
             onEditRequested: p => window.editConnection(p)
             onDeleteRequested: p => window.deleteConnection(p)
+            onDuplicateRequested: p => window.duplicateConnection(p)
+            onDisconnectRequested: p => controller.disconnectProfile(p.id)
             onNewRequested: host => window.newConnectionTo(host)
             onSettingsRequested: module => window.openSettings(module)
             onDisconnectAllRequested: window.disconnectAll()
