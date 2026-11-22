@@ -13,7 +13,8 @@ import (
 //	status uint16   (offset 6)
 //
 // The legacy MegaRAC VSC frames the same fields in 7 bytes, with a one-byte
-// type, and numbers its packets differently (vsc.go).
+// type, and numbers its packets differently (vsc.go); so does the older
+// adviser console, with numbers of its own again (adviser.go).
 const (
 	ivtpHeaderSize = 8
 	vscHeaderSize  = 7

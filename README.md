@@ -194,6 +194,14 @@ verified Lab-AMI generation, select AMI and explicitly enable HTTP login,
 legacy/unverified TLS and plain console/media. Passwords/tokens never appear in
 command-line arguments, profile files or diagnostic output.
 
+AMI MegaRAC firmware of the adviser generation (ASUS ASMB4, for one) hands out a
+JNLP with seven positional arguments and runs its console as plain TCP on port
+7578: select AMI and enable plain console/media for the host. OldIPMI sends the
+session tokens as the vendor's viewer does, skips the BMC's cursor and bandwidth
+packets, and moves the pointer in the mode the BMC announces (absolute or
+relative). Keyboard/mouse encryption, which the BMC can turn on, is refused with
+an explicit message; virtual media is not offered there.
+
 For verified Lab-Avocent, select Dell iDRAC (Avocent) and enable legacy/unverified TLS.
 Avocent ISO media and packet-134 video are not implemented; the ISO
 action is not offered for that family. Cisco uses port 2068, Dell uses port 5900.
@@ -207,6 +215,7 @@ does not change the BMC's Java/HTML5 console preference automatically.
 | Family / target | Implementation | Current evidence |
 |---|---|---|
 | Legacy AMI / Lab-AMI, Supermicro X8DTU | 7-byte framing, TLS HID, RGB555 VSC raw and LRLE16/32 | Real native 640x480 video decoded and visually inspected; read-only probe re-run 2026-11-06 |
+| AMI adviser (ASUS ASMB4) | 7-byte framing, plain TCP, session token + web session token, AST2100 video behind the `ASP-2000` header, USB HID (absolute and relative pointer) | Live 2026-11-22, view only (ASUS ASMB4, FW 2.15): session accepted, 1024x768 text console decoded and visually inspected (~7 fps); BMC announces relative mouse mode; keyboard and pointer not run live |
 | Newer AMI / ASPEED | 8-byte IVTP, VQ/JPEG decoder, HID, iUSB | Imported regression tests; no hardware acceptance yet |
 | ATEN / Supermicro | Token login, Hermon and bit-plane video, HID, power, read-only media (Java iKVM) | Synthetic TCP handshake/video/cancellation tests; no Java-iKVM target supplied |
 | ATEN / Supermicro X9–X11 Java iKVM | Plain or base64 (`check=00`) login detected from the login page; 8/10/22-argument JNLP layouts; `ikvm`/`man_ikvm` URLs | Synthetic fixtures only; no Java-iKVM target supplied |
@@ -221,7 +230,7 @@ input has been verified live on the ATEN HTML5 console only; pointer input,
 ISO mounting and power/boot operations have not been run on production
 hardware, nor has the Java iKVM path; the Redfish (X12/X13) path is verified for video only. AMI single-port
 HTTP CONNECT mode, encrypted HID at the application layer, non-RGB555 legacy
-VSC modes, unsupported ATEN encodings, and relative pointer mode are not yet
+VSC modes, unsupported ATEN encodings, and relative pointer mode (except on the AMI adviser console) are not yet
 implemented. Unsupported formats fail explicitly rather than launch Java.
 
 ## MCP: let an AI agent drive the console
