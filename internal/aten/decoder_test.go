@@ -18,7 +18,7 @@ func TestHermonKeyframeAndTile(t *testing.T) {
 	if e := d.Decode(p); e != nil {
 		t.Fatal(e)
 	}
-	if d.frame.Pixels[0] != 248 || d.frame.Pixels[3] != 255 {
+	if d.frame.Pixels[0] != 255 || d.frame.Pixels[3] != 255 {
 		t.Fatal("wrong color")
 	}
 	p = make([]byte, 528)
@@ -29,7 +29,7 @@ func TestHermonKeyframeAndTile(t *testing.T) {
 	if e := d.Decode(p); e != nil {
 		t.Fatal(e)
 	}
-	if d.frame.Pixels[0] != 0 || d.frame.Pixels[2] != 248 {
+	if d.frame.Pixels[0] != 0 || d.frame.Pixels[2] != 255 {
 		t.Fatal("tile did not replace keyframe")
 	}
 }

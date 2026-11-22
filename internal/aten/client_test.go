@@ -80,7 +80,7 @@ func TestNativeSessionHandshakeFrameAndCancellation(t *testing.T) {
 	frames := 0
 	e = c.Run(ctx, func(f protocol.Frame) {
 		frames++
-		if f.Width != 16 || f.Height != 16 || f.Pixels[0] != 248 {
+		if f.Width != 16 || f.Height != 16 || f.Pixels[0] != 255 {
 			t.Error("incorrect frame")
 		}
 		cancel()

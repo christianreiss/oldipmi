@@ -25,6 +25,11 @@
   buttons it pressed.
 
 ### Fixed
+* **ATEN, Dell iDRAC and Cisco IMC consoles show their full brightness.**
+  Colours that these consoles send with 15 or 16 bits per pixel were widened
+  to 8 bits by shifting alone: white came out as a light grey (248 of 255),
+  and every colour a little dark. They now reach the full range, as AMI
+  consoles already did.
 * **The power button says how the power is switched.** Its tooltip said
   "Chassis power over IPMI (UDP 623)" for every console. A Supermicro (ATEN)
   console switches the power through the console connection instead, and the

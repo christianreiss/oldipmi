@@ -142,7 +142,7 @@ func TestRVASRawAndBytePlane(t *testing.T) {
 	if done, err := r.Feed(fb, p); !done || err != nil {
 		t.Fatalf("byteplane: done=%v err=%v", done, err)
 	}
-	if fb.Pixels[0] != 0xFFF80000 || fb.Pixels[1] != 0xFF00F800 {
+	if fb.Pixels[0] != 0xFFFF0000 || fb.Pixels[1] != 0xFF00FF00 {
 		t.Fatalf("byteplane pixels %08x %08x", fb.Pixels[0], fb.Pixels[1])
 	}
 	// RAW 8 bpp needs the palette.

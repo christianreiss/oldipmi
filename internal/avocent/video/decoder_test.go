@@ -49,8 +49,8 @@ func TestDecoderRGB555LUT(t *testing.T) {
 	if dec.lut[0] != 0xFF000000 {
 		t.Errorf("lut[0] = 0x%08x, want black", dec.lut[0])
 	}
-	if got := dec.lut[0x7FFF]; got&0xFFFFFF < 0xF8F8F8 {
-		t.Errorf("lut[0x7FFF] = 0x%08x, want ~white", got)
+	if got := dec.lut[0x7FFF]; got != 0xFFFFFFFF {
+		t.Errorf("lut[0x7FFF] = 0x%08x, want white", got)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestPatternContinuationBit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fb.Cur != 21 || fb.Pixels[20] != 0xff00f800 {
+	if fb.Cur != 21 || fb.Pixels[20] != 0xff00ff00 {
 		t.Fatalf("cursor=%d final=%08x", fb.Cur, fb.Pixels[20])
 	}
 }
@@ -182,7 +182,7 @@ func TestPatternLooksPerFrame(t *testing.T) {
 	if _, err := d.Decode(fb, slices.Concat(red, black, []byte{0x6f})); err != nil {
 		t.Fatal(err)
 	}
-	if got := fb.Pixels[at+6]; got != 0xFFF80000 {
+	if got := fb.Pixels[at+6]; got != 0xFFFF0000 {
 		t.Errorf("pattern in the next frame: %08x, want red", got)
 	}
 }
