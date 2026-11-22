@@ -28,10 +28,15 @@ type Client struct {
 	pressed       hid.Pressed
 	width, height int
 	seq           uint32
-	media         *vmedia.Session
-	mediaCancel   context.CancelFunc
-	mediaErr      error
-	once          sync.Once
+	// The adviser console's: whether it accepted the session, its mouse
+	// mode, and where the client last put the pointer.
+	validated    bool
+	mouseMode    byte
+	lastX, lastY int
+	media        *vmedia.Session
+	mediaCancel  context.CancelFunc
+	mediaErr     error
+	once         sync.Once
 	// mediaMu keeps Mount and Eject in order. Mount holds it while it sets
 	// the virtual media up, and c.mu only to install it, so that input and
 	// video go on meanwhile.
@@ -72,15 +77,21 @@ func (c *Client) attach(ctx context.Context) (err error) {
 	c.wire.SetDeadline(time.Now().Add(15 * time.Second))
 	if c.launch.Legacy {
 		err = c.attachVSC(ctx)
+	} else if c.launch.Adviser {
+		err = c.attachAdviser()
 	} else {
 		err = c.attachIVTP()
 	}
 	c.wire.SetDeadline(time.Time{})
 	return err
 }
+
+// shortHeader tells whether the console frames its packets in 7 bytes.
+func (c *Client) shortHeader() bool { return c.launch.Legacy || c.launch.Adviser }
+
 func (c *Client) read(w *transport.Wire) (uint16, uint16, []byte, error) {
 	n := ivtpHeaderSize
-	if c.launch.Legacy {
+	if c.shortHeader() {
 		n = vscHeaderSize
 	}
 	b, e := protocol.Read(w, n)
@@ -95,10 +106,14 @@ func (c *Client) read(w *transport.Wire) (uint16, uint16, []byte, error) {
 	}
 	size := binary.LittleEndian.Uint32(b[off:])
 	st := binary.LittleEndian.Uint16(b[off+4:])
-	if size > protocol.MaxPayload {
+	total := uint64(size)
+	if c.launch.Adviser && t == advBandwidthResp {
+		total *= uint64(st) // status blocks of size bytes
+	}
+	if total > protocol.MaxPayload {
 		return t, st, nil, fmt.Errorf("AMI packet too large")
 	}
-	b, e = protocol.Read(w, int(size))
+	b, e = protocol.Read(w, int(total))
 	return t, st, b, e
 }
 
@@ -118,7 +133,7 @@ func decodeModern(d *ast.Decoder, frame []byte) (protocol.Frame, error) {
 
 func (c *Client) send(w *transport.Wire, t uint16, b []byte) error {
 	n, off := ivtpHeaderSize, 2
-	if c.launch.Legacy {
+	if c.shortHeader() {
 		n, off = vscHeaderSize, 1
 	}
 	p := make([]byte, n+len(b))
@@ -143,6 +158,9 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 		}
 	})
 	defer stop()
+	if c.launch.Adviser {
+		return c.runAdviser(onFrame)
+	}
 	runctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if c.hid != nil {
@@ -161,8 +179,7 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 		go transport.Keepalive(runctx, keepaliveEvery, func() error { return c.send(c.wire, opKeepAlive, nil) },
 			func(e error) { keepaliveFailed <- e; c.wire.Close() })
 	}
-	var fragments []byte
-	next := 0
+	var frame assembler
 	modern := ast.New()
 	legacy := legacyDecoder{}
 	for {
@@ -192,24 +209,11 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 		if t != video {
 			continue
 		}
-		if len(b) < 2 {
-			return fmt.Errorf("short AMI fragment")
+		fragments, done, e := frame.add(b)
+		if e != nil {
+			return e
 		}
-		seq := int(binary.LittleEndian.Uint16(b))
-		idx := seq & 0x7fff
-		if idx == 0 {
-			fragments = nil
-			next = 0
-		}
-		if idx != next {
-			return fmt.Errorf("AMI video fragment sequence mismatch")
-		}
-		next++
-		if len(fragments)+len(b)-2 > protocol.MaxPayload {
-			return fmt.Errorf("AMI frame exceeds limit")
-		}
-		fragments = append(fragments, b[2:]...)
-		if seq&0x8000 != 0 {
+		if done {
 			var f protocol.Frame
 			if c.launch.Legacy {
 				f, e = legacy.Decode(fragments)
@@ -223,9 +227,42 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 			c.width, c.height = f.Width, f.Height
 			c.mu.Unlock()
 			onFrame(f)
-			fragments = nil
 		}
 	}
+}
+
+// assembler joins the fragments of a video frame. Each starts with its index;
+// bit 15 marks the last.
+type assembler struct {
+	buf  []byte
+	next int
+}
+
+// add takes a fragment, and returns the frame when it was the last one.
+func (a *assembler) add(b []byte) ([]byte, bool, error) {
+	if len(b) < 2 {
+		return nil, false, fmt.Errorf("short AMI fragment")
+	}
+	seq := int(binary.LittleEndian.Uint16(b))
+	idx := seq & 0x7fff
+	if idx == 0 {
+		a.buf = nil
+		a.next = 0
+	}
+	if idx != a.next {
+		return nil, false, fmt.Errorf("AMI video fragment sequence mismatch")
+	}
+	a.next++
+	if len(a.buf)+len(b)-2 > protocol.MaxPayload {
+		return nil, false, fmt.Errorf("AMI frame exceeds limit")
+	}
+	a.buf = append(a.buf, b[2:]...)
+	if seq&0x8000 == 0 {
+		return nil, false, nil
+	}
+	f := a.buf
+	a.buf = nil
+	return f, true, nil
 }
 func (c *Client) hidPacket(device, proto, iface byte, report []byte) error {
 	c.seq++
@@ -238,6 +275,9 @@ func (c *Client) hidPacket(device, proto, iface byte, report []byte) error {
 	w, t := c.wire, opHIDPkt
 	if c.hid != nil {
 		w, t = c.hid, vscHID
+	}
+	if c.launch.Adviser {
+		t = advHID
 	}
 	return c.send(w, t, p)
 }
@@ -257,6 +297,9 @@ func (c *Client) keyboard() error {
 func (c *Client) Pointer(i protocol.Input) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.launch.Adviser {
+		return c.adviserPointer(i)
+	}
 	r := make([]byte, 6)
 	r[0] = i.Buttons & 7
 	binary.LittleEndian.PutUint16(r[1:], uint16(max(0, min(i.X, c.width-1))*32767/max(1, c.width-1)))
@@ -272,11 +315,22 @@ func (c *Client) Release() error {
 	if e != nil {
 		return e
 	}
+	if c.launch.Adviser {
+		return c.adviserRelease()
+	}
 	return c.hidPacket(49, 32, 1, make([]byte, 6))
 }
 func (c *Client) Close() error {
 	c.once.Do(func() {
 		c.Eject()
+		c.mu.Lock()
+		stop := c.validated
+		c.mu.Unlock()
+		if stop && c.wire != nil {
+			// The adviser console frees the session slot at once; it may not
+			// for a dropped connection.
+			c.send(c.wire, advStop, nil)
+		}
 		if c.wire != nil {
 			c.wire.Close()
 		}
@@ -298,6 +352,9 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 	defer c.mediaMu.Unlock()
 	if c.Mounted() {
 		return fmt.Errorf("eject the mounted ISO first")
+	}
+	if c.launch.CDPort < 1 || c.launch.CDPort > 65535 {
+		return fmt.Errorf("this console offers no virtual media")
 	}
 	file, e := vmedia.OpenFile(path)
 	if e != nil {

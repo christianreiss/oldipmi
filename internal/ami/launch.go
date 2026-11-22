@@ -9,15 +9,19 @@ import (
 )
 
 // Launch is how to reach the console, as the web login found it. Legacy marks
-// the MegaRAC VSC console, whose JNLP passes its arguments by position (Pos);
-// the IVTP console's JNLP passes -name value pairs, which Args holds.
+// the MegaRAC VSC console, whose JNLP passes ten or more arguments by
+// position (Pos); Adviser the older adviser console (adviser.go), whose JNLP
+// passes four to nine. The IVTP console's JNLP passes -name value pairs,
+// which Args holds.
 type Launch struct {
 	Args map[string]string
 	Pos  []string
 	// Token is the console credential, Cookie the web session's.
-	Token, Cookie               string
+	// WebSession is the adviser console's second token, from its JNLP.
+	Token, Cookie, WebSession   string
 	Port, HIDPort, CDPort       int
 	Secure, MediaSecure, Legacy bool
+	Adviser                     bool
 }
 
 // ConsoleInfo is what the connection page shows of the console: never a
@@ -26,6 +30,9 @@ func (l Launch) ConsoleInfo(p protocol.Profile) protocol.ConsoleInfo {
 	name := "AMI IVTP"
 	if l.Legacy {
 		name = "AMI MegaRAC VSC"
+	}
+	if l.Adviser {
+		name = "AMI MegaRAC adviser"
 	}
 	info := protocol.ConsoleInfo{Protocol: name, LegacyTLS: p.LegacyTLS,
 		Endpoints:    []protocol.Endpoint{protocol.ConsoleEndpoint("Video / input", p.Host, l.Port, l.Secure)},
@@ -67,6 +74,16 @@ func parseJNLP(b []byte) (Launch, error) {
 		l.CDPort = number(l.Args["cdport"])
 		l.Secure = l.Args["kvmsecure"] == "1"
 		l.MediaSecure = l.Args["vmsecure"] == "1"
+	} else if len(a) >= 4 && len(a) < 10 {
+		// address, port, session token, web session token; the viewer reads
+		// no more. The console is plain TCP.
+		l.Adviser = true
+		l.Port = number(a[1])
+		l.Token = a[2]
+		l.WebSession = a[3]
+		if len(l.Token) > advTokenSize {
+			return l, fmt.Errorf("JNLP has invalid connection parameters")
+		}
 	} else {
 		if len(a) < 10 {
 			return l, fmt.Errorf("unsupported AMI JNLP arguments")
