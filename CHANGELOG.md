@@ -25,6 +25,13 @@
   buttons it pressed.
 
 ### Fixed
+* **Quit asks first also for consoles of unsaved connections.** With more
+  than one console open, Quit, closing the window and Disconnect all ask
+  first and name the consoles. A console whose connection is not in the list,
+  because it was opened without saving after KWallet failed or deleted while
+  it ran, was left out: with it and one other console open, OldIPMI quit and
+  closed both without asking. Now every open console counts, and the
+  question names it.
 * **An agent no longer guesses between profiles of the same name.** An agent
   names the console it means by the profile's id, name or host. When several
   profiles had that name or host, as a copied connection keeps the host,

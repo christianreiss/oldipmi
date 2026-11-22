@@ -57,6 +57,11 @@ public:
   QList<Session *> allSessions() const { return m_sessions->all(); }
   // Profile ids of sessions that are set up or connected (not failed/ended ones).
   QStringList openIds() const;
+  // The open consoles, as closing them all (Quit, Disconnect all) names them:
+  // {id, name, host, startedAt} each, the saved connections in the list's
+  // order, then those that are not saved (opened without saving, or deleted
+  // while open) by name.
+  Q_INVOKABLE QVariantList openConsoles() const;
   Q_INVOKABLE bool isOpen(QString id) const;
   // Show an existing session in the console view; an empty or unknown id shows none.
   Q_INVOKABLE void show(QString id);

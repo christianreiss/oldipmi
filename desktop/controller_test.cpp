@@ -373,6 +373,50 @@ private slots:
   // The ISO goes to the console that was in front when the file dialog
   // opened. The dialog runs its own event loop, in which an agent may bring
   // another console to the front (C-09).
+  // Closing every console at once (Quit, Disconnect all) names each open
+  // console, also those of connections that are not in the list: one opened
+  // without saving after KWallet failed, and one deleted while it runs (C-04).
+  // The saved ones come in the list's order, the others after them by name.
+  void openConsolesIncludeUnsavedConnections() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    const QByteArray binDir = qgetenv("OLDIPMI_BIN_DIR");
+    auto restore = qScopeGuard([&binDir] {
+      if (binDir.isNull()) qunsetenv("OLDIPMI_BIN_DIR"); else qputenv("OLDIPMI_BIN_DIR", binDir);
+      qunsetenv("OLDIPMI_FAKE_SCRIPT");
+    });
+    qputenv("OLDIPMI_BIN_DIR", FAKECORE_DIR);
+    QFile script(dir.filePath("script.json"));
+    QVERIFY(script.open(QIODevice::WriteOnly));
+    script.write(R"([{"expect": "connect"}, {"send": {"version": 1, "type": "state", "state": "connected"}}])");
+    script.close();
+    qputenv("OLDIPMI_FAKE_SCRIPT", script.fileName().toLocal8Bit());
+    Controller c(nullptr, &wallet, dir.filePath("hosts.json"));
+    auto profile = [](const QString &name) {
+      return QVariantMap{{"name", name}, {"host", name.toLower() + ".example.net"}, {"username", "admin"},
+                         {"family", "ami"}, {"remember", true}};
+    };
+    const auto zulu = c.saveHost(profile("Zulu"), "fixture-secret", true);
+    const auto deleted = c.saveHost(profile("Deleted"), "fixture-secret", true);
+    const auto alpha = c.saveHost(profile("Alpha"), "fixture-secret", true);
+    for (const auto &p : {zulu, deleted, alpha})
+      c.connectHost(p, "fixture-secret");
+    QVERIFY(c.removeHost(deleted.value("id").toString())); // its console runs on
+    wallet.available = false; // a new connection, opened without saving it
+    c.connectHost(profile("Unsaved"), "fixture-secret");
+    c.continueWithoutWallet();
+    QCOMPARE(c.hosts().size(), 2);
+    QTRY_COMPARE(c.openCount(), 4);
+    QStringList named;
+    const auto sessions = c.sessions();
+    for (const auto &v : c.openConsoles()) {
+      const auto o = v.toMap();
+      named << o["name"].toString() + " " + o["host"].toString();
+      QVERIFY(c.isOpen(o["id"].toString()));
+      QCOMPARE(o["startedAt"], sessions[o["id"].toString()].toMap()["startedAt"]);
+    }
+    QCOMPARE(named, (QStringList{"Zulu zulu.example.net", "Alpha alpha.example.net",
+                                 "Deleted deleted.example.net", "Unsaved unsaved.example.net"}));
+  }
   void isoGoesToTheConsoleItWasChosenFor() {
     QTemporaryDir dir; FakeCredentials wallet;
     const QString iso = dir.filePath("install.iso");

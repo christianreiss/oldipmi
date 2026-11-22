@@ -67,13 +67,10 @@ Kirigami.ApplicationWindow {
         settingsView.open(module || "general");
     }
     function showMcpInstructions() { mcpDialog.open() }
-    // Each open console with the start of its session, so confirming acts on these
-    // sessions and not on one opened again later under the same profile.
-    function openConsoles() {
-        return Controller.hosts.filter(p => Controller.isOpen(p.id)).map(p => ({
-            id: p.id, name: p.name, host: p.host, startedAt: Controller.sessions[p.id].startedAt
-        }));
-    }
+    // Each open console with the start of its session (Controller.openConsoles),
+    // so confirming acts on these sessions and not on one opened again later
+    // under the same profile.
+    function openConsoles() { return Controller.openConsoles() }
     // Closing several consoles at once asks first and names them; a single one
     // closes right away, like Disconnect.
     function disconnectAll() {

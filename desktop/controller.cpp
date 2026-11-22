@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QStandardPaths>
+#include <algorithm>
 
 static QString configPath() {
   return QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
@@ -60,6 +61,32 @@ QVariantMap Controller::sessions() const {
   return out;
 }
 QStringList Controller::openIds() const { return m_sessions->openIds(); }
+QVariantList Controller::openConsoles() const {
+  QVariantList out;
+  QStringList listed;
+  auto add = [&out, &listed](const Session *s, const QVariantMap &p) {
+    out << QVariantMap{{"id", s->id}, {"name", p.value("name")}, {"host", p.value("host")},
+                       {"startedAt", s->startedAt}};
+    listed << s->id;
+  };
+  for (const auto &v : hosts()) {
+    auto p = v.toMap();
+    if (auto id = p.value("id").toString(); isOpen(id))
+      add(session(id), p);
+  }
+  // Then those whose connection is not in the list. The preview, without an
+  // id, belongs to no server.
+  QList<Session *> others;
+  for (const auto &id : openIds())
+    if (!id.isEmpty() && !listed.contains(id))
+      others << session(id);
+  std::sort(others.begin(), others.end(), [](const Session *x, const Session *y) {
+    return x->profile.value("name").toString().compare(y->profile.value("name").toString(), Qt::CaseInsensitive) < 0;
+  });
+  for (auto *s : others)
+    add(s, s->profile);
+  return out;
+}
 int Controller::openCount() const { return int(openIds().size()); }
 bool Controller::isOpen(QString id) const { return m_sessions->isOpen(id); }
 void Controller::show(QString id) { m_sessions->show(m_sessions->session(id)); }
