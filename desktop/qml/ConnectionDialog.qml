@@ -148,35 +148,6 @@ AppDialog {
         onActivated: dialog.save(true)
     }
 
-    component FieldLabel: QQC2.Label {
-        font.pointSize: Theme.small
-        font.weight: Font.DemiBold
-        color: Theme.mix(Theme.text, Theme.card, 0.1)
-        Layout.fillWidth: true
-    }
-    // A switch with a title and an explanation, as one row.
-    component SwitchRow: RowLayout {
-        id: switchRow
-        property alias title: switchTitle.text
-        property alias description: switchText.text
-        property alias checked: toggle.checked
-        spacing: Kirigami.Units.largeSpacing
-        Layout.fillWidth: true
-        ColumnLayout {
-            spacing: 1
-            Layout.fillWidth: true
-            QQC2.Label { id: switchTitle; font.weight: Font.DemiBold; wrapMode: Text.Wrap; Layout.fillWidth: true }
-            QQC2.Label { id: switchText; font.pointSize: Theme.small; color: Theme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
-        }
-        QQC2.Switch {
-            id: toggle
-            Accessible.name: switchTitle.text
-            // What switching it on means, also for a screen reader that Tabs straight here.
-            Accessible.description: switchText.text
-            Layout.alignment: Qt.AlignVCenter
-        }
-    }
-
     Rectangle {
         visible: dialog.error !== ""
         Layout.fillWidth: true
@@ -305,12 +276,10 @@ AppDialog {
         rowSpacing: Math.round(Theme.gu * 0.7)
         Layout.fillWidth: true
 
-        ColumnLayout {
-            spacing: Kirigami.Units.smallSpacing
-            Layout.fillWidth: true
+        LabeledField {
+            label: "BMC address"
             Layout.preferredWidth: 1
             Layout.alignment: Qt.AlignTop
-            FieldLabel { text: "BMC address" }
             FormField {
                 id: hostField
                 placeholderText: "bmc.example.net or 192.0.2.10"
@@ -328,25 +297,21 @@ AppDialog {
                 Layout.fillWidth: true
             }
         }
-        ColumnLayout {
-            spacing: Kirigami.Units.smallSpacing
-            Layout.fillWidth: true
+        LabeledField {
+            label: "Name"
             Layout.preferredWidth: 1
             Layout.alignment: Qt.AlignTop
-            FieldLabel { text: "Name" }
             FormField {
                 id: nameField
                 placeholderText: dialog.host || "Shown in the connection list"
                 Accessible.name: "Name"
             }
         }
-        ColumnLayout {
+        LabeledField {
             visible: dialog.account
-            spacing: Kirigami.Units.smallSpacing
-            Layout.fillWidth: true
+            label: "Username"
             Layout.preferredWidth: 1
             Layout.alignment: Qt.AlignTop
-            FieldLabel { text: "Username" }
             FormField {
                 id: userField
                 font.family: Theme.mono.family
@@ -354,13 +319,11 @@ AppDialog {
                 Accessible.name: "Username"
             }
         }
-        ColumnLayout {
+        LabeledField {
             visible: dialog.account
-            spacing: Kirigami.Units.smallSpacing
-            Layout.fillWidth: true
+            label: "Password"
             Layout.preferredWidth: 1
             Layout.alignment: Qt.AlignTop
-            FieldLabel { text: "Password" }
             FormPasswordField {
                 id: passwordField
                 placeholderText: dialog.editing && dialog.original.remember && rememberSwitch.checked
@@ -475,11 +438,9 @@ AppDialog {
                     Layout.alignment: Qt.AlignVCenter
                 }
             }
-            ColumnLayout {
+            LabeledField {
                 visible: Families.offers(dialog.family, "jnlp")
-                spacing: Kirigami.Units.smallSpacing
-                Layout.fillWidth: true
-                FieldLabel { text: "JNLP endpoint override" }
+                label: "JNLP endpoint override"
                 FormField {
                     id: jnlpField
                     placeholderText: "Automatic"
