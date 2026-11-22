@@ -4,7 +4,6 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import OldIPMI 1.0
-import "families.js" as Families
 import "shortcuts.js" as Shortcuts
 
 // Right-hand side: the selected connection, its setup, a failure, or the live
@@ -55,123 +54,20 @@ ColumnLayout {
     }
 
     // ── Header: what is shown, and what can be done with it ────────────────
-    Item {
+    ConsoleHeader {
         id: header
-        visible: !root.immersive
-        Layout.fillWidth: true
-        Layout.preferredHeight: visible ? Math.max(Theme.headerHeight, headerRow.implicitHeight + Kirigami.Units.largeSpacing) : 0
-        // Labels give way to icons, then the title gives way, before anything overflows.
-        readonly property bool roomy: width > Theme.gu * 40
-
-        RowLayout {
-            id: headerRow
-            anchors {
-                fill: parent
-                leftMargin: Kirigami.Units.largeSpacing
-                rightMargin: Math.round(Theme.gu * 0.75)
-            }
-            spacing: Kirigami.Units.largeSpacing
-
-            // Fixed buttons keep their size (a layout would squeeze them to
-            // nothing); the title gives way instead.
-            IconButton {
-                icon.name: "sidebar-show-symbolic"
-                text: root.sidebarShown ? "Hide connection list" : "Show connection list"
-                shortcut: Shortcuts.connectionList
-                Layout.minimumWidth: implicitWidth
-                onClicked: root.toggleSidebar()
-            }
-
-            // Identity of the console being opened, failed or shown.
-            FamilyImage {
-                visible: (root.mode === "console" || root.mode === "setup" || root.mode === "error") && header.width >= Theme.gu * 20
-                family: root.shown.family
-                side: Math.round(Theme.gu * 1.9)
-            }
-            ColumnLayout {
-                visible: root.mode === "console" || root.mode === "setup" || root.mode === "error"
-                spacing: 0
-                Layout.fillWidth: !actionBar.visible
-                Layout.minimumWidth: Theme.gu * 2
-                Layout.maximumWidth: actionBar.visible ? Math.max(Theme.gu * 6, header.width * 0.3) : -1
-                QQC2.Label {
-                    text: root.displayName || "OldIPMI"
-                    font.pointSize: Theme.title
-                    font.weight: Font.Bold
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                    Accessible.role: Accessible.Heading
-                }
-                QQC2.Label {
-                    // Address and family; the protocol is in the information panel.
-                    text: [root.shown.host, root.shown.family ? Families.shortName(root.shown.family) : ""].filter(x => !!x).join(" · ")
-                    visible: text !== ""
-                    font.pointSize: Theme.small
-                    color: Theme.muted
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                }
-            }
-            // Breadcrumb for a selected, closed connection.
-            QQC2.Label {
-                visible: root.mode === "idle"
-                textFormat: Text.StyledText
-                text: "Connections <font color='" + Theme.muted + "'>›</font> <b>" + root.displayName.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</b>"
-                color: Theme.muted
-                elide: Text.ElideRight
-                Layout.fillWidth: true
-            }
-            Item { Layout.fillWidth: true; visible: root.mode === "welcome" }
-
-            IconButton {
-                // Shown whenever an AI agent is attached to the control socket.
-                visible: agent.clientCount > 0
-                Layout.minimumWidth: implicitWidth
-                icon.name: "dialog-scripts"
-                text: "AI agent connected: " + agent.clientName + (agent.activity.length ? "\nLast action: " + agent.activity[0].text : "")
-                onClicked: Ui.settingsRequested("agents")
-            }
-
-            Kirigami.ActionToolBar {
-                id: actionBar
-                visible: root.mode === "console" && root.connected
-                // Takes only the space left, so Disconnect and Quit always fit;
-                // what does not fit moves to the overflow menu.
-                Layout.fillWidth: true
-                Layout.preferredWidth: 0
-                Layout.minimumWidth: Theme.gu * 2
-                alignment: Qt.AlignRight
-                display: header.roomy ? QQC2.Button.TextBesideIcon : QQC2.Button.IconOnly
-                actions: root.connectedActions
-            }
-            Item { Layout.fillWidth: true; visible: root.mode !== "console" && root.mode !== "idle" && root.mode !== "welcome" }
-            ActionButton {
-                visible: root.mode === "console" && root.connected
-                tone: "secondary"
-                text: disconnectAction.text
-                icon.name: disconnectAction.icon.name
-                display: header.roomy ? QQC2.AbstractButton.TextBesideIcon : QQC2.AbstractButton.IconOnly
-                tooltip: disconnectAction.tooltip
-                Layout.minimumWidth: implicitWidth
-                onClicked: disconnectAction.trigger()
-            }
-            IconButton {
-                visible: root.fullscreen && !root.immersive
-                icon.name: fullscreenAction.icon.name
-                text: fullscreenAction.text
-                shortcut: Shortcuts.fullScreen
-                Layout.minimumWidth: implicitWidth
-                onClicked: fullscreenAction.trigger()
-            }
-            IconButton {
-                objectName: "headerQuitButton"
-                icon.name: quitAction.icon.name
-                text: quitAction.text
-                shortcut: Shortcuts.quit
-                Layout.minimumWidth: implicitWidth
-                onClicked: quitAction.trigger()
-            }
-        }
+        mode: root.mode
+        shown: root.shown
+        displayName: root.displayName
+        connected: root.connected
+        fullscreen: root.fullscreen
+        immersive: root.immersive
+        sidebarShown: root.sidebarShown
+        connectedActions: root.connectedActions
+        disconnectAction: disconnectAction
+        fullscreenAction: fullscreenAction
+        quitAction: quitAction
+        onToggleSidebar: root.toggleSidebar()
     }
 
     // Actions of a live console, for the header and the full-screen bar.
