@@ -63,115 +63,25 @@ Rectangle {
         spacing: 0
 
         // ── Brand and global actions ──
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.preferredHeight: Math.max(Math.round(Theme.gu * 3.1), implicitHeight)
-            Layout.leftMargin: Math.round(Theme.gu * 0.8)
-            Layout.rightMargin: Math.round(Theme.gu * 0.55)
-            spacing: Kirigami.Units.largeSpacing
-            Image {
-                Layout.preferredWidth: Math.round(Theme.gu * 1.45)
-                Layout.preferredHeight: Layout.preferredWidth
-                source: "qrc:/oldipmi.svg"
-                // From the layout's size: width follows the picture until the layout
-                // has run, so a sourceSize from width would double it on every load.
-                sourceSize.width: Layout.preferredWidth * 2
-                sourceSize.height: Layout.preferredHeight * 2
-            }
-            QQC2.Label {
-                text: "OldIPMI"
-                font.pointSize: Theme.title
-                font.weight: Font.Bold
-                elide: Text.ElideRight
-                Layout.fillWidth: true
-            }
-            IconButton {
-                icon.name: "list-add"
-                text: "New connection…"
-                shortcut: Shortcuts.newConnection
-                onClicked: root.newRequested("")
-            }
-            IconButton {
-                id: menuButton
-                objectName: "mainMenuButton"
-                icon.name: "application-menu"
-                text: appMenu.visible ? "" : "Main menu"
-                Accessible.name: "Main menu"
-                checked: appMenu.visible
-                onClicked: appMenu.visible ? appMenu.close() : appMenu.popup(menuButton, 0, menuButton.height)
-                QQC2.Menu {
-                    id: appMenu
-                    objectName: "mainMenu"
-                    QQC2.MenuItem { text: "Settings…"; icon.name: "configure"; onTriggered: root.settingsRequested("general") }
-                    QQC2.MenuItem { text: "AI agents (MCP)…"; icon.name: "dialog-scripts"; onTriggered: root.settingsRequested("agents") }
-                    QQC2.MenuSeparator {}
-                    QQC2.MenuItem {
-                        text: "Disconnect all"
-                        icon.name: "network-disconnect"
-                        enabled: controller.openCount > 0
-                        onTriggered: root.disconnectAllRequested()
-                    }
-                    QQC2.MenuSeparator {}
-                    QQC2.MenuItem { text: "About OldIPMI"; icon.name: "help-about"; onTriggered: root.settingsRequested("about") }
-                    QQC2.MenuItem { text: "Quit"; icon.name: "application-exit"; onTriggered: root.quitRequested() }
-                }
-            }
+        SidebarHeader {
+            onNewRequested: root.newRequested("")
+            onSettingsRequested: module => root.settingsRequested(module)
+            onDisconnectAllRequested: root.disconnectAllRequested()
+            onQuitRequested: root.quitRequested()
         }
 
         // ── Filter, or the address of a new connection ──
-        QQC2.TextField {
+        FilterField {
             id: search
             visible: controller.hosts.length > 0
             Layout.fillWidth: true
             Layout.leftMargin: Math.round(Theme.gu * 0.55)
             Layout.rightMargin: Math.round(Theme.gu * 0.55)
             Layout.bottomMargin: Math.round(Theme.gu * 0.55)
-            implicitHeight: Math.max(Theme.controlHeight, contentHeight + topPadding + bottomPadding)
-            placeholderText: "Filter or connect…"
-            placeholderTextColor: Theme.muted
-            color: Theme.text
-            leftPadding: Math.round(Theme.gu * 1.85)
-            rightPadding: (text !== "" ? clearButton.width : keyCap.visible ? keyCap.width : 0) + Math.round(Theme.gu * 0.6)
-            verticalAlignment: TextInput.AlignVCenter
-            Accessible.name: "Filter connections, or type the address of a new one"
             onTextChanged: root.rebuild()
             KeyNavigation.down: list
             Keys.onReturnPressed: root.acceptSearch()
             Keys.onEnterPressed: root.acceptSearch()
-            Keys.onEscapePressed: event => { if (text !== "") { clear(); event.accepted = true } else event.accepted = false }
-            background: Rectangle {
-                radius: Theme.radius
-                color: Theme.dark ? Theme.mix(Theme.window, Theme.black, 0.1) : Theme.view
-                border.width: search.activeFocus ? 2 : 1
-                border.color: search.activeFocus ? Theme.accent : Theme.line
-            }
-            Kirigami.Icon {
-                anchors { left: parent.left; leftMargin: Math.round(Theme.gu * 0.55); verticalCenter: parent.verticalCenter }
-                width: Kirigami.Units.iconSizes.small
-                height: width
-                source: "search"
-                color: Theme.muted
-                isMask: true
-            }
-            // The key cap only while the whole placeholder still fits beside it: what
-            // the field does matters more than its shortcut.
-            TextMetrics { id: placeholderMetrics; font: search.font; text: search.placeholderText }
-            KeyHint {
-                id: keyCap
-                visible: search.text === "" && search.width - search.leftPadding - implicitWidth
-                         - Math.round(Theme.gu * 0.6) >= Math.ceil(placeholderMetrics.advanceWidth)
-                anchors { right: parent.right; rightMargin: Math.round(Theme.gu * 0.4); verticalCenter: parent.verticalCenter }
-                keys: Shortcuts.find
-            }
-            IconButton {
-                id: clearButton
-                visible: search.text !== ""
-                anchors { right: parent.right; rightMargin: 3; verticalCenter: parent.verticalCenter }
-                size: search.height - 6
-                icon.name: "edit-clear"
-                text: "Clear filter"
-                onClicked: search.clear()
-            }
         }
 
         QQC2.ScrollView {
@@ -267,38 +177,9 @@ Rectangle {
         }
 
         // No connections yet: where they will appear.
-        Item {
+        EmptyListHint {
             visible: controller.hosts.length === 0
             Layout.fillWidth: true
-            Layout.preferredHeight: emptyText.implicitHeight + Theme.gu * 2.2
-            Canvas {
-                id: dashed
-                anchors { fill: parent; leftMargin: Math.round(Theme.gu * 0.65); rightMargin: Math.round(Theme.gu * 0.65) }
-                readonly property color stroke: Theme.line
-                onStrokeChanged: requestPaint()
-                onWidthChanged: requestPaint()
-                onHeightChanged: requestPaint()
-                onPaint: {
-                    const ctx = getContext("2d");
-                    ctx.reset();
-                    ctx.strokeStyle = stroke;
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([4, 3]);
-                    const r = Theme.radiusLarge - 2, w = width - 1.5, h = height - 1.5;
-                    ctx.beginPath();
-                    ctx.roundedRect(0.75, 0.75, w, h, r, r);
-                    ctx.stroke();
-                }
-            }
-            QQC2.Label {
-                id: emptyText
-                anchors.centerIn: parent
-                width: dashed.width - Theme.gu * 2
-                text: "Your BMCs appear here once you add them."
-                color: Theme.muted
-                wrapMode: Text.Wrap
-                horizontalAlignment: Text.AlignHCenter
-            }
         }
         Item { Layout.fillHeight: true; visible: controller.hosts.length === 0 }
 
