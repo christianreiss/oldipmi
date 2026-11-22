@@ -25,6 +25,14 @@
   buttons it pressed.
 
 ### Fixed
+* **"Password not saved" appears only when KWallet failed.** Connecting
+  showed that warning, with its offer to connect without saving, whenever the
+  connection could not be saved: also for an address of only spaces, and for
+  a profiles file that OldIPMI cannot read or write. Now only KWallet's own
+  failures show it, when it cannot store the password or remove a stored one.
+  Any other failure shows its message, such as "Could not save host
+  profiles.", and the console does not open. An agent's `connect` fails with
+  that message too, instead of leaving the warning open in the window.
 * **The toolbar keeps its labels while the information panel is docked.** In
   a narrow window the console's toolbar shows only icons, and the information
   panel floats over the console instead of standing beside it. In a pane of

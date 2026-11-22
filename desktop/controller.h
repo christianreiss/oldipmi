@@ -1,5 +1,6 @@
 #pragma once
 #include "credentials.h"
+#include "profilestore.h"
 #include "session.h"
 #include "sessionmanager.h"
 #include <QImage>
@@ -12,7 +13,6 @@
 #include <memory>
 
 class FileDialogs;
-class ProfileStore;
 
 class Controller : public QObject {
   Q_OBJECT
@@ -107,4 +107,7 @@ private:
   std::unique_ptr<SessionManager> m_sessions; // the last member: it goes first
   void setMessage(const QString &m);
   void fail(QString message);
+  // saveHost, with what failed.
+  QVariantMap saveProfile(const QVariantMap &p, const QString &password, bool remember,
+                          ProfileStore::Failure *failure);
 };

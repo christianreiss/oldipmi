@@ -70,7 +70,11 @@ void Controller::disconnectAll() {
   emit changed();
 }
 QVariantMap Controller::saveHost(QVariantMap p, QString password, bool remember) {
-  auto saved = m_profiles->save(p, password, remember);
+  return saveProfile(p, password, remember, nullptr);
+}
+QVariantMap Controller::saveProfile(const QVariantMap &p, const QString &password, bool remember,
+                                    ProfileStore::Failure *failure) {
+  auto saved = m_profiles->save(p, password, remember, failure);
   if (!saved.isEmpty()) {
     m_message = "Profile saved.";
     emit changed();
@@ -123,10 +127,16 @@ void Controller::connectHost(QVariantMap p, QString password) {
     return;
   }
   // Saving before connection keeps edited settings attached to the same UUID.
-  auto saved = saveHost(p, entered ? password : QString(), p.value("remember").toBool());
+  auto failure = ProfileStore::Failure::Profile;
+  auto saved = saveProfile(p, entered ? password : QString(), p.value("remember").toBool(), &failure);
   if (saved.isEmpty()) {
-    m_pendingPassword = password;
-    emit walletUnavailable();
+    if (failure == ProfileStore::Failure::Wallet) {
+      // The user may connect for this session only (WalletDialog.qml).
+      m_pendingPassword = password;
+      emit walletUnavailable();
+    } else {
+      m_pendingProfile.clear(); // the message says why; nothing waits for an answer
+    }
     return;
   }
   m_pendingProfile.clear();

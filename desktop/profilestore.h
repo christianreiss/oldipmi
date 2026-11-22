@@ -22,9 +22,15 @@ public:
   QString path() const { return m_file; }
   QVariantList profiles() const { return m_profiles; }
   QVariantMap profile(const QString &id) const;
+  // What kept save() from saving: the wallet, which could not store the
+  // password or remove the one it had, or the profile itself (no address, a
+  // file that cannot be read or written).
+  enum class Failure { Profile, Wallet };
   // Saves profile under its id (a new one without), with the password in the
-  // wallet if remember; returns it as saved, or {} after failed.
-  QVariantMap save(const QVariantMap &profile, const QString &password, bool remember);
+  // wallet if remember; returns it as saved, or {} after failed, with what
+  // failed in failure.
+  QVariantMap save(const QVariantMap &profile, const QString &password, bool remember,
+                   Failure *failure = nullptr);
   // A copy of the profile with its own id, without its password or last
   // connection; {} if there is none, or after failed.
   QVariantMap duplicate(const QString &id);

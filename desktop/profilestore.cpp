@@ -72,7 +72,16 @@ QVariantMap ProfileStore::profile(const QString &id) const {
   return {};
 }
 
-QVariantMap ProfileStore::save(const QVariantMap &p, const QString &password, bool remember) {
+QVariantMap ProfileStore::save(const QVariantMap &p, const QString &password, bool remember,
+                               Failure *failure) {
+  if (failure)
+    *failure = Failure::Profile;
+  auto walletFailed = [&](const QString &message) {
+    if (failure)
+      *failure = Failure::Wallet;
+    emit failed(message);
+    return QVariantMap{};
+  };
   if (!m_readable) {
     emit failed("Cannot modify an unreadable profiles file.");
     return {};
@@ -104,17 +113,13 @@ QVariantMap ProfileStore::save(const QVariantMap &p, const QString &password, bo
   if (clean.value("name").toString().trimmed().isEmpty())
     clean["name"] = clean["host"];
   if (remember && !password.isEmpty()) {
-    if (!m_credentials->write(clean["id"].toString(), password)) {
-      emit failed("KWallet is unavailable; the password was not saved.");
-      return {};
-    }
+    if (!m_credentials->write(clean["id"].toString(), password))
+      return walletFailed("KWallet is unavailable; the password was not saved.");
   } else if (previous.value("remember").toBool() &&
              (!remember || previous.value("host") != clean.value("host") ||
               previous.value("username") != clean.value("username"))) {
-    if (!m_credentials->remove(clean["id"].toString())) {
-      emit failed("Could not remove the saved password from KWallet.");
-      return {};
-    }
+    if (!m_credentials->remove(clean["id"].toString()))
+      return walletFailed("Could not remove the saved password from KWallet.");
   }
   if (index >= 0)
     profiles[index] = clean;

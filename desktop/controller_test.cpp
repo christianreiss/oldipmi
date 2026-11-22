@@ -149,6 +149,53 @@ private slots:
     c.continueWithoutWallet();
     QCOMPARE(c.state(), "disconnected");
   }
+  // Only the wallet's failures offer to connect without saving: an address of
+  // only spaces says so, and nothing waits for an answer then (C-05).
+  void onlyTheWalletOffersToConnectWithoutSaving() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    Controller c(nullptr, &wallet, writeProfiles(dir, {savedProfile()}));
+    QSignalSpy fallback(&c, &Controller::walletUnavailable);
+    auto p = c.hosts()[0].toMap();
+    auto blank = p;
+    blank["host"] = "  ";
+    c.connectHost(blank, "fixture-secret");
+    QCOMPARE(c.message(), QString("Enter a BMC address before saving."));
+    QCOMPARE(fallback.count(), 0);
+    QVERIFY(c.pendingProfile().isEmpty());
+    wallet.available = false;
+    c.connectHost(p, "fixture-secret"); // the wallet cannot store the password
+    QCOMPARE(fallback.count(), 1);
+    QCOMPARE(c.pendingProfile().value("id"), p.value("id"));
+    c.cancelCredentials();
+    p["remember"] = false; // nor remove the one it has
+    c.connectHost(p, "fixture-secret");
+    QCOMPARE(fallback.count(), 2);
+    c.cancelCredentials();
+    QVERIFY(c.sessions().isEmpty());
+  }
+  // A profiles file that cannot be read or written: its message, no offer to
+  // connect without saving, and no console.
+  void unsavableProfileSaysWhy() {
+    QTemporaryDir dir; FakeCredentials wallet;
+    const QVariantMap p{{"host", "bmc.example.invalid"}, {"username", "admin"},
+                        {"family", "ami"}, {"remember", true}};
+    QFile broken(dir.filePath("hosts.json"));
+    QVERIFY(broken.open(QIODevice::WriteOnly)); broken.write("broken"); broken.close();
+    QFile blocker(dir.filePath("blocker")); // a file where the folder should be
+    QVERIFY(blocker.open(QIODevice::WriteOnly)); blocker.close();
+    const QList<std::pair<QString, QString>> cases{
+        {broken.fileName(), "Cannot modify an unreadable profiles file."},
+        {dir.filePath("blocker/hosts.json"), "Could not save host profiles."}};
+    for (const auto &[path, message] : cases) {
+      Controller c(nullptr, &wallet, path);
+      QSignalSpy fallback(&c, &Controller::walletUnavailable);
+      c.connectHost(p, "fixture-secret");
+      QCOMPARE(c.message(), message);
+      QCOMPARE(fallback.count(), 0);
+      QVERIFY(c.pendingProfile().isEmpty());
+      QVERIFY(c.sessions().isEmpty());
+    }
+  }
   void changedAccountNeverReusesPassword() {
     QTemporaryDir dir; FakeCredentials wallet;
     Controller c(nullptr, &wallet, writeProfiles(dir, {savedProfile()}));
