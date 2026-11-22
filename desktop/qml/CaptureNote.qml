@@ -23,9 +23,9 @@ Rectangle {
     // Released with the keyboard focus in the bar or on Quit, a Right Ctrl
     // tap does not take control; the bar's Take control does.
     readonly property string how: toast.captured
-        ? (settings.rightCtrlReleases ? "Tap Right Ctrl to release" : "Release from the bar at the top edge")
+        ? (AppSettings.rightCtrlReleases ? "Tap Right Ctrl to release" : "Release from the bar at the top edge")
         : toast.barFocused ? "Take control from the bar, or click the screen"
-        : (settings.rightCtrlReleases ? "Tap Right Ctrl or click the screen to take control" : "Click the screen to take control")
+        : (AppSettings.rightCtrlReleases ? "Tap Right Ctrl or click the screen to take control" : "Click the screen to take control")
     readonly property bool stacked: whoRow.implicitWidth + toastGrid.columnSpacing + oneLine.advanceWidth + 2 * pad > room
     TextMetrics { id: oneLine; font: howLabel.font; text: "· " + toast.how }
     visible: opacity > 0

@@ -14,7 +14,7 @@ AppDialog {
     property var original: ({})
     readonly property bool editing: !!original.id
     // Connecting an open profile only brings it to the front, so its edits would not be saved.
-    readonly property bool openNow: editing && Stages.isOpen(controller.sessions, original.id)
+    readonly property bool openNow: editing && Stages.isOpen(Controller.sessions, original.id)
     // The chosen family's tile; -1 keeps a stored family this version does not know.
     property int familyIndex: 0
     property bool showAdvanced: false
@@ -75,7 +75,7 @@ AppDialog {
         familyIndex = Families.index(p.family || "aten");
         userField.text = p.username || "";
         passwordField.text = "";
-        rememberSwitch.checked = p.remember === undefined ? settings.rememberPasswords : !!p.remember;
+        rememberSwitch.checked = p.remember === undefined ? AppSettings.rememberPasswords : !!p.remember;
         advancedSection.modeIndex = Math.max(0, advancedSection.modes.findIndex(m => m.id === (p.consoleMode || "auto")));
         advancedSection.http = !!p.http;
         advancedSection.legacyTLS = !!p.legacyTLS;
@@ -126,13 +126,13 @@ AppDialog {
             // connectHost saves the profile first (and the password, when remembered).
             dialog.close();
             dialog.saved(p);
-            controller.connectHost(p, password);
+            Controller.connectHost(p, password);
             passwordField.text = "";
             return;
         }
-        const s = controller.saveHost(p, password, rememberSwitch.checked);
+        const s = Controller.saveHost(p, password, rememberSwitch.checked);
         if (!s.id) {
-            error = controller.message;
+            error = Controller.message;
             return;
         }
         passwordField.text = "";

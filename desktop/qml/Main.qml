@@ -7,8 +7,8 @@ import "shortcuts.js" as Shortcuts
 Kirigami.ApplicationWindow {
     id: window
 
-    title: (controller.activeProfile.name && controller.state !== "disconnected")
-           ? controller.activeProfile.name + (controller.openCount > 1 ? " (+" + (controller.openCount - 1) + ")" : "") + " — OldIPMI"
+    title: (Controller.activeProfile.name && Controller.state !== "disconnected")
+           ? Controller.activeProfile.name + (Controller.openCount > 1 ? " (+" + (Controller.openCount - 1) + ")" : "") + " — OldIPMI"
            : "OldIPMI"
     width: Kirigami.Units.gridUnit * 70
     height: Kirigami.Units.gridUnit * 44
@@ -18,7 +18,7 @@ Kirigami.ApplicationWindow {
     pageStack.globalToolBar.style: Kirigami.ApplicationHeaderStyle.None
 
     property string selectedId: ""
-    readonly property var selectedProfile: controller.hosts.find(p => p.id === selectedId) || ({})
+    readonly property var selectedProfile: Controller.hosts.find(p => p.id === selectedId) || ({})
     readonly property bool fullscreen: visibility === Window.FullScreen
 
     // The design tokens follow the system colour scheme. Kirigami.Theme works only
@@ -46,17 +46,17 @@ Kirigami.ApplicationWindow {
     // open; a profile that is already open or opening is just brought to the front.
     function connectProfile(p) {
         if (!p || !p.host) return;
-        if (p.id && controller.isOpen(p.id)) { selectedId = p.id; controller.show(p.id); return }
+        if (p.id && Controller.isOpen(p.id)) { selectedId = p.id; Controller.show(p.id); return }
         selectedId = p.id || selectedId;
-        controller.connectHost(p, "");
+        Controller.connectHost(p, "");
     }
     function newConnection() { connectionDialog.openFor({}) }
     // New connection with the address typed into the filter.
     function newConnectionTo(host) { connectionDialog.openFor(host ? {host: host} : {}) }
-    function editConnection(p) { if (p && p.id) connectionDialog.openFor(controller.host(p.id)) }
+    function editConnection(p) { if (p && p.id) connectionDialog.openFor(Controller.host(p.id)) }
     function deleteConnection(p) { if (p && p.id) { deleteDialog.profile = p; deleteDialog.open() } }
     function duplicateConnection(p) {
-        const copy = p && p.id ? controller.duplicateHost(p.id) : ({});
+        const copy = p && p.id ? Controller.duplicateHost(p.id) : ({});
         if (copy.id) selectedId = copy.id;
     }
     function openSettings(module) {
@@ -70,8 +70,8 @@ Kirigami.ApplicationWindow {
     // Each open console with the start of its session, so confirming acts on these
     // sessions and not on one opened again later under the same profile.
     function openConsoles() {
-        return controller.hosts.filter(p => controller.isOpen(p.id)).map(p => ({
-            id: p.id, name: p.name, host: p.host, startedAt: controller.sessions[p.id].startedAt
+        return Controller.hosts.filter(p => Controller.isOpen(p.id)).map(p => ({
+            id: p.id, name: p.name, host: p.host, startedAt: Controller.sessions[p.id].startedAt
         }));
     }
     // Closing several consoles at once asks first and names them; a single one
@@ -83,7 +83,7 @@ Kirigami.ApplicationWindow {
             disconnectAllDialog.consoles = open;
             disconnectAllDialog.open();
         } else {
-            controller.disconnectAll();
+            Controller.disconnectAll();
         }
     }
     // Quitting closes every console, so with more than one open it asks the same
@@ -110,17 +110,17 @@ Kirigami.ApplicationWindow {
     // The console view follows the sidebar selection: an open session is shown,
     // any other profile shows its page while the open consoles keep running.
     onSelectedIdChanged: {
-        if (selectedId) settings.lastProfile = selectedId;
-        controller.show(selectedId);
+        if (selectedId) AppSettings.lastProfile = selectedId;
+        Controller.show(selectedId);
     }
     // A console that comes to the front by itself (an agent opened it) takes the selection along.
-    readonly property string shownId: controller.shownId
+    readonly property string shownId: Controller.shownId
     onShownIdChanged: if (shownId) selectedId = shownId
     Component.onCompleted: {
-        const g = settings.windowGeometry;
+        const g = AppSettings.windowGeometry;
         if (g.width > 0 && g.height > 0) { x = g.x; y = g.y; width = g.width; height = g.height }
-        const last = controller.hosts.find(p => p.id === settings.lastProfile);
-        selectedId = last ? last.id : (controller.hosts.length ? controller.hosts[0].id : "");
+        const last = Controller.hosts.find(p => p.id === AppSettings.lastProfile);
+        selectedId = last ? last.id : (Controller.hosts.length ? Controller.hosts[0].id : "");
     }
     onClosing: event => {
         // The window's close button and Alt+F4 quit too: with several consoles open
@@ -130,20 +130,20 @@ Kirigami.ApplicationWindow {
             requestQuit();
             return;
         }
-        if (!fullscreen) settings.windowGeometry = Qt.rect(x, y, width, height);
+        if (!fullscreen) AppSettings.windowGeometry = Qt.rect(x, y, width, height);
     }
 
     Shortcut { sequences: [StandardKey.New]; onActivated: window.newConnection() }
     Shortcut { sequence: Shortcuts.settings; onActivated: window.openSettings("general") }
-    Shortcut { sequences: [StandardKey.Find]; onActivated: { settings.showSidebar = true; sidebar.focusSearch() } }
-    Shortcut { sequence: Shortcuts.connectionList; onActivated: settings.showSidebar = !settings.showSidebar }
+    Shortcut { sequences: [StandardKey.Find]; onActivated: { AppSettings.showSidebar = true; sidebar.focusSearch() } }
+    Shortcut { sequence: Shortcuts.connectionList; onActivated: AppSettings.showSidebar = !AppSettings.showSidebar }
     Shortcut { sequences: [StandardKey.FullScreen, Shortcuts.fullScreen]; onActivated: window.toggleFullscreen() }
-    Shortcut { sequence: Shortcuts.disconnect; enabled: controller.state !== "disconnected"; onActivated: controller.disconnectHost() }
-    Shortcut { sequence: Shortcuts.disconnectAll; enabled: controller.openCount > 0; onActivated: window.disconnectAll() }
+    Shortcut { sequence: Shortcuts.disconnect; enabled: Controller.state !== "disconnected"; onActivated: Controller.disconnectHost() }
+    Shortcut { sequence: Shortcuts.disconnectAll; enabled: Controller.openCount > 0; onActivated: window.disconnectAll() }
     Shortcut {
         objectName: "copyScreenShortcut"
         sequence: Shortcuts.copyScreen
-        enabled: controller.hasFrame && !consolePane.consoleView.captured
+        enabled: Controller.hasFrame && !consolePane.consoleView.captured
         onActivated: consolePane.copyScreen()
     }
     Shortcut { sequences: [StandardKey.Quit]; onActivated: window.requestQuit() }
@@ -156,7 +156,7 @@ Kirigami.ApplicationWindow {
         ConnectionSidebar {
             id: sidebar
             objectName: "sidebar"
-            visible: settings.showSidebar && !consolePane.immersive
+            visible: AppSettings.showSidebar && !consolePane.immersive
             // A third of the window, within limits, so the console keeps most of it.
             Layout.preferredWidth: Math.round(Math.min(Theme.gu * 16, window.width * 0.42, Math.max(Theme.gu * 11, window.width * 0.3)))
             Layout.fillHeight: true
@@ -166,7 +166,7 @@ Kirigami.ApplicationWindow {
             onEditRequested: p => window.editConnection(p)
             onDeleteRequested: p => window.deleteConnection(p)
             onDuplicateRequested: p => window.duplicateConnection(p)
-            onDisconnectRequested: p => controller.disconnectProfile(p.id)
+            onDisconnectRequested: p => Controller.disconnectProfile(p.id)
             onNewRequested: host => window.newConnectionTo(host)
             onSettingsRequested: module => window.openSettings(module)
             onDisconnectAllRequested: window.disconnectAll()
@@ -195,11 +195,11 @@ Kirigami.ApplicationWindow {
             onDemoRequested: window.connectProfile({name: "Demo console", host: "demo", family: "demo"})
             onPowerRequested: action => {
                 powerDialog.action = action;
-                powerDialog.profile = controller.activeProfile;
+                powerDialog.profile = Controller.activeProfile;
                 powerDialog.open();
             }
             onToggleFullscreen: window.toggleFullscreen()
-            onToggleSidebar: settings.showSidebar = !settings.showSidebar
+            onToggleSidebar: AppSettings.showSidebar = !AppSettings.showSidebar
             onQuitRequested: window.requestQuit()
         }
     }
@@ -253,8 +253,8 @@ Kirigami.ApplicationWindow {
         verbTone: "danger"
         onConfirmed: {
             const id = deleteDialog.profile.id;
-            if (controller.removeHost(id) && window.selectedId === id)
-                window.selectedId = controller.hosts.length ? controller.hosts[0].id : "";
+            if (Controller.removeHost(id) && window.selectedId === id)
+                window.selectedId = Controller.hosts.length ? Controller.hosts[0].id : "";
         }
     }
 
@@ -278,9 +278,9 @@ Kirigami.ApplicationWindow {
             }
             disconnectAllDialog.close();
             for (const c of disconnectAllDialog.consoles) {
-                const s = controller.sessions[c.id];
-                if (s && s.startedAt === c.startedAt && controller.isOpen(c.id))
-                    controller.disconnectProfile(c.id);
+                const s = Controller.sessions[c.id];
+                if (s && s.startedAt === c.startedAt && Controller.isOpen(c.id))
+                    Controller.disconnectProfile(c.id);
             }
         }
     }
@@ -304,12 +304,12 @@ Kirigami.ApplicationWindow {
     }
 
     Connections {
-        target: controller
+        target: Controller
         function onProfileActivated(profile) { window.selectedId = profile.id }
         function onPasswordRequired() {
-            credentialsDialog.profile = controller.pendingProfile();
+            credentialsDialog.profile = Controller.pendingProfile();
             credentialsDialog.remember = credentialsDialog.profile.remember === undefined
-                ? settings.rememberPasswords : !!credentialsDialog.profile.remember;
+                ? AppSettings.rememberPasswords : !!credentialsDialog.profile.remember;
             credentialsDialog.open();
         }
         function onWalletUnavailable() { walletDialog.open() }

@@ -21,7 +21,7 @@ FormCard.FormCardPage {
                 }
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    Kirigami.Heading { text: "OldIPMI " + settings.version() }
+                    Kirigami.Heading { text: "OldIPMI " + AppSettings.version() }
                     QQC2.Label {
                         text: "Native remote consoles for older BMCs: AMI MegaRAC, Supermicro (ATEN), Dell iDRAC (Avocent) and Cisco IMC. No Java, no browser."
                         wrapMode: Text.Wrap
@@ -35,12 +35,12 @@ FormCard.FormCardPage {
     FormCard.FormCard {
         FormCard.FormTextDelegate {
             text: "Connection profiles"
-            description: Theme.shownPath(controller.profilesPath())
+            description: Theme.shownPath(Controller.profilesPath())
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormTextDelegate {
             text: "Preferences"
-            description: Theme.shownPath(settings.configPath())
+            description: Theme.shownPath(AppSettings.configPath())
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormTextDelegate {

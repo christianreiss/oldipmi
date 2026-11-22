@@ -41,11 +41,11 @@ QQC2.ScrollView {
         }
         Repeater {
             model: [
-                {label: "Protocol", value: controller.consoleInfo.protocol},
-                {label: "Protocol version", value: controller.consoleInfo.protocolVersion},
-                {label: "Resolution", value: controller.consoleInfo.resolution},
-                {label: "Features", value: (controller.consoleInfo.capabilities || []).join(", ")}
-            ].concat((controller.consoleInfo.endpoints || []).map(e => ({label: e.role, value: e.address + "\n" + e.transport, mono: true})))
+                {label: "Protocol", value: Controller.consoleInfo.protocol},
+                {label: "Protocol version", value: Controller.consoleInfo.protocolVersion},
+                {label: "Resolution", value: Controller.consoleInfo.resolution},
+                {label: "Features", value: (Controller.consoleInfo.capabilities || []).join(", ")}
+            ].concat((Controller.consoleInfo.endpoints || []).map(e => ({label: e.role, value: e.address + "\n" + e.transport, mono: true})))
              .filter(row => !!row.value)
             delegate: ColumnLayout {
                 id: infoRow
@@ -69,7 +69,7 @@ QQC2.ScrollView {
             }
         }
         QQC2.Label {
-            visible: !controller.consoleInfo.protocol
+            visible: !Controller.consoleInfo.protocol
             text: "The backend has not reported console details."
             color: Theme.muted
             wrapMode: Text.Wrap
@@ -78,7 +78,7 @@ QQC2.ScrollView {
             Layout.rightMargin: Math.round(Theme.gu * 0.9)
         }
         NoticeBox {
-            visible: !!controller.consoleInfo.legacyTLS
+            visible: !!Controller.consoleInfo.legacyTLS
             Layout.margins: Math.round(Theme.gu * 0.9)
             text: "Legacy TLS is enabled; the BMC certificate is not verified."
         }

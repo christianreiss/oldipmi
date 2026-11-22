@@ -39,7 +39,7 @@ AppDialog {
         const p = Object.assign({}, credentialsDialog.profile, {remember: credentialsRemember.checked});
         const pw = credentialsPassword.text;
         credentialsPassword.text = "";
-        controller.connectHost(p, pw);
+        Controller.connectHost(p, pw);
     }
-    onRejected: { credentialsPassword.text = ""; controller.cancelCredentials() }
+    onRejected: { credentialsPassword.text = ""; Controller.cancelCredentials() }
 }

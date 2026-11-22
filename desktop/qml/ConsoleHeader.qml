@@ -93,10 +93,10 @@ Item {
 
         IconButton {
             // Shown whenever an AI agent is attached to the control socket.
-            visible: agent.clientCount > 0
+            visible: AgentApi.clientCount > 0
             Layout.minimumWidth: implicitWidth
             icon.name: "dialog-scripts"
-            text: "AI agent connected: " + agent.clientName + (agent.activity.length ? "\nLast action: " + agent.activity[0].text : "")
+            text: "AI agent connected: " + AgentApi.clientName + (AgentApi.activity.length ? "\nLast action: " + AgentApi.activity[0].text : "")
             onClicked: Ui.settingsRequested("agents")
         }
 

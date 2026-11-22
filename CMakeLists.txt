@@ -48,9 +48,9 @@ configure_file(internal/mcp/instructions.md ${CMAKE_BINARY_DIR}/mcp_instructions
 # default import path): each file under its own name, next to the module's
 # generated qmldir. Theme and Ui are its QML singletons. Its C++ types are
 # declared in desktop/app/qmltypes.h: ConsoleView and FrameThumbnail, which
-# are QtQuick items, and the singleton FamilyTable. Qt and Kirigami are shared
-# libraries here: there are no static QML plugins to find and link
-# (NO_IMPORT_SCAN).
+# are QtQuick items, and the singletons Controller, AppSettings, AgentApi,
+# Launch and FamilyTable. Qt and Kirigami are shared libraries here: there
+# are no static QML plugins to find and link (NO_IMPORT_SCAN).
 qt_policy(SET QTP0001 NEW)
 file(GLOB QML_FILES CONFIGURE_DEPENDS RELATIVE ${CMAKE_SOURCE_DIR} desktop/qml/*.qml desktop/qml/*.js)
 foreach(qml_file ${QML_FILES})

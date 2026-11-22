@@ -123,7 +123,7 @@ ColumnLayout {
                     tone: "secondary"
                     text: "Choose…"
                     onClicked: {
-                        const f = controller.chooseCertificate(certRow.modelData.key);
+                        const f = Controller.chooseCertificate(certRow.modelData.key);
                         if (!f) return;
                         if (certRow.modelData.key) advancedSection.keyPath = f; else advancedSection.certPath = f;
                     }

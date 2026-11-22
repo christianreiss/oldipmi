@@ -28,10 +28,10 @@ Rectangle {
     function focusSearch() { search.forceActiveFocus(); search.selectAll() }
 
     // Sessions are read once per change here; rows look themselves up in it.
-    readonly property var sess: controller.sessions
+    readonly property var sess: Controller.sessions
     function isOpen(id) { return Stages.isOpen(sess, id) }
     // The list model changes only when the profiles, the filter or the set of
-    // open consoles changes; controller.changed fires for every pointer ack.
+    // open consoles changes; Controller.changed fires for every pointer ack.
     readonly property string openKey: Object.keys(sess).filter(id => isOpen(id)).sort().join("\n")
     property var rows: []
     // True while the rows are replaced: ListView then jumps to the first row, which
@@ -40,7 +40,7 @@ Rectangle {
     function rebuild() {
         const q = search.text.trim().toLowerCase();
         const byName = (a, b) => (a.name || a.host).localeCompare(b.name || b.host, undefined, {sensitivity: "base"});
-        const hits = controller.hosts
+        const hits = Controller.hosts
             .filter(p => !q || (p.name || "").toLowerCase().includes(q) || (p.host || "").toLowerCase().includes(q))
             .sort(byName);
         const open = hits.filter(p => isOpen(p.id)).map(p => ({profile: p, open: true}));
@@ -53,7 +53,7 @@ Rectangle {
     // Never synchronously from a row's own handler: rebuilding destroys the row.
     onOpenKeyChanged: Qt.callLater(rebuild)
     Connections {
-        target: controller
+        target: Controller
         function onHostsChanged() { Qt.callLater(root.rebuild) }
     }
     Component.onCompleted: rebuild()
@@ -73,7 +73,7 @@ Rectangle {
         // ── Filter, or the address of a new connection ──
         FilterField {
             id: search
-            visible: controller.hosts.length > 0
+            visible: Controller.hosts.length > 0
             Layout.fillWidth: true
             Layout.leftMargin: Math.round(Theme.gu * 0.55)
             Layout.rightMargin: Math.round(Theme.gu * 0.55)
@@ -142,7 +142,7 @@ Rectangle {
                 ColumnLayout {
                     anchors.centerIn: parent
                     width: parent.width - Theme.gu * 2
-                    visible: list.count === 0 && controller.hosts.length > 0
+                    visible: list.count === 0 && Controller.hosts.length > 0
                     spacing: Kirigami.Units.largeSpacing
                     QQC2.Label {
                         text: "No matches"
@@ -178,10 +178,10 @@ Rectangle {
 
         // No connections yet: where they will appear.
         EmptyListHint {
-            visible: controller.hosts.length === 0
+            visible: Controller.hosts.length === 0
             Layout.fillWidth: true
         }
-        Item { Layout.fillHeight: true; visible: controller.hosts.length === 0 }
+        Item { Layout.fillHeight: true; visible: Controller.hosts.length === 0 }
 
         // Footer: Settings and Disconnect all, always one click away (Quit sits at
         // the right end of the console header and in the main menu).
@@ -202,9 +202,9 @@ Rectangle {
                 tone: "ghost"
                 icon.name: "network-disconnect"
                 text: "Disconnect all"
-                enabled: controller.openCount > 0
-                tooltip: (controller.openCount > 1 ? "Close all " + controller.openCount + " open consoles"
-                          : controller.openCount === 1 ? "Close the open console" : "No console is open") + " (" + Shortcuts.disconnectAll + ")"
+                enabled: Controller.openCount > 0
+                tooltip: (Controller.openCount > 1 ? "Close all " + Controller.openCount + " open consoles"
+                          : Controller.openCount === 1 ? "Close the open console" : "No console is open") + " (" + Shortcuts.disconnectAll + ")"
                 // Only its icon in a narrow list, rather than a clipped label.
                 display: root.width >= Theme.gu * 15 ? QQC2.AbstractButton.TextBesideIcon : QQC2.AbstractButton.IconOnly
                 onClicked: root.disconnectAllRequested()

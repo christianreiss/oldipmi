@@ -11,7 +11,7 @@ AppDialog {
     tone: Theme.warning
     closeButton: false
     QQC2.Label {
-        text: controller.message
+        text: Controller.message
         visible: text !== ""
         color: Theme.cardText
         wrapMode: Text.Wrap
@@ -24,12 +24,12 @@ AppDialog {
         Layout.fillWidth: true
     }
     buttons: [
-        ActionButton { tone: "ghost"; text: "Cancel"; onClicked: { walletDialog.close(); controller.cancelCredentials() } },
+        ActionButton { tone: "ghost"; text: "Cancel"; onClicked: { walletDialog.close(); Controller.cancelCredentials() } },
         ActionButton {
             tone: "primary"
             text: "Connect without saving"
             icon.name: "media-playback-start"
-            onClicked: { walletDialog.close(); controller.continueWithoutWallet() }
+            onClicked: { walletDialog.close(); Controller.continueWithoutWallet() }
         }
     ]
 }

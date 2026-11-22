@@ -27,16 +27,16 @@ ColumnLayout {
     signal toggleSidebar()
     signal quitRequested()
 
-    readonly property string connState: controller.state
+    readonly property string connState: Controller.state
     readonly property bool connected: connState === "connected"
     readonly property bool settingUp: connState !== "disconnected" && !connected
     // One page per state, in this order of precedence.
-    readonly property string mode: controller.hasFrame ? "console"
+    readonly property string mode: Controller.hasFrame ? "console"
         : settingUp || connected ? "setup"
-        : controller.errorStage !== "" ? "error"
+        : Controller.errorStage !== "" ? "error"
         : selected.id ? "idle" : "welcome"
-    readonly property var shown: mode === "idle" || mode === "welcome" ? selected : controller.activeProfile
-    readonly property var session: controller.sessions[controller.shownId] || ({})
+    readonly property var shown: mode === "idle" || mode === "welcome" ? selected : Controller.activeProfile
+    readonly property var session: Controller.sessions[Controller.shownId] || ({})
     readonly property string displayName: shown.name || shown.host || ""
     // Full screen leaves only the remote screen while a console is shown. Without
     // one (selected, connecting, failed, or after losing the connection) the header
@@ -45,10 +45,10 @@ ColumnLayout {
     // Said where the keyboard takes control, when only the mouse can release.
     readonly property string mouseOnlyRelease: "Releasing needs the mouse: tapping Right Ctrl is off in Settings."
     // What the console supports, by the core's feature names (testdata/ipc/names.json, features).
-    function has(feature) { return (controller.consoleInfo.features || []).indexOf(feature) >= 0 }
+    function has(feature) { return (Controller.consoleInfo.features || []).indexOf(feature) >= 0 }
     // The remote screen on the clipboard, at its own resolution and without the stage.
     function copyScreen() {
-        const size = controller.copyFrame();
+        const size = Controller.copyFrame();
         if (size.width > 0)
             Ui.notify("Screen image copied (" + size.width + " × " + size.height + ")", "short");
     }
@@ -76,28 +76,28 @@ ColumnLayout {
         text: "Send key"
         icon.name: "input-keyboard"
         tooltip: "Send a key combination the local desktop would intercept"
-        Kirigami.Action { text: "Ctrl+Alt+Del"; onTriggered: controller.sendKeys([224, 226, 76]) }
-        Kirigami.Action { text: "Ctrl+Alt+Backspace"; onTriggered: controller.sendKeys([224, 226, 42]) }
-        Kirigami.Action { text: "Alt+Tab"; onTriggered: controller.sendKeys([226, 43]) }
-        Kirigami.Action { text: "Alt+F4"; onTriggered: controller.sendKeys([226, 61]) }
-        Kirigami.Action { text: "Print Screen"; onTriggered: controller.sendKeys([70]) }
+        Kirigami.Action { text: "Ctrl+Alt+Del"; onTriggered: Controller.sendKeys([224, 226, 76]) }
+        Kirigami.Action { text: "Ctrl+Alt+Backspace"; onTriggered: Controller.sendKeys([224, 226, 42]) }
+        Kirigami.Action { text: "Alt+Tab"; onTriggered: Controller.sendKeys([226, 43]) }
+        Kirigami.Action { text: "Alt+F4"; onTriggered: Controller.sendKeys([226, 61]) }
+        Kirigami.Action { text: "Print Screen"; onTriggered: Controller.sendKeys([70]) }
         Kirigami.Action { separator: true }
-        Kirigami.Action { text: "Ctrl+Alt+F1 (console 1)"; onTriggered: controller.sendKeys([224, 226, 58]) }
-        Kirigami.Action { text: "Ctrl+Alt+F2 (console 2)"; onTriggered: controller.sendKeys([224, 226, 59]) }
-        Kirigami.Action { text: "Ctrl+Alt+F7 (graphical)"; onTriggered: controller.sendKeys([224, 226, 64]) }
+        Kirigami.Action { text: "Ctrl+Alt+F1 (console 1)"; onTriggered: Controller.sendKeys([224, 226, 58]) }
+        Kirigami.Action { text: "Ctrl+Alt+F2 (console 2)"; onTriggered: Controller.sendKeys([224, 226, 59]) }
+        Kirigami.Action { text: "Ctrl+Alt+F7 (graphical)"; onTriggered: Controller.sendKeys([224, 226, 64]) }
         Kirigami.Action { separator: true }
-        Kirigami.Action { text: "Super (Windows key)"; onTriggered: controller.sendKeys([227]) }
-        Kirigami.Action { text: "Right Ctrl"; onTriggered: controller.sendKeys([228]) }
+        Kirigami.Action { text: "Super (Windows key)"; onTriggered: Controller.sendKeys([227]) }
+        Kirigami.Action { text: "Right Ctrl"; onTriggered: Controller.sendKeys([228]) }
     }
     Kirigami.Action {
         id: mediaAction
-        text: controller.mounted ? "Eject ISO" : "Mount ISO…"
-        icon.name: controller.mounted ? "media-eject" : "media-optical"
+        text: Controller.mounted ? "Eject ISO" : "Mount ISO…"
+        icon.name: Controller.mounted ? "media-eject" : "media-optical"
         visible: root.has("media")
         // Only its icon while the header is tight, so Power keeps its label.
         displayHint: header.width >= Theme.gu * 56 ? Kirigami.DisplayHint.NoPreference : Kirigami.DisplayHint.IconOnly
-        tooltip: controller.mounted ? "Eject ISO: disconnect the virtual CD-ROM" : "Mount ISO: attach a local ISO image read-only as a virtual CD-ROM"
-        onTriggered: controller.mounted ? controller.ejectISO() : controller.mountISO()
+        tooltip: Controller.mounted ? "Eject ISO: disconnect the virtual CD-ROM" : "Mount ISO: attach a local ISO image read-only as a virtual CD-ROM"
+        onTriggered: Controller.mounted ? Controller.ejectISO() : Controller.mountISO()
     }
     Kirigami.Action {
         id: powerAction
@@ -150,7 +150,7 @@ ColumnLayout {
         text: "Disconnect"
         icon.name: "network-disconnect"
         tooltip: "Close this console session (" + Shortcuts.disconnect + ")"
-        onTriggered: controller.disconnectHost()
+        onTriggered: Controller.disconnectHost()
     }
     Kirigami.Action {
         id: quitAction
@@ -203,12 +203,12 @@ ColumnLayout {
                         objectName: "console"
                         anchors.fill: parent
                         anchors.margins: root.fullscreen ? 0 : Math.round(Theme.gu * 0.8)
-                        visible: controller.hasFrame
-                        fit: settings.fitToWindow
-                        rightCtrlReleases: settings.rightCtrlReleases
+                        visible: Controller.hasFrame
+                        fit: AppSettings.fitToWindow
+                        rightCtrlReleases: AppSettings.rightCtrlReleases
                         Accessible.role: Accessible.Graphic
                         Accessible.name: "Remote console of " + root.displayName
-                        onFitChanged: if (settings.fitToWindow !== fit) settings.fitToWindow = fit
+                        onFitChanged: if (AppSettings.fitToWindow !== fit) AppSettings.fitToWindow = fit
                     }
 
                     // Frame around the picture, outside it: a hairline when free, the
@@ -338,23 +338,23 @@ ColumnLayout {
                 profile: root.shown
                 connState: root.connState
                 startedAt: root.session.startedAt || 0
-                onCancelRequested: controller.disconnectHost()
+                onCancelRequested: Controller.disconnectHost()
             }
             ErrorPage {
                 anchors { fill: parent; leftMargin: surface.margin; rightMargin: surface.margin; bottomMargin: surface.margin }
                 visible: root.mode === "error"
                 profile: root.shown
                 errorStage: root.session.errorStage || ""
-                message: visible ? controller.message : ""
-                errorCode: visible ? controller.errorCode : ""
-                onRetryRequested: root.connectRequested(controller.activeProfile)
-                onEditRequested: root.editRequested(controller.host(controller.activeProfile.id) || controller.activeProfile)
+                message: visible ? Controller.message : ""
+                errorCode: visible ? Controller.errorCode : ""
+                onRetryRequested: root.connectRequested(Controller.activeProfile)
+                onEditRequested: root.editRequested(Controller.host(Controller.activeProfile.id) || Controller.activeProfile)
             }
             IdlePage {
                 anchors.fill: parent
                 visible: root.mode === "idle"
                 profile: root.selected
-                notice: visible ? controller.message : ""
+                notice: visible ? Controller.message : ""
                 onConnectRequested: root.connectRequested(root.selected)
                 onEditRequested: root.editRequested(root.selected)
                 onDeleteRequested: root.deleteRequested(root.selected)
@@ -363,7 +363,7 @@ ColumnLayout {
             WelcomePage {
                 anchors.fill: parent
                 visible: root.mode === "welcome"
-                hasHosts: controller.hosts.length > 0
+                hasHosts: Controller.hosts.length > 0
                 onNewRequested: root.newRequested()
                 onDemoRequested: root.demoRequested()
             }

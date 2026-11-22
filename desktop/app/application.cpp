@@ -14,28 +14,24 @@ Application::Application(const Options &options, const QString &profiles)
       // The self-test never opens the agent socket. Its pages show where an installed
       // OldIPMI has it and oldipmi-mcp: the same in every run, and no local paths.
       m_agent(&m_controller, options.test ? QString("/run/user/1000/oldipmi/agent.sock") : QString()),
-      m_agentAllowed(!options.test && options.agentApi) {
+      m_launch(!options.test && options.agentApi,
+               options.test ? double(devtools::testNow.toMSecsSinceEpoch()) : 0.0,
+               options.test ? QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) : QString()) {
   FrameThumbnail::setController(&m_controller);
   if (options.test)
     m_agent.setMcpPath("/usr/bin/oldipmi-mcp");
   applyAgentSetting();
   QObject::connect(&m_settings, &AppSettings::changed, &m_agent, [this] { applyAgentSetting(); });
   m_engine.rootContext()->setContextObject(&m_i18n);
-  m_engine.rootContext()->setContextProperty("controller", &m_controller);
-  // False for the whole session with --no-agent-api or --self-test: Settings then
-  // says that the agent switch applies from the next start.
-  m_engine.rootContext()->setContextProperty("agentAllowed", m_agentAllowed);
-  m_engine.rootContext()->setContextProperty("agent", &m_agent);
-  m_engine.rootContext()->setContextProperty("settings", &m_settings);
-  m_engine.rootContext()->setContextProperty(
-      "testClock", options.test ? double(devtools::testNow.toMSecsSinceEpoch()) : 0.0);
-  // The self-test's configuration folder (in ~/.qttest), which its pages show as ~/.config.
-  m_engine.rootContext()->setContextProperty(
-      "testConfigDir", options.test ? QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) : QString());
+  // The module's singletons (app/qmltypes.h) are these objects.
+  ControllerForeign::instance = &m_controller;
+  AppSettingsForeign::instance = &m_settings;
+  AgentApiForeign::instance = &m_agent;
+  Launch::instance = &m_launch;
 }
 
 void Application::applyAgentSetting() {
-  if (!m_agentAllowed || m_settings.agentApiEnabled() == m_agent.enabled())
+  if (!m_launch.agentAllowed() || m_settings.agentApiEnabled() == m_agent.enabled())
     return;
   m_agent.setEnabled(m_settings.agentApiEnabled());
   if (m_agent.enabled() && !m_agent.listening())

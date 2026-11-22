@@ -13,7 +13,7 @@ AppDialog {
         wrapMode: TextEdit.Wrap
         selectByMouse: true
         textFormat: TextEdit.MarkdownText
-        text: agent.mcpInstructions()
+        text: AgentApi.mcpInstructions()
         color: Theme.text
         background: null
         padding: 0

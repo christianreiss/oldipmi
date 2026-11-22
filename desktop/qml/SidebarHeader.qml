@@ -55,7 +55,7 @@ RowLayout {
             QQC2.MenuItem {
                 text: "Disconnect all"
                 icon.name: "network-disconnect"
-                enabled: controller.openCount > 0
+                enabled: Controller.openCount > 0
                 onTriggered: header.disconnectAllRequested()
             }
             QQC2.MenuSeparator {}

@@ -14,8 +14,8 @@ FormCard.FormCardPage {
         FormCard.FormSwitchDelegate {
             text: "Remember passwords in KWallet by default"
             description: "Preselects the option for new connections. Each connection can override it."
-            checked: settings.rememberPasswords
-            onToggled: settings.rememberPasswords = checked
+            checked: AppSettings.rememberPasswords
+            onToggled: AppSettings.rememberPasswords = checked
         }
     }
 
@@ -24,15 +24,15 @@ FormCard.FormCardPage {
         FormCard.FormSwitchDelegate {
             text: "Scale the remote screen to the window"
             description: "Off shows the remote screen pixel for pixel."
-            checked: settings.fitToWindow
-            onToggled: settings.fitToWindow = checked
+            checked: AppSettings.fitToWindow
+            onToggled: AppSettings.fitToWindow = checked
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormSwitchDelegate {
             text: "Tap Right Ctrl to release keyboard and mouse"
             description: "The tap is still sent to the server. Released, the next tap gives keyboard and mouse back to it. When off, releasing needs the mouse: click Release in the status bar, or in the bar at the top edge in full screen."
-            checked: settings.rightCtrlReleases
-            onToggled: settings.rightCtrlReleases = checked
+            checked: AppSettings.rightCtrlReleases
+            onToggled: AppSettings.rightCtrlReleases = checked
         }
     }
 

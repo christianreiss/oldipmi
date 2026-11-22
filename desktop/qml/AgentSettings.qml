@@ -9,20 +9,20 @@ FormCard.FormCardPage {
     id: page
     title: "AI agents (MCP)"
 
-    readonly property string registerCommand: "claude mcp add oldipmi -- " + agent.mcpPath
+    readonly property string registerCommand: "claude mcp add oldipmi -- " + AgentApi.mcpPath
 
     Kirigami.InlineMessage {
         Layout.fillWidth: true
         Layout.margins: Kirigami.Units.gridUnit
         Layout.bottomMargin: 0
         visible: true
-        type: agent.listening ? Kirigami.MessageType.Information : Kirigami.MessageType.Warning
-        text: !agentAllowed
+        type: AgentApi.listening ? Kirigami.MessageType.Information : Kirigami.MessageType.Warning
+        text: !Launch.agentAllowed
             ? "The agent socket is off for this session (started with --no-agent-api or --self-test)."
-            : agent.listening
+            : AgentApi.listening
               ? "Agents can control the open console: screen, keyboard, mouse, power and ISO images. There is no authentication; any program running as your user can use the socket."
-              : settings.agentApiEnabled
-                ? (agent.errorString || "The agent socket is not open.")
+              : AppSettings.agentApiEnabled
+                ? (AgentApi.errorString || "The agent socket is not open.")
                 : "Agent control is off."
     }
 
@@ -32,30 +32,30 @@ FormCard.FormCardPage {
         Layout.bottomMargin: 0
         visible: text !== ""
         type: Kirigami.MessageType.Warning
-        text: agent.versionNote
+        text: AgentApi.versionNote
     }
 
     FormCard.FormHeader { title: "Control socket" }
     FormCard.FormCard {
         FormCard.FormSwitchDelegate {
             text: "Allow AI agents to control OldIPMI"
-            description: agentAllowed ? "Takes effect immediately." : "Applies from the next start; this session runs without the agent socket."
-            checked: settings.agentApiEnabled
-            onToggled: settings.agentApiEnabled = checked
+            description: Launch.agentAllowed ? "Takes effect immediately." : "Applies from the next start; this session runs without the agent socket."
+            checked: AppSettings.agentApiEnabled
+            onToggled: AppSettings.agentApiEnabled = checked
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormTextDelegate {
             text: "Status"
-            description: agent.listening
-                ? (agent.clientCount > 0 ? agent.clientCount + " agent" + (agent.clientCount === 1 ? "" : "s") + " connected"
-                                           + (agent.clientName ? " (" + agent.clientName + ")" : "")
+            description: AgentApi.listening
+                ? (AgentApi.clientCount > 0 ? AgentApi.clientCount + " agent" + (AgentApi.clientCount === 1 ? "" : "s") + " connected"
+                                           + (AgentApi.clientName ? " (" + AgentApi.clientName + ")" : "")
                                          : "Listening, no agent connected")
                 : "Not listening"
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormTextDelegate {
             text: "Socket"
-            description: agent.socketPath
+            description: AgentApi.socketPath
         }
     }
 
@@ -79,11 +79,11 @@ FormCard.FormCardPage {
         }
     }
 
-    FormCard.FormHeader { title: "Recent agent activity"; visible: agent.activity.length > 0 }
+    FormCard.FormHeader { title: "Recent agent activity"; visible: AgentApi.activity.length > 0 }
     FormCard.FormCard {
-        visible: agent.activity.length > 0
+        visible: AgentApi.activity.length > 0
         Repeater {
-            model: agent.activity
+            model: AgentApi.activity
             delegate: FormCard.FormTextDelegate {
                 required property var modelData
                 text: modelData.text
@@ -94,7 +94,7 @@ FormCard.FormCardPage {
         FormCard.FormButtonDelegate {
             text: "Clear activity"
             icon.name: "edit-clear-history"
-            onClicked: agent.clearActivity()
+            onClicked: AgentApi.clearActivity()
         }
     }
 }

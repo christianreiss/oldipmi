@@ -118,8 +118,8 @@ Rectangle {
             text: "Take control"
             icon.name: fsBar.narrow ? "" : "input-mouse"
             Layout.minimumWidth: implicitWidth
-            Accessible.description: settings.rightCtrlReleases ? "" : fsBar.mouseOnlyRelease
-            QQC2.ToolTip.visible: visualFocus && !settings.rightCtrlReleases
+            Accessible.description: AppSettings.rightCtrlReleases ? "" : fsBar.mouseOnlyRelease
+            QQC2.ToolTip.visible: visualFocus && !AppSettings.rightCtrlReleases
             QQC2.ToolTip.text: fsBar.mouseOnlyRelease
             Keys.onReturnPressed: clicked()
             Keys.onEnterPressed: clicked()

@@ -19,7 +19,7 @@ ConfirmDialog {
                text: "Power is cut immediately, like pulling the plug. Unsaved data is lost and file systems may need repair." }
     })
     readonly property var info: powerText[action] || ({title: "%1", verb: "OK", icon: "system-shutdown", text: ""})
-    readonly property var target: profile.host ? profile : controller.activeProfile
+    readonly property var target: profile.host ? profile : Controller.activeProfile
     readonly property bool destructive: action === "reset" || action === "off"
     title: info.title.arg(target.name || target.host || "the server")
     iconName: info.icon
@@ -30,5 +30,5 @@ ConfirmDialog {
     verbTone: destructive ? "danger" : "primary"
     // Breeze draws some of these icons red, which vanishes on the red button.
     verbIcon: destructive ? "" : info.icon
-    onConfirmed: controller.powerFor(profile.id || "", action)
+    onConfirmed: Controller.powerFor(profile.id || "", action)
 }

@@ -2,6 +2,7 @@
 #include "agentapi.h"
 #include "app/exitcode.h"
 #include "app/options.h"
+#include "app/qmltypes.h"
 #include "controller.h"
 #include "credentials.h"
 #include "i18n.h"
@@ -45,9 +46,9 @@ private:
   Controller m_controller;
   AppSettings m_settings;
   AgentApi m_agent;
-  // Auth-less local control socket for oldipmi-mcp; skipped by self-test and
-  // --no-agent-api, and switchable at runtime in Settings → AI agents.
-  const bool m_agentAllowed;
+  // How this run was started: whether the agent socket may open (it is then
+  // switched in Settings → AI agents), the test mode's clock and folder.
+  Launch m_launch;
   // The root context object must outlive the engine, which is destroyed first.
   LocalizedContext m_i18n;
   QQmlApplicationEngine m_engine;

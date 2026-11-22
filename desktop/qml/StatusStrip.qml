@@ -25,7 +25,7 @@ Rectangle {
     // Chip, Release and the spacer after it, with the gaps between them.
     readonly property real essentials: Math.ceil(captureChip.implicitWidth) + gap + releaseButton.implicitWidth + gap
         + (isoChip.visible ? gap + Math.ceil(isoChip.implicitWidth) : 0)
-    readonly property bool showHint: strip.captured && settings.rightCtrlReleases && !compact
+    readonly property bool showHint: strip.captured && AppSettings.rightCtrlReleases && !compact
         && room >= essentials + gap + Math.ceil(hintLabel.implicitWidth)
     readonly property bool showResolution: !compact && resolutionLabel.text !== ""
         && room >= essentials + (showHint ? gap + Math.ceil(hintLabel.implicitWidth) : 0) + gap + Math.ceil(resolutionLabel.implicitWidth)
@@ -65,8 +65,8 @@ Rectangle {
             Accessible.name: strip.captured ? captureChip.text : "Control " + strip.displayName + " with keyboard and mouse"
             // Without the Right Ctrl release only the mouse releases: say so
             // before the keyboard goes to the server.
-            Accessible.description: settings.rightCtrlReleases ? "" : strip.mouseOnlyRelease
-            QQC2.ToolTip.visible: visualFocus && !strip.captured && !settings.rightCtrlReleases
+            Accessible.description: AppSettings.rightCtrlReleases ? "" : strip.mouseOnlyRelease
+            QQC2.ToolTip.visible: visualFocus && !strip.captured && !AppSettings.rightCtrlReleases
             QQC2.ToolTip.text: strip.mouseOnlyRelease
             Keys.onReturnPressed: captureButton.clicked()
             Keys.onEnterPressed: captureButton.clicked()
@@ -117,7 +117,7 @@ Rectangle {
         }
         Item { Layout.fillWidth: true }
         QQC2.Label {
-            text: controller.message
+            text: Controller.message
             visible: text !== "" && !/^Connected/.test(text) && !strip.compact
             color: Theme.stageMuted
             font.pointSize: Theme.small
@@ -133,7 +133,7 @@ Rectangle {
         }
         Chip {
             id: isoChip
-            visible: controller.mounted
+            visible: Controller.mounted
             onStage: true
             tone: Theme.positive
             iconName: "media-optical"
@@ -142,7 +142,7 @@ Rectangle {
         QQC2.Label {
             id: resolutionLabel
             visible: strip.showResolution
-            text: (controller.consoleInfo.resolution || "").replace("x", " × ")
+            text: (Controller.consoleInfo.resolution || "").replace("x", " × ")
             font.family: Theme.mono.family
             font.pointSize: Theme.small
             color: Theme.stageMuted

@@ -91,15 +91,15 @@ Item {
     readonly property real hero: fontBase * 2.3
 
     // One clock for every elapsed-time label ("Logging in · 0:04"). The self-test
-    // stops it at a fixed time (testClock), so its screenshots do not change.
-    function clock() { return testClock > 0 ? testClock : Date.now() }
+    // stops it at a fixed time (Launch.testClock), so its screenshots do not change.
+    function clock() { return Launch.testClock > 0 ? Launch.testClock : Date.now() }
     property double now: clock()
     // The same clock, read once a minute, for labels such as "5 min ago": what
     // binds to it re-evaluates once a minute instead of every second.
     property double minuteNow: clock()
     // False in the self-test: motion that shows time passing (the connecting
     // spinner) stands still with its clock.
-    readonly property bool clockRunning: testClock === 0
+    readonly property bool clockRunning: Launch.testClock === 0
     Timer {
         interval: 1000
         repeat: true
@@ -113,10 +113,10 @@ Item {
         onTriggered: theme.minuteNow = theme.clock()
     }
     // A file path as pages show it. The self-test shows its configuration folder
-    // (testConfigDir) as ~/.config, where an installed OldIPMI has it.
+    // (Launch.testConfigDir) as ~/.config, where an installed OldIPMI has it.
     function shownPath(path) {
-        return testConfigDir !== "" && path.startsWith(testConfigDir + "/")
-            ? "~/.config" + path.slice(testConfigDir.length) : path
+        return Launch.testConfigDir !== "" && path.startsWith(Launch.testConfigDir + "/")
+            ? "~/.config" + path.slice(Launch.testConfigDir.length) : path
     }
 
     readonly property color black: Qt.rgba(0, 0, 0, 1)
