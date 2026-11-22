@@ -1,7 +1,7 @@
 .pragma library
 .import OldIPMI 1.0 as App
 // Console families understood by oldipmi-core: desktop/families.json, which the
-// app registers as the FamilyTable singleton (main.cpp). `id` is stored in the
+// app has as the FamilyTable singleton (app/qmltypes.h). `id` is stored in the
 // profile.
 var list = App.FamilyTable.list;
 // The family's place in the list, or -1 for one this version does not know.

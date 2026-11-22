@@ -27,21 +27,28 @@ get_filename_component(OLDIPMI_APP_ID ${OLDIPMI_DESKTOP_FILE} NAME_WLE)
 # purpose: Fedora's %cmake turns BUILD_SHARED_LIBS on.
 qt_add_library(oldipmi_desktop STATIC desktop/agentapi.cpp desktop/agentapi.h desktop/framethumbnail.cpp desktop/framethumbnail.h desktop/controller.cpp desktop/controller.h desktop/families.cpp desktop/families.h desktop/filedialogs.cpp desktop/filedialogs.h desktop/profilestore.cpp desktop/profilestore.h desktop/session.cpp desktop/session.h desktop/sessionmanager.cpp desktop/sessionmanager.h desktop/backendprocess.cpp desktop/backendprocess.h desktop/channels.cpp desktop/channels.h desktop/credentials.cpp desktop/credentials.h desktop/console.cpp desktop/console.h desktop/keymap.cpp desktop/keymap.h desktop/settings.cpp desktop/settings.h desktop/singleinstance.cpp desktop/singleinstance.h desktop/runtimedir.cpp desktop/runtimedir.h desktop/i18n.h desktop/ipc.h desktop/agentops.h)
 target_link_libraries(oldipmi_desktop PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::Network KF6::Wallet)
+# Its metatypes describe the types the QML module declares (desktop/app/qmltypes.h).
+qt_extract_metatypes(oldipmi_desktop)
 # Code in subdirectories includes the desktop headers by name ("controller.h").
 target_include_directories(oldipmi_desktop PUBLIC ${CMAKE_SOURCE_DIR}/desktop)
 # The application: desktop/app starts it, desktop/devtools holds what only
 # --self-test, its tour and --probe-ui run.
-qt_add_executable(oldipmi desktop/main.cpp desktop/app/application.cpp desktop/app/application.h
+qt_add_executable(oldipmi desktop/main.cpp desktop/app/application.cpp desktop/app/application.h desktop/app/qmltypes.h
                   desktop/app/exitcode.h desktop/app/options.cpp desktop/app/options.h
                   desktop/devtools/probeui.cpp desktop/devtools/probeui.h
                   desktop/devtools/qmlwarnings.cpp desktop/devtools/qmlwarnings.h
                   desktop/devtools/selftest.cpp desktop/devtools/selftest.h desktop/devtools/tour.cpp desktop/devtools/tour.h)
 target_compile_definitions(oldipmi PRIVATE OLDIPMI_VERSION="${PROJECT_VERSION}" OLDIPMI_APP_ID="${OLDIPMI_APP_ID}")
+# The QML module's generated type registration includes desktop/app/qmltypes.h
+# by its bare name.
+target_include_directories(oldipmi PRIVATE ${CMAKE_SOURCE_DIR}/desktop/app)
 # One instruction text for the GUI button and the MCP server's initialize reply.
 configure_file(internal/mcp/instructions.md ${CMAKE_BINARY_DIR}/mcp_instructions.md COPYONLY)
 # The QML is the module OldIPMI, compiled in at qrc:/qt/qml/OldIPMI/ (the
 # default import path): each file under its own name, next to the module's
-# generated qmldir. Theme and Ui are its singletons. Qt and Kirigami are shared
+# generated qmldir. Theme and Ui are its QML singletons. Its C++ types are
+# declared in desktop/app/qmltypes.h: ConsoleView and FrameThumbnail, which
+# are QtQuick items, and the singleton FamilyTable. Qt and Kirigami are shared
 # libraries here: there are no static QML plugins to find and link
 # (NO_IMPORT_SCAN).
 qt_policy(SET QTP0001 NEW)
@@ -51,7 +58,8 @@ foreach(qml_file ${QML_FILES})
   set_source_files_properties(${qml_file} PROPERTIES QT_RESOURCE_ALIAS ${qml_name})
 endforeach()
 set_source_files_properties(desktop/qml/Theme.qml desktop/qml/Ui.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
-qt_add_qml_module(oldipmi URI OldIPMI VERSION 1.0 NO_CACHEGEN NO_IMPORT_SCAN QML_FILES ${QML_FILES})
+qt_add_qml_module(oldipmi URI OldIPMI VERSION 1.0 NO_CACHEGEN NO_IMPORT_SCAN DEPENDENCIES QtQuick
+                  QML_FILES ${QML_FILES})
 qt_add_resources(oldipmi icon PREFIX "/" BASE packaging FILES packaging/oldipmi.svg)
 file(GLOB IMAGE_FILES CONFIGURE_DEPENDS RELATIVE ${CMAKE_SOURCE_DIR} desktop/images/*.png)
 qt_add_resources(oldipmi images PREFIX "/" BASE desktop FILES ${IMAGE_FILES})

@@ -22,10 +22,13 @@ class FamiliesTest : public QObject {
 private slots:
   void initTestCase() {
     // QML JavaScript libraries; without their pragma and imports they are plain
-    // JavaScript, given the family table the way the app registers it. They
-    // share the global object here, so a library's qualifier is that object.
+    // JavaScript, given the family table as the app's FamilyTable singleton has
+    // it (list). They share the global object here, so a library's qualifier is
+    // that object.
+    QJSValue table = m_engine.newObject();
+    table.setProperty("list", m_engine.toScriptValue(familyTable()));
     QJSValue app = m_engine.newObject();
-    app.setProperty("FamilyTable", familyTableScript(&m_engine));
+    app.setProperty("FamilyTable", table);
     m_engine.globalObject().setProperty("App", app);
     m_engine.globalObject().setProperty("Format", m_engine.globalObject());
     for (const char *name : {"format.js", "stages.js", "families.js"}) {

@@ -1,6 +1,5 @@
 #include "families.h"
 #include <QFile>
-#include <QJSEngine>
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -23,10 +22,4 @@ bool familyNeedsAccount(const QString &id) {
     if (v.toObject().value("id").toString() == id)
       return v.toObject().value("account").toBool(true);
   return true;
-}
-
-QJSValue familyTableScript(QJSEngine *engine) {
-  QJSValue table = engine->newObject();
-  table.setProperty("list", engine->toScriptValue(familyTable()));
-  return table;
 }

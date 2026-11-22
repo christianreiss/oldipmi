@@ -1,13 +1,10 @@
 #include "app/application.h"
 #include "app/exitcode.h"
 #include "app/options.h"
-#include "console.h"
 #include "devtools/probeui.h"
 #include "devtools/qmlwarnings.h"
 #include "devtools/selftest.h"
 #include "devtools/tour.h"
-#include "families.h"
-#include "framethumbnail.h"
 #include "singleinstance.h"
 #include <QApplication>
 #include <QIcon>
@@ -59,11 +56,6 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Screenshot tour: could not write the test-mode connections\n");
     return code(ExitCode::CheckFailed);
   }
-  qmlRegisterType<Console>("OldIPMI", 1, 0, "ConsoleView");
-  qmlRegisterType<FrameThumbnail>("OldIPMI", 1, 0, "FrameThumbnail");
-  // The family table (desktop/families.json) for qml/families.js.
-  qmlRegisterSingletonType("OldIPMI", 1, 0, "FamilyTable",
-                           [](QQmlEngine *, QJSEngine *js) -> QJSValue { return familyTableScript(js); });
   Application application(options, profiles);
   if (const ExitCode failed = application.load(); failed != ExitCode::Ok)
     return code(failed);
