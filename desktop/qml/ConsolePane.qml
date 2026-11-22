@@ -375,7 +375,7 @@ ColumnLayout {
                         // Never wider than the screen, leaving room for Quit in the corner
                         // (and, while centred, its mirror image): the name gives way first.
                         readonly property real room: narrow ? parent.width - fsQuit.width - 3 * edge - 12
-                                                            : parent.width - 2 * (fsQuit.width + Math.round(Theme.gu * 1.2))
+                                                            : parent.width - 2 * fsQuit.clearance
                         // A focused button never disappears under the keyboard.
                         readonly property bool focused: {
                             for (var item = Window.activeFocusItem; item; item = item.parent)
@@ -511,26 +511,12 @@ ColumnLayout {
                     }
                     // Quit stays in the corner for the whole time in full screen, also
                     // while the bar is hidden.
-                    Rectangle {
+                    QuitCorner {
                         id: fsQuit
                         visible: root.fullscreen
                         anchors { top: parent.top; right: parent.right; margins: Math.round(Theme.gu * 0.8) }
                         z: 5
-                        width: quitCorner.implicitWidth + 8
-                        height: quitCorner.implicitHeight + 8
-                        radius: Theme.radiusPanel
-                        color: Theme.alpha(Theme.stagePopup, 0.9)
-                        border.width: 1
-                        border.color: Theme.stageLine
-                        BarButton {
-                            id: quitCorner
-                            objectName: "quitCorner"
-                            anchors.centerIn: parent
-                            icon.name: quitAction.icon.name
-                            text: quitAction.text
-                            shortcut: Shortcuts.quit
-                            onClicked: quitAction.trigger()
-                        }
+                        action: quitAction
                     }
                     QQC2.Menu {
                         id: keysMenu
@@ -557,7 +543,7 @@ ColumnLayout {
                         displayName: root.displayName
                         barFocused: fsBar.focused
                         shown: root.fullscreen && toastTimer.running
-                        room: parent.width - 2 * (fsQuit.width + Math.round(Theme.gu * 1.2))
+                        room: parent.width - 2 * fsQuit.clearance
                         anchors.horizontalCenter: parent.horizontalCenter
                         y: fsBar.visible ? fsBar.y + fsBar.height + Kirigami.Units.largeSpacing : Math.round(Theme.gu * 0.8)
                         z: 4
