@@ -35,6 +35,17 @@ function offers(id, option) {
         if (list[i].id === id) return list[i][option] === true;
     return false;
 }
+// How the family's console switches the host's power (its entry's power), for
+// the power button's tooltip.
+function powerHint(id) {
+    var i = index(id);
+    switch (i >= 0 ? list[i].power : "") {
+    case "ipmi": return "Chassis power over IPMI (UDP 623) with this connection's account";
+    case "console": return "Chassis power through the console connection";
+    case "simulated": return "Simulated chassis power: no real host is affected";
+    }
+    return "Chassis power";
+}
 // False for a family without an account (no username or password: the demo
 // console); true for any other, known or not.
 function needsAccount(id) {

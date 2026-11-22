@@ -25,6 +25,11 @@
   buttons it pressed.
 
 ### Fixed
+* **The power button says how the power is switched.** Its tooltip said
+  "Chassis power over IPMI (UDP 623)" for every console. A Supermicro (ATEN)
+  console switches the power through the console connection instead, and the
+  demo console only pretends; the tooltip now says so. AMI, Dell iDRAC and
+  Cisco IMC consoles do use IPMI, with the connection's account.
 * **"Password not saved" appears only when KWallet failed.** Connecting
   showed that warning, with its offer to connect without saving, whenever the
   connection could not be saved: also for an address of only spaces, and for

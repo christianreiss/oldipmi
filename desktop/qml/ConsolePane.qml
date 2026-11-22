@@ -4,6 +4,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import OldIPMI 1.0
+import "families.js" as Families
 import "shortcuts.js" as Shortcuts
 
 // Right-hand side: the selected connection, its setup, a failure, or the live
@@ -104,7 +105,7 @@ ColumnLayout {
         id: powerAction
         text: "Power"
         icon.name: "system-shutdown"
-        tooltip: "Chassis power over IPMI (UDP 623) with this connection's account"
+        tooltip: Families.powerHint(root.shown.family)
         Kirigami.Action { text: "Power on"; icon.name: "system-run"; onTriggered: root.powerRequested("on") }
         Kirigami.Action { text: "Graceful shutdown"; icon.name: "system-shutdown"; onTriggered: root.powerRequested("soft") }
         Kirigami.Action { text: "Reset"; icon.name: "system-reboot"; onTriggered: root.powerRequested("reset") }

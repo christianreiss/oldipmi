@@ -147,14 +147,21 @@ private slots:
       QCOMPARE(js("offers(ID, 'clientCertificate')").toBool(), f["clientCertificate"].toBool());
       QCOMPARE(js("needsAccount(ID)").toBool(), f["account"].toBool());
       QCOMPARE(familyNeedsAccount(id), f["account"].toBool());
+      const QMap<QString, QString> powerHints{
+          {"ipmi", "Chassis power over IPMI (UDP 623) with this connection's account"},
+          {"console", "Chassis power through the console connection"},
+          {"simulated", "Simulated chassis power: no real host is affected"}};
+      QVERIFY2(powerHints.contains(f["power"].toString()), qPrintable(id));
+      QCOMPARE(js("powerHint(ID)").toString(), powerHints[f["power"].toString()]);
     }
     // An unknown family has no place in the list, keeps its id as its names,
-    // offers no option and needs an account.
+    // offers no option, needs an account and says nothing of how its power goes.
     QCOMPARE(m_engine.evaluate("index('fixture')").toInt(), -1);
     QCOMPARE(m_engine.evaluate("name('fixture')").toString(), QString("fixture"));
     QCOMPARE(m_engine.evaluate("shortName('fixture')").toString(), QString("fixture"));
     QCOMPARE(m_engine.evaluate("offers('fixture', 'jnlp')").toBool(), false);
     QCOMPARE(m_engine.evaluate("needsAccount('fixture')").toBool(), true);
+    QCOMPARE(m_engine.evaluate("powerHint('fixture')").toString(), QString("Chassis power"));
     QVERIFY(familyNeedsAccount("fixture"));
   }
   void errorDetailDropsTheStage() {

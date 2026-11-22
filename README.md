@@ -130,8 +130,9 @@ without one, the header (with Quit) and the connection list stay.
 While connected, the toolbar offers **Send key** (Ctrl+Alt+Del, Ctrl+Alt+F1/F2/F7,
 Alt+Tab, Alt+F4, Print Screen, Super, Right Ctrl), **Mount ISO… / Eject ISO**
 (only when the console reports read-only ISO support), **Power** (chassis
-control over IPMI LAN, UDP 623, with the connection's account; every action is
-confirmed with its consequence),
+control over IPMI LAN, UDP 623, with the connection's account, or for
+Supermicro ATEN through the console connection; every action is confirmed with
+its consequence),
 **Copy screen image** (Ctrl+Shift+C; puts the remote screen on the clipboard as an
 image at its own resolution, without the window around it, e.g. for a ticket),
 fit/actual size, full screen (F11, Esc leaves; a bar at the top edge keeps the
