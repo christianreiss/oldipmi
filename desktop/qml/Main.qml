@@ -21,8 +21,6 @@ Kirigami.ApplicationWindow {
     property string selectedId: ""
     readonly property var selectedProfile: controller.hosts.find(p => p.id === selectedId) || ({})
     readonly property bool fullscreen: visibility === Window.FullScreen
-    property string pendingPower: ""
-    property var powerProfile: ({})
 
     // The design tokens follow the system colour scheme. Kirigami.Theme works only
     // inside a window, so the window hands its colours to the Theme singleton.
@@ -195,8 +193,8 @@ Kirigami.ApplicationWindow {
             onNewRequested: window.newConnection()
             onDemoRequested: window.connectProfile({name: "Demo console", host: "demo", family: "demo"})
             onPowerRequested: action => {
-                window.pendingPower = action;
-                window.powerProfile = controller.activeProfile;
+                powerDialog.action = action;
+                powerDialog.profile = controller.activeProfile;
                 powerDialog.open();
             }
             onToggleFullscreen: window.toggleFullscreen()
@@ -235,79 +233,28 @@ Kirigami.ApplicationWindow {
         ]
     }
 
-    // Every power action is confirmed; the dialog names the server, the BMC and
-    // the consequence, and its button carries the verb.
-    readonly property var powerText: ({
-        on: { title: "Power on %1?", verb: "Power On", icon: "system-run",
-              text: "The server is switched on if it is off." },
-        soft: { title: "Shut down %1?", verb: "Shut Down", icon: "system-shutdown",
-                text: "The operating system is asked to shut down (ACPI power button)." },
-        reset: { title: "Reset %1?", verb: "Reset", icon: "system-reboot",
-                 text: "The server restarts immediately. Unsaved data in the operating system is lost." },
-        off: { title: "Power off %1 immediately?", verb: "Power Off", icon: "process-stop",
-               text: "Power is cut immediately, like pulling the plug. Unsaved data is lost and file systems may need repair." }
-    })
-    AppDialog {
+    // The console pane's power requests.
+    PowerDialog {
         id: powerDialog
         objectName: "powerDialog"
-        readonly property var info: window.powerText[window.pendingPower] || ({title: "%1", verb: "OK", icon: "system-shutdown", text: ""})
-        readonly property var target: window.powerProfile.host ? window.powerProfile : controller.activeProfile
-        readonly property bool destructive: window.pendingPower === "reset" || window.pendingPower === "off"
-        title: info.title.arg(target.name || target.host || "the server")
-        iconName: info.icon
-        tone: destructive ? Theme.negative : window.pendingPower === "soft" ? Theme.warning : Theme.accent
-        closeButton: false
-        QQC2.Label {
-            text: powerDialog.info.text
-            color: Theme.cardText
-            wrapMode: Text.Wrap
-            Layout.fillWidth: true
-        }
-        MonoCaption {
-            text: "BMC " + (powerDialog.target.host || "")
-        }
-        buttons: [
-            ActionButton { tone: "ghost"; text: "Cancel"; onClicked: powerDialog.close() },
-            ActionButton {
-                tone: powerDialog.destructive ? "danger" : "primary"
-                text: powerDialog.info.verb
-                // Breeze draws some of these icons red, which vanishes on the red button.
-                icon.name: powerDialog.destructive ? "" : powerDialog.info.icon
-                onClicked: { powerDialog.close(); controller.powerFor(window.powerProfile.id || "", window.pendingPower) }
-            }
-        ]
     }
 
-    AppDialog {
+    ConfirmDialog {
         id: deleteDialog
         objectName: "deleteDialog"
         property var profile: ({})
         title: "Delete “" + (profile.name || profile.host || "") + "”?"
         iconName: "edit-delete"
         tone: Theme.negative
-        closeButton: false
-        QQC2.Label {
-            text: "The connection is removed" + (deleteDialog.profile.remember ? " together with its password in KWallet." : ".") + " This cannot be undone."
-            color: Theme.cardText
-            wrapMode: Text.Wrap
-            Layout.fillWidth: true
+        consequence: "The connection is removed" + (deleteDialog.profile.remember ? " together with its password in KWallet." : ".") + " This cannot be undone."
+        detail: deleteDialog.profile.host || ""
+        verb: "Delete"
+        verbTone: "danger"
+        onConfirmed: {
+            const id = deleteDialog.profile.id;
+            if (controller.removeHost(id) && window.selectedId === id)
+                window.selectedId = controller.hosts.length ? controller.hosts[0].id : "";
         }
-        MonoCaption {
-            text: deleteDialog.profile.host || ""
-        }
-        buttons: [
-            ActionButton { tone: "ghost"; text: "Cancel"; onClicked: deleteDialog.close() },
-            ActionButton {
-                tone: "danger"
-                text: "Delete"
-                onClicked: {
-                    const id = deleteDialog.profile.id;
-                    deleteDialog.close();
-                    if (controller.removeHost(id) && window.selectedId === id)
-                        window.selectedId = controller.hosts.length ? controller.hosts[0].id : "";
-                }
-            }
-        ]
     }
 
     // Disconnect all with several consoles open. Confirming closes exactly the
