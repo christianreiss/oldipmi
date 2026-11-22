@@ -265,12 +265,6 @@ ColumnLayout {
     // In order of importance: what does not fit moves to the overflow menu from the end.
     readonly property list<Kirigami.Action> connectedActions: [sendKeyAction, powerAction, mediaAction, copyAction, fitAction, fullscreenAction, infoAction]
 
-    // An icon button of the full-screen bar; it keeps its size when the bar is short of room.
-    component BarButton: IconButton {
-        onStage: true
-        Layout.minimumWidth: implicitWidth
-    }
-
     // In a narrow pane the information floats over the console instead of
     // squeezing it.
     readonly property bool infoDocked: width >= Theme.gu * 40
@@ -363,151 +357,29 @@ ColumnLayout {
                         target: root
                         function onFullscreenChanged() { if (root.fullscreen) peek.restart() }
                     }
-                    Rectangle {
+                    FullscreenBar {
                         id: fsBar
                         objectName: "fullscreenBar"
-                        // A small screen with large text: the family picture goes,
-                        // Release and Take control lose their icon, Disconnect shows only
-                        // its icon, and the bar starts at the left edge instead of the
-                        // centre, so the name keeps more room.
-                        readonly property bool narrow: parent.width < Theme.gu * 34
-                        readonly property int edge: Math.round(Theme.gu * 0.8)
-                        // Never wider than the screen, leaving room for Quit in the corner
-                        // (and, while centred, its mirror image): the name gives way first.
-                        readonly property real room: narrow ? parent.width - fsQuit.width - 3 * edge - 12
-                                                            : parent.width - 2 * fsQuit.clearance
-                        // A focused button never disappears under the keyboard.
-                        readonly property bool focused: {
-                            for (var item = Window.activeFocusItem; item; item = item.parent)
-                                if (item === fsBar || item === fsQuit)
-                                    return true
-                            return false
-                        }
-                        readonly property bool revealed: (screenHover.hovered && screenHover.point.position.y < Theme.gu * 0.8)
-                                                         || barHover.hovered || keysMenu.visible || powerMenu.visible || peek.running || focused
-                        visible: root.fullscreen && opacity > 0
-                        opacity: root.fullscreen && revealed ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Kirigami.Units.shortDuration } }
-                        x: narrow ? edge : Math.round((parent.width - width) / 2)
-                        y: edge
                         z: 5
-                        width: Math.min(barRow.implicitWidth, room) + 12
-                        height: barRow.implicitHeight + 12
-                        radius: Theme.radiusLarge
-                        color: Theme.alpha(Theme.stagePopup, 0.95)
-                        border.width: 1
-                        border.color: Theme.stageLine
-                        HoverHandler { id: barHover }
-                        RowLayout {
-                            id: barRow
-                            anchors { fill: parent; margins: 6 }
-                            spacing: 4
-                            FamilyImage {
-                                visible: !fsBar.narrow
-                                Layout.leftMargin: 4
-                                family: root.shown.family
-                                side: Math.round(Theme.gu * 1.35)
-                            }
-                            QQC2.Label {
-                                text: root.displayName
-                                color: Theme.stageText
-                                font.weight: Font.DemiBold
-                                elide: Text.ElideRight
-                                Layout.fillWidth: true
-                                Layout.maximumWidth: Math.min(Math.ceil(implicitWidth), Theme.gu * 12)
-                                Layout.leftMargin: fsBar.narrow ? 6 : 0
-                                Layout.rightMargin: 4
-                            }
-                            Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: Theme.gu * 1.1; color: Theme.stageEdge }
-                            // While captured, the way back for anyone who turned off the
-                            // Right Ctrl release. It does not take the focus itself, so the
-                            // press does not release before the click.
-                            ActionButton {
-                                visible: view.captured
-                                onStage: true
-                                tone: "secondary"
-                                text: "Release"
-                                icon.name: fsBar.narrow ? "" : "input-mouse"
-                                focusPolicy: Qt.NoFocus // slop-ok: shown only while captured, when every key goes to the server; the keyboard releases with Right Ctrl
-                                Layout.minimumWidth: implicitWidth
-                                onClicked: view.release()
-                            }
-                            // Released, the keyboard way back to the server once the focus
-                            // is in the bar (a Right Ctrl tap takes control only while
-                            // nothing has the keyboard focus).
-                            ActionButton {
-                                objectName: "fullscreenTakeControl"
-                                visible: !view.captured
-                                onStage: true
-                                tone: "secondary"
-                                text: "Take control"
-                                icon.name: fsBar.narrow ? "" : "input-mouse"
-                                Layout.minimumWidth: implicitWidth
-                                Accessible.description: settings.rightCtrlReleases ? "" : root.mouseOnlyRelease
-                                QQC2.ToolTip.visible: visualFocus && !settings.rightCtrlReleases
-                                QQC2.ToolTip.text: root.mouseOnlyRelease
-                                Keys.onReturnPressed: clicked()
-                                Keys.onEnterPressed: clicked()
-                                onClicked: view.capture()
-                            }
-                            BarButton {
-                                id: keysButton
-                                objectName: "fullscreenKeys"
-                                icon.name: sendKeyAction.icon.name
-                                text: sendKeyAction.text
-                                checked: keysMenu.visible
-                                onClicked: keysMenu.popup(keysButton, 0, keysButton.height + 4)
-                            }
-                            BarButton {
-                                visible: mediaAction.visible
-                                icon.name: mediaAction.icon.name
-                                text: mediaAction.text
-                                onClicked: mediaAction.trigger()
-                            }
-                            BarButton {
-                                id: powerButton
-                                icon.name: powerAction.icon.name
-                                text: powerAction.text
-                                checked: powerMenu.visible
-                                onClicked: powerMenu.popup(powerButton, 0, powerButton.height + 4)
-                            }
-                            Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: Theme.gu * 1.1; color: Theme.stageEdge }
-                            // Gives way in a narrow bar, so the name stays; Ctrl+Shift+C still copies.
-                            BarButton {
-                                visible: !fsBar.narrow
-                                icon.name: copyAction.icon.name
-                                text: copyAction.text
-                                shortcut: Shortcuts.copyScreen
-                                onClicked: copyAction.trigger()
-                            }
-                            BarButton {
-                                icon.name: fitAction.icon.name
-                                text: fitAction.text
-                                onClicked: fitAction.trigger()
-                            }
-                            BarButton {
-                                icon.name: fullscreenAction.icon.name
-                                text: fullscreenAction.text
-                                shortcut: Shortcuts.fullScreen
-                                onClicked: fullscreenAction.trigger()
-                            }
-                            ActionButton {
-                                visible: !fsBar.narrow
-                                onStage: true
-                                tone: "secondary"
-                                text: disconnectAction.text
-                                icon.name: disconnectAction.icon.name
-                                Layout.leftMargin: 4
-                                Layout.minimumWidth: implicitWidth
-                                onClicked: disconnectAction.trigger()
-                            }
-                            BarButton {
-                                visible: fsBar.narrow
-                                icon.name: disconnectAction.icon.name
-                                text: disconnectAction.text
-                                onClicked: disconnectAction.trigger()
-                            }
-                        }
+                        fullscreen: root.fullscreen
+                        captured: view.captured
+                        displayName: root.displayName
+                        family: root.shown.family
+                        mouseOnlyRelease: root.mouseOnlyRelease
+                        pointerAtTop: screenHover.hovered && screenHover.point.position.y < Theme.gu * 0.8
+                        peeking: peek.running
+                        quitItem: fsQuit
+                        keysMenu: keysMenu
+                        powerMenu: powerMenu
+                        sendKeyAction: sendKeyAction
+                        mediaAction: mediaAction
+                        powerAction: powerAction
+                        copyAction: copyAction
+                        fitAction: fitAction
+                        fullscreenAction: fullscreenAction
+                        disconnectAction: disconnectAction
+                        onCaptureRequested: view.capture()
+                        onReleaseRequested: view.release()
                     }
                     // Quit stays in the corner for the whole time in full screen, also
                     // while the bar is hidden.
