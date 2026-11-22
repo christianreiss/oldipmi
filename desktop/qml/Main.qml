@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.kirigamiaddons.settings as KirigamiSettings
@@ -259,170 +258,47 @@ Kirigami.ApplicationWindow {
 
     // Disconnect all with several consoles open. Confirming closes exactly the
     // sessions it names, also when an agent opens another console meanwhile.
-    AppDialog {
+    DisconnectAllDialog {
         id: disconnectAllDialog
         objectName: "disconnectAllDialog"
-        property var consoles: []
-        // Also asks before quitting, which closes them all the same way.
-        property bool quitting: false
-        title: (quitting ? "Quit and disconnect " : "Disconnect all ") + consoles.length
-               + (consoles.length === 1 ? " console?" : " consoles?")
-        iconName: quitting ? "application-exit" : "network-disconnect"
-        tone: Theme.warning
-        closeButton: false
-        QQC2.Label {
-            text: "Their remote consoles close. The servers keep running, and the connections stay in the list."
-            color: Theme.cardText
-            wrapMode: Text.Wrap
-            Layout.fillWidth: true
-        }
-        Repeater {
-            model: disconnectAllDialog.consoles
-            delegate: RowLayout {
-                id: openRow
-                required property var modelData
-                spacing: Kirigami.Units.largeSpacing
-                Layout.fillWidth: true
-                QQC2.Label {
-                    text: openRow.modelData.name || openRow.modelData.host || ""
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                    Layout.maximumWidth: Math.ceil(implicitWidth)
+        onConfirmed: {
+            if (disconnectAllDialog.quitting) {
+                // Quits only with the consoles it named: one opened meanwhile is named first.
+                const open = window.openConsoles();
+                const named = c => disconnectAllDialog.consoles.some(o => o.id === c.id && o.startedAt === c.startedAt);
+                if (!open.every(named)) {
+                    disconnectAllDialog.consoles = open;
+                    return;
                 }
-                MonoCaption {
-                    text: openRow.modelData.host || ""
-                }
+                disconnectAllDialog.close();
+                window.quitApp();
+                return;
+            }
+            disconnectAllDialog.close();
+            for (const c of disconnectAllDialog.consoles) {
+                const s = controller.sessions[c.id];
+                if (s && s.startedAt === c.startedAt && controller.isOpen(c.id))
+                    controller.disconnectProfile(c.id);
             }
         }
-        buttons: [
-            ActionButton { tone: "ghost"; text: "Cancel"; onClicked: disconnectAllDialog.close() },
-            ActionButton {
-                objectName: "disconnectAllConfirm"
-                tone: "primary"
-                text: disconnectAllDialog.quitting ? "Quit" : "Disconnect all"
-                onClicked: {
-                    if (disconnectAllDialog.quitting) {
-                        // Quits only with the consoles it named: one opened meanwhile is named first.
-                        const open = window.openConsoles();
-                        const named = c => disconnectAllDialog.consoles.some(o => o.id === c.id && o.startedAt === c.startedAt);
-                        if (!open.every(named)) {
-                            disconnectAllDialog.consoles = open;
-                            return;
-                        }
-                        disconnectAllDialog.close();
-                        window.quitApp();
-                        return;
-                    }
-                    disconnectAllDialog.close();
-                    for (const c of disconnectAllDialog.consoles) {
-                        const s = controller.sessions[c.id];
-                        if (s && s.startedAt === c.startedAt && controller.isOpen(c.id))
-                            controller.disconnectProfile(c.id);
-                    }
-                }
-            }
-        ]
     }
 
     // Password prompt for a connection without a saved password.
-    AppDialog {
+    CredentialsDialog {
         id: credentialsDialog
         objectName: "credentialsDialog"
-        property var profile: ({})
-        title: "Password for " + (profile.name || profile.host || "")
-        iconName: "dialog-password"
-        preferredWidth: Math.round(Theme.gu * 23)
-        MonoCaption {
-            text: (credentialsDialog.profile.username || "") + "@" + (credentialsDialog.profile.host || "")
-        }
-        FormPasswordField {
-            id: credentialsPassword
-            Accessible.name: "Password"
-            onAccepted: if (text !== "") credentialsDialog.accept()
-        }
-        QQC2.CheckBox {
-            id: credentialsRemember
-            text: "Remember in KWallet"
-        }
-        buttons: [
-            ActionButton { tone: "ghost"; text: "Cancel"; onClicked: credentialsDialog.reject() },
-            ActionButton {
-                tone: "primary"
-                text: "Connect"
-                icon.name: "media-playback-start"
-                enabled: credentialsPassword.text !== ""
-                onClicked: credentialsDialog.accept()
-            }
-        ]
-        onOpened: credentialsPassword.forceActiveFocus()
-        onAccepted: {
-            const p = Object.assign({}, credentialsDialog.profile, {remember: credentialsRemember.checked});
-            const pw = credentialsPassword.text;
-            credentialsPassword.text = "";
-            controller.connectHost(p, pw);
-        }
-        onRejected: { credentialsPassword.text = ""; controller.cancelCredentials() }
     }
 
-    AppDialog {
+    WalletDialog {
         id: walletDialog
         objectName: "walletDialog"
-        title: "Password not saved"
-        iconName: "dialog-warning"
-        tone: Theme.warning
-        closeButton: false
-        QQC2.Label {
-            text: controller.message
-            visible: text !== ""
-            color: Theme.cardText
-            wrapMode: Text.Wrap
-            Layout.fillWidth: true
-        }
-        QQC2.Label {
-            text: "You can still connect; the password is then used for this session only."
-            color: Theme.cardText
-            wrapMode: Text.Wrap
-            Layout.fillWidth: true
-        }
-        buttons: [
-            ActionButton { tone: "ghost"; text: "Cancel"; onClicked: { walletDialog.close(); controller.cancelCredentials() } },
-            ActionButton {
-                tone: "primary"
-                text: "Connect without saving"
-                icon.name: "media-playback-start"
-                onClicked: { walletDialog.close(); controller.continueWithoutWallet() }
-            }
-        ]
     }
 
-    AppDialog {
+    McpInstructionsDialog {
         id: mcpDialog
         objectName: "mcpDialog"
-        title: "Instructions for AI agents"
         preferredWidth: Math.min(window.width - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 40)
         preferredHeight: Math.min(window.height - Kirigami.Units.gridUnit * 4, Kirigami.Units.gridUnit * 34)
-        QQC2.TextArea {
-            id: mcpText
-            readOnly: true
-            wrapMode: TextEdit.Wrap
-            selectByMouse: true
-            textFormat: TextEdit.MarkdownText
-            text: agent.mcpInstructions()
-            color: Theme.text
-            background: null
-            padding: 0
-            Layout.fillWidth: true
-        }
-        buttons: [
-            ActionButton {
-                tone: "secondary"
-                text: "Copy instructions"
-                icon.name: "edit-copy"
-                onClicked: { mcpText.selectAll(); mcpText.copy(); mcpText.deselect(); window.showPassiveNotification("Instructions copied") }
-            },
-            ActionButton { tone: "primary"; text: "Close"; onClicked: mcpDialog.close() }
-        ]
     }
 
     Connections {
@@ -430,7 +306,7 @@ Kirigami.ApplicationWindow {
         function onProfileActivated(profile) { window.selectedId = profile.id }
         function onPasswordRequired() {
             credentialsDialog.profile = controller.pendingProfile();
-            credentialsRemember.checked = credentialsDialog.profile.remember === undefined
+            credentialsDialog.remember = credentialsDialog.profile.remember === undefined
                 ? settings.rememberPasswords : !!credentialsDialog.profile.remember;
             credentialsDialog.open();
         }
