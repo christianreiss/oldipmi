@@ -17,8 +17,6 @@ AppDialog {
     readonly property bool openNow: editing && Stages.isOpen(controller.sessions, original.id)
     // The chosen family's tile; -1 keeps a stored family this version does not know.
     property int familyIndex: 0
-    property string certPath: ""
-    property string keyPath: ""
     property bool showAdvanced: false
     property string error: ""
     signal saved(var profile)
@@ -78,16 +76,17 @@ AppDialog {
         userField.text = p.username || "";
         passwordField.text = "";
         rememberSwitch.checked = p.remember === undefined ? settings.rememberPasswords : !!p.remember;
-        modeBox.currentIndex = Math.max(0, ["auto", "java", "html5"].indexOf(p.consoleMode || "auto"));
-        httpSwitch.checked = !!p.http;
-        tlsSwitch.checked = !!p.legacyTLS;
-        plainSwitch.checked = !!p.allowPlainConsole;
-        jnlpField.text = p.jnlpPath || "";
-        certPath = p.clientCert || "";
-        keyPath = p.clientKey || "";
+        advancedSection.modeIndex = Math.max(0, advancedSection.modes.findIndex(m => m.id === (p.consoleMode || "auto")));
+        advancedSection.http = !!p.http;
+        advancedSection.legacyTLS = !!p.legacyTLS;
+        advancedSection.plainConsole = !!p.allowPlainConsole;
+        advancedSection.jnlpPath = p.jnlpPath || "";
+        advancedSection.certPath = p.clientCert || "";
+        advancedSection.keyPath = p.clientKey || "";
         error = "";
         revealPending = false;
-        showAdvanced = httpSwitch.checked || tlsSwitch.checked || plainSwitch.checked || !!jnlpField.text || !!certPath || modeBox.currentIndex > 0;
+        showAdvanced = advancedSection.http || advancedSection.legacyTLS || advancedSection.plainConsole
+                       || !!advancedSection.jnlpPath || !!advancedSection.certPath || advancedSection.modeIndex > 0;
         open();
         (editing || hostField.text !== "" ? nameField : hostField).forceActiveFocus();
     }
@@ -106,17 +105,17 @@ AppDialog {
         p.family = family;
         p.username = account ? userField.text : "";
         p.remember = rememberSwitch.checked;
-        p.http = httpSwitch.checked;
-        p.legacyTLS = tlsSwitch.checked;
-        p.allowPlainConsole = plainSwitch.checked;
+        p.http = advancedSection.http;
+        p.legacyTLS = advancedSection.legacyTLS;
+        p.allowPlainConsole = advancedSection.plainConsole;
         // A family this version knows says which console options apply; an
         // unknown one keeps its stored options.
         if (familyIndex >= 0) {
-            p.consoleMode = Families.offers(family, "consoleMode") ? ["auto", "java", "html5"][modeBox.currentIndex] : "auto";
-            p.jnlpPath = Families.offers(family, "jnlp") ? jnlpField.text.trim() : "";
+            p.consoleMode = Families.offers(family, "consoleMode") ? advancedSection.modes[advancedSection.modeIndex].id : "auto";
+            p.jnlpPath = Families.offers(family, "jnlp") ? advancedSection.jnlpPath.trim() : "";
         }
-        p.clientCert = certPath;
-        p.clientKey = keyPath;
+        p.clientCert = advancedSection.certPath;
+        p.clientKey = advancedSection.keyPath;
         return p;
     }
     function save(andConnect) {
@@ -303,123 +302,10 @@ AppDialog {
         }
     }
 
-    ColumnLayout {
+    AdvancedOptions {
         id: advancedSection
         visible: dialog.showAdvanced
-        spacing: Math.round(Theme.gu * 0.9)
-        Layout.fillWidth: true
+        family: dialog.family
         onHeightChanged: dialog.tryReveal()
-
-        ColumnLayout {
-            visible: Families.offers(dialog.family, "consoleMode") || Families.offers(dialog.family, "jnlp")
-            spacing: Kirigami.Units.largeSpacing
-            Layout.fillWidth: true
-            Caption { text: "CONSOLE"; Layout.fillWidth: true }
-            RowLayout {
-                visible: Families.offers(dialog.family, "consoleMode")
-                spacing: Kirigami.Units.largeSpacing
-                Layout.fillWidth: true
-                ColumnLayout {
-                    spacing: 1
-                    Layout.fillWidth: true
-                    QQC2.Label { text: "Console mode"; font.weight: Font.DemiBold }
-                    QQC2.Label {
-                        text: ["Use the Java iKVM protocol when the firmware offers it, otherwise the HTML5 console.",
-                               "Always use the Java iKVM protocol (virtual media available).",
-                               "Always use the HTML5 console (no virtual media)."][Math.max(0, modeBox.currentIndex)]
-                        font.pointSize: Theme.small
-                        color: Theme.muted
-                        wrapMode: Text.Wrap
-                        Layout.fillWidth: true
-                    }
-                }
-                QQC2.ComboBox {
-                    id: modeBox
-                    model: ["Automatic", "Java iKVM", "HTML5"]
-                    Accessible.name: "Console mode"
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-            LabeledField {
-                visible: Families.offers(dialog.family, "jnlp")
-                label: "JNLP endpoint override"
-                FormField {
-                    id: jnlpField
-                    placeholderText: "Automatic"
-                    font.family: Theme.mono.family
-                    Accessible.name: "JNLP endpoint override"
-                }
-            }
-        }
-
-        ColumnLayout {
-            spacing: Kirigami.Units.largeSpacing
-            Layout.fillWidth: true
-            Caption { text: "SECURITY EXCEPTIONS FOR THIS HOST"; Layout.fillWidth: true }
-            SwitchRow {
-                id: httpSwitch
-                title: "Log in over plain HTTP"
-                description: "Sends the password unencrypted. Only for BMCs without working HTTPS."
-            }
-            SwitchRow {
-                id: tlsSwitch
-                title: "Accept legacy or unverified TLS"
-                description: "Allows TLS 1.0 and obsolete ciphers, and skips checking the BMC's certificate and name."
-            }
-            SwitchRow {
-                id: plainSwitch
-                title: "Allow unencrypted console and media"
-                description: "Keystrokes and screen content travel in clear text."
-            }
-            NoticeBox {
-                visible: httpSwitch.checked || tlsSwitch.checked || plainSwitch.checked
-                text: "Security exceptions are enabled for this host. Use them only on a trusted management network."
-            }
-        }
-
-        ColumnLayout {
-            visible: Families.offers(dialog.family, "clientCertificate")
-            spacing: Kirigami.Units.largeSpacing
-            Layout.fillWidth: true
-            Caption { text: "CLIENT CERTIFICATE (MUTUAL TLS)"; Layout.fillWidth: true }
-            Repeater {
-                model: [{label: "Certificate", key: false}, {label: "Private key", key: true}]
-                delegate: RowLayout {
-                    id: certRow
-                    required property var modelData
-                    readonly property string path: modelData.key ? dialog.keyPath : dialog.certPath
-                    spacing: Kirigami.Units.largeSpacing
-                    Layout.fillWidth: true
-                    ColumnLayout {
-                        spacing: 1
-                        Layout.fillWidth: true
-                        QQC2.Label { text: certRow.modelData.label; font.weight: Font.DemiBold }
-                        QQC2.Label {
-                            text: certRow.path || "None"
-                            font.family: certRow.path ? Theme.mono.family : Kirigami.Theme.defaultFont.family
-                            font.pointSize: Theme.small
-                            color: Theme.muted
-                            elide: Text.ElideMiddle
-                            Layout.fillWidth: true
-                        }
-                    }
-                    ActionButton {
-                        tone: "secondary"
-                        text: "Choose…"
-                        onClicked: {
-                            const f = controller.chooseCertificate(certRow.modelData.key);
-                            if (!f) return;
-                            if (certRow.modelData.key) dialog.keyPath = f; else dialog.certPath = f;
-                        }
-                    }
-                    IconButton {
-                        icon.name: "edit-clear"
-                        text: "Clear " + certRow.modelData.label.toLowerCase()
-                        visible: !!certRow.path
-                        onClicked: if (certRow.modelData.key) dialog.keyPath = ""; else dialog.certPath = ""
-                    }
-                }
-            }
-        }
     }
 }
