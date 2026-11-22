@@ -25,6 +25,11 @@
   buttons it pressed.
 
 ### Fixed
+* **The toolbar keeps its labels while the information panel is docked.** In
+  a narrow window the console's toolbar shows only icons, and the information
+  panel floats over the console instead of standing beside it. In a pane of
+  exactly the width where that starts, the toolbar already showed only icons
+  while the panel was still docked; both now change at the same width.
 * **The setting to scale the remote screen works after the fit button.** Once
   the button that switches the console between fitting the window and its
   actual size had been used, the switch "Scale the remote screen to the

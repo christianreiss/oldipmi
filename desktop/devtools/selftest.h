@@ -44,6 +44,11 @@ QString unknownFamilyFails(QQuickWindow *w);
 // follows that setting, also when it changes in Settings after the button was
 // used. The setting is as before afterwards. Returns what failed, or "".
 QString fitFails(QQuickWindow *w, Console *console, AppSettings &settings);
+// The toolbar shows icons only exactly where the information panel floats: in
+// the narrowest window in which the panel docks, the toolbar has its labels, and
+// one pixel narrower it has none. The window is as large as before afterwards.
+// Returns what failed, or "".
+QString narrowFails(QQuickWindow *w);
 // --self-test: 600 ms after the start, checks that the window renders and runs
 // the checks above, then makes the application exit with the first failure, or
 // with qmlWarningsResult() when they all pass.

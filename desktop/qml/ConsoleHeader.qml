@@ -28,8 +28,10 @@ Item {
     visible: !header.immersive
     Layout.fillWidth: true
     Layout.preferredHeight: visible ? Math.max(Theme.headerHeight, headerRow.implicitHeight + Kirigami.Units.largeSpacing) : 0
-    // Labels give way to icons, then the title gives way, before anything overflows.
-    readonly property bool roomy: width > Theme.gu * 40
+    // Labels give way to icons, then the title gives way, before anything
+    // overflows. Icons only below 40 gu, where the information panel floats
+    // (ConsolePane's infoDocked); the header is as wide as the pane.
+    readonly property bool roomy: width >= Theme.gu * 40
 
     RowLayout {
         id: headerRow

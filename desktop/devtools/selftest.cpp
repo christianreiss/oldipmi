@@ -293,6 +293,42 @@ QString fitFails(QQuickWindow *w, Console *console, AppSettings &settings) {
   settings.setFitToWindow(before);
   return why;
 }
+QString narrowFails(QQuickWindow *w) {
+  auto *pane = w->findChild<QQuickItem *>("consolePane");
+  auto *header = w->findChild<QQuickItem *>("consoleHeader");
+  if (!pane || !header)
+    return "no console pane or header";
+  const QSize before = w->size();
+  // Whether the information panel docks in a window that wide.
+  auto docks = [&](int width) {
+    w->resize(width, before.height());
+    // The window takes the size at once, its contents with the resize event.
+    waitFor(w, [&] { return w->contentItem()->width() == width; }, 1000);
+    w->grabWindow(); // polishes the layouts
+    return pane->property("infoDocked").toBool();
+  };
+  int narrow = w->minimumWidth(), wide = before.width();
+  QString why;
+  if (docks(narrow) || !docks(wide))
+    why = QString("the information panel does not start to dock between %1 and %2 px").arg(narrow).arg(wide);
+  while (why.isEmpty() && wide - narrow > 1) {
+    const int mid = (narrow + wide) / 2;
+    (docks(mid) ? wide : narrow) = mid;
+  }
+  for (int width : {narrow, wide}) {
+    if (!why.isEmpty())
+      break;
+    const bool docked = docks(width);
+    if (header->width() != pane->width())
+      why = QString("the header is %1 px wide, the pane %2").arg(header->width()).arg(pane->width());
+    else if (header->property("roomy").toBool() != docked)
+      why = QString("in a %1 px wide pane the information panel %2, but the toolbar shows %3")
+                .arg(pane->width()).arg(docked ? "docks" : "floats").arg(docked ? "icons only" : "labels");
+  }
+  w->resize(before);
+  waitFor(w, [&] { return w->contentItem()->size() == QSizeF(before); }, 1000);
+  return why;
+}
 void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *console, Controller &controller,
                    AppSettings &settings) {
   QTimer::singleShot(600, &app, [&app, &engine, console, &controller, &settings] {
@@ -316,6 +352,9 @@ void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *co
       app.exit(code(ExitCode::CheckFailed));
     } else if (QString why = fitFails(w, console, settings); !why.isEmpty()) {
       fprintf(stderr, "Fit: %s\n", qPrintable(why));
+      app.exit(code(ExitCode::CheckFailed));
+    } else if (QString why = narrowFails(w); !why.isEmpty()) {
+      fprintf(stderr, "Narrow window: %s\n", qPrintable(why));
       app.exit(code(ExitCode::CheckFailed));
     } else {
       QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");

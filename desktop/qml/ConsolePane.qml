@@ -56,6 +56,7 @@ ColumnLayout {
     // ── Header: what is shown, and what can be done with it ────────────────
     ConsoleHeader {
         id: header
+        objectName: "consoleHeader"
         mode: root.mode
         shown: root.shown
         displayName: root.displayName
