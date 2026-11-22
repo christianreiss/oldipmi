@@ -161,8 +161,7 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 		go transport.Keepalive(runctx, keepaliveEvery, func() error { return c.send(c.wire, opKeepAlive, nil) },
 			func(e error) { keepaliveFailed <- e; c.wire.Close() })
 	}
-	var fragments []byte
-	next := 0
+	var frame assembler
 	modern := ast.New()
 	legacy := legacyDecoder{}
 	for {
@@ -192,24 +191,11 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 		if t != video {
 			continue
 		}
-		if len(b) < 2 {
-			return fmt.Errorf("short AMI fragment")
+		fragments, done, e := frame.add(b)
+		if e != nil {
+			return e
 		}
-		seq := int(binary.LittleEndian.Uint16(b))
-		idx := seq & 0x7fff
-		if idx == 0 {
-			fragments = nil
-			next = 0
-		}
-		if idx != next {
-			return fmt.Errorf("AMI video fragment sequence mismatch")
-		}
-		next++
-		if len(fragments)+len(b)-2 > protocol.MaxPayload {
-			return fmt.Errorf("AMI frame exceeds limit")
-		}
-		fragments = append(fragments, b[2:]...)
-		if seq&0x8000 != 0 {
+		if done {
 			var f protocol.Frame
 			if c.launch.Legacy {
 				f, e = legacy.Decode(fragments)
@@ -223,9 +209,42 @@ func (c *Client) Run(ctx context.Context, onFrame func(protocol.Frame)) error {
 			c.width, c.height = f.Width, f.Height
 			c.mu.Unlock()
 			onFrame(f)
-			fragments = nil
 		}
 	}
+}
+
+// assembler joins the fragments of a video frame. Each starts with its index;
+// bit 15 marks the last.
+type assembler struct {
+	buf  []byte
+	next int
+}
+
+// add takes a fragment, and returns the frame when it was the last one.
+func (a *assembler) add(b []byte) ([]byte, bool, error) {
+	if len(b) < 2 {
+		return nil, false, fmt.Errorf("short AMI fragment")
+	}
+	seq := int(binary.LittleEndian.Uint16(b))
+	idx := seq & 0x7fff
+	if idx == 0 {
+		a.buf = nil
+		a.next = 0
+	}
+	if idx != a.next {
+		return nil, false, fmt.Errorf("AMI video fragment sequence mismatch")
+	}
+	a.next++
+	if len(a.buf)+len(b)-2 > protocol.MaxPayload {
+		return nil, false, fmt.Errorf("AMI frame exceeds limit")
+	}
+	a.buf = append(a.buf, b[2:]...)
+	if seq&0x8000 == 0 {
+		return nil, false, nil
+	}
+	f := a.buf
+	a.buf = nil
+	return f, true, nil
 }
 func (c *Client) hidPacket(device, proto, iface byte, report []byte) error {
 	c.seq++
