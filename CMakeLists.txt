@@ -39,8 +39,19 @@ qt_add_executable(oldipmi desktop/main.cpp desktop/app/application.cpp desktop/a
 target_compile_definitions(oldipmi PRIVATE OLDIPMI_VERSION="${PROJECT_VERSION}" OLDIPMI_APP_ID="${OLDIPMI_APP_ID}")
 # One instruction text for the GUI button and the MCP server's initialize reply.
 configure_file(internal/mcp/instructions.md ${CMAKE_BINARY_DIR}/mcp_instructions.md COPYONLY)
-file(GLOB QML_FILES CONFIGURE_DEPENDS RELATIVE ${CMAKE_SOURCE_DIR} desktop/qml/*.qml desktop/qml/*.js desktop/qml/qmldir)
-qt_add_resources(oldipmi qml PREFIX "/" FILES ${QML_FILES})
+# The QML is the module OldIPMI, compiled in at qrc:/qt/qml/OldIPMI/ (the
+# default import path): each file under its own name, next to the module's
+# generated qmldir. Theme and Ui are its singletons. Qt and Kirigami are shared
+# libraries here: there are no static QML plugins to find and link
+# (NO_IMPORT_SCAN).
+qt_policy(SET QTP0001 NEW)
+file(GLOB QML_FILES CONFIGURE_DEPENDS RELATIVE ${CMAKE_SOURCE_DIR} desktop/qml/*.qml desktop/qml/*.js)
+foreach(qml_file ${QML_FILES})
+  get_filename_component(qml_name ${qml_file} NAME)
+  set_source_files_properties(${qml_file} PROPERTIES QT_RESOURCE_ALIAS ${qml_name})
+endforeach()
+set_source_files_properties(desktop/qml/Theme.qml desktop/qml/Ui.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+qt_add_qml_module(oldipmi URI OldIPMI VERSION 1.0 NO_CACHEGEN NO_IMPORT_SCAN QML_FILES ${QML_FILES})
 qt_add_resources(oldipmi icon PREFIX "/" BASE packaging FILES packaging/oldipmi.svg)
 file(GLOB IMAGE_FILES CONFIGURE_DEPENDS RELATIVE ${CMAKE_SOURCE_DIR} desktop/images/*.png)
 qt_add_resources(oldipmi images PREFIX "/" BASE desktop FILES ${IMAGE_FILES})

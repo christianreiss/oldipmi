@@ -44,7 +44,7 @@ void Application::applyAgentSetting() {
 }
 
 ExitCode Application::load() {
-  const QUrl mainQml("qrc:/desktop/qml/Main.qml");
+  const QUrl mainQml("qrc:/qt/qml/OldIPMI/Main.qml");
   devtools::setQmlRoot(mainQml.adjusted(QUrl::RemoveFilename).toString());
   m_engine.load(mainQml);
   if (m_engine.rootObjects().isEmpty())
