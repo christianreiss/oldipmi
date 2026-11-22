@@ -44,13 +44,14 @@ target_compile_definitions(oldipmi PRIVATE OLDIPMI_VERSION="${PROJECT_VERSION}" 
 target_include_directories(oldipmi PRIVATE ${CMAKE_SOURCE_DIR}/desktop/app)
 # One instruction text for the GUI button and the MCP server's initialize reply.
 configure_file(internal/mcp/instructions.md ${CMAKE_BINARY_DIR}/mcp_instructions.md COPYONLY)
-# The QML is the module OldIPMI, compiled in at qrc:/qt/qml/OldIPMI/ (the
-# default import path): each file under its own name, next to the module's
-# generated qmldir. Theme and Ui are its QML singletons. Its C++ types are
-# declared in desktop/app/qmltypes.h: ConsoleView and FrameThumbnail, which
-# are QtQuick items, and the singletons Controller, AppSettings, AgentApi,
-# Launch and FamilyTable. Qt and Kirigami are shared libraries here: there
-# are no static QML plugins to find and link (NO_IMPORT_SCAN).
+# The QML is the module OldIPMI, compiled ahead of time by qmlcachegen and
+# built in at qrc:/qt/qml/OldIPMI/ (the default import path): each file under
+# its own name, next to the module's generated qmldir. Theme and Ui are its QML
+# singletons. Its C++ types are declared in desktop/app/qmltypes.h: ConsoleView
+# and FrameThumbnail, which are QtQuick items, and the singletons Controller,
+# AppSettings, AgentApi, Launch and FamilyTable. Qt and Kirigami are shared
+# libraries here: there are no static QML plugins to find and link
+# (NO_IMPORT_SCAN).
 qt_policy(SET QTP0001 NEW)
 file(GLOB QML_FILES CONFIGURE_DEPENDS RELATIVE ${CMAKE_SOURCE_DIR} desktop/qml/*.qml desktop/qml/*.js)
 foreach(qml_file ${QML_FILES})
@@ -58,7 +59,7 @@ foreach(qml_file ${QML_FILES})
   set_source_files_properties(${qml_file} PROPERTIES QT_RESOURCE_ALIAS ${qml_name})
 endforeach()
 set_source_files_properties(desktop/qml/Theme.qml desktop/qml/Ui.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
-qt_add_qml_module(oldipmi URI OldIPMI VERSION 1.0 NO_CACHEGEN NO_IMPORT_SCAN DEPENDENCIES QtQuick
+qt_add_qml_module(oldipmi URI OldIPMI VERSION 1.0 NO_IMPORT_SCAN DEPENDENCIES QtQuick
                   QML_FILES ${QML_FILES})
 qt_add_resources(oldipmi icon PREFIX "/" BASE packaging FILES packaging/oldipmi.svg)
 file(GLOB IMAGE_FILES CONFIGURE_DEPENDS RELATIVE ${CMAKE_SOURCE_DIR} desktop/images/*.png)

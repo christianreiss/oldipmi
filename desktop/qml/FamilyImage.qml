@@ -17,8 +17,10 @@ Image {
     Layout.preferredWidth: side
     Layout.preferredHeight: side
     source: Families.image(family)
-    sourceSize.width: side * 2
-    sourceSize.height: side * 2
+    // Rounded explicitly: the engine rounds a fraction written to the int
+    // source size, the code qmlcachegen compiles for it cuts it off.
+    sourceSize.width: Math.round(side * 2)
+    sourceSize.height: Math.round(side * 2)
     fillMode: Image.PreserveAspectFit
     smooth: true
 }
