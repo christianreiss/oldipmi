@@ -550,69 +550,17 @@ ColumnLayout {
                         target: view
                         function onCapturedChanged() { if (root.fullscreen) toastTimer.restart() }
                     }
-                    Rectangle {
+                    CaptureNote {
                         id: toast
                         objectName: "fullscreenNote"
-                        // One line when it fits; otherwise the release instruction takes its
-                        // own line and the server name elides first. It keeps clear of the
-                        // Quit corner, also while the bar is hidden and the note moves up.
-                        readonly property int pad: Math.round(Theme.gu * 0.7)
-                        readonly property real room: parent.width - 2 * (fsQuit.width + Math.round(Theme.gu * 1.2))
-                        // Released with the keyboard focus in the bar or on Quit, a Right Ctrl
-                        // tap does not take control; the bar's Take control does.
-                        readonly property string how: view.captured
-                            ? (settings.rightCtrlReleases ? "Tap Right Ctrl to release" : "Release from the bar at the top edge")
-                            : fsBar.focused ? "Take control from the bar, or click the screen"
-                            : (settings.rightCtrlReleases ? "Tap Right Ctrl or click the screen to take control" : "Click the screen to take control")
-                        readonly property bool stacked: whoRow.implicitWidth + toastGrid.columnSpacing + oneLine.advanceWidth + 2 * pad > room
-                        TextMetrics { id: oneLine; font: howLabel.font; text: "· " + toast.how }
-                        visible: opacity > 0
-                        opacity: root.fullscreen && toastTimer.running ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Kirigami.Units.shortDuration } }
+                        captured: view.captured
+                        displayName: root.displayName
+                        barFocused: fsBar.focused
+                        shown: root.fullscreen && toastTimer.running
+                        room: parent.width - 2 * (fsQuit.width + Math.round(Theme.gu * 1.2))
                         anchors.horizontalCenter: parent.horizontalCenter
                         y: fsBar.visible ? fsBar.y + fsBar.height + Kirigami.Units.largeSpacing : Math.round(Theme.gu * 0.8)
                         z: 4
-                        width: Math.min(toastGrid.implicitWidth + 2 * pad, room)
-                        height: toastGrid.implicitHeight + Math.round(Theme.gu * 0.8)
-                        radius: Theme.radiusPanel
-                        color: Theme.alpha(Theme.stagePopup, 0.95)
-                        border.width: 1
-                        border.color: Theme.stageLine
-                        GridLayout {
-                            id: toastGrid
-                            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: toast.pad; rightMargin: toast.pad }
-                            columns: toast.stacked ? 1 : 2
-                            columnSpacing: Kirigami.Units.largeSpacing
-                            rowSpacing: Math.round(Theme.gu * 0.15)
-                            RowLayout {
-                                id: whoRow
-                                spacing: Kirigami.Units.largeSpacing
-                                Layout.fillWidth: true
-                                Layout.maximumWidth: implicitWidth
-                                Kirigami.Icon {
-                                    source: view.captured ? "input-keyboard" : "input-mouse"
-                                    implicitWidth: Kirigami.Units.iconSizes.small
-                                    implicitHeight: implicitWidth
-                                    color: Theme.stageText
-                                    isMask: true
-                                }
-                                QQC2.Label {
-                                    text: view.captured ? "Keyboard and mouse go to " + root.displayName : "Keyboard and mouse released"
-                                    color: Theme.stageText
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: true
-                                    Layout.maximumWidth: Math.ceil(implicitWidth)
-                                }
-                            }
-                            QQC2.Label {
-                                id: howLabel
-                                text: (toast.stacked ? "" : "· ") + toast.how
-                                color: Theme.stageTone(Theme.accent)
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: toast.stacked
-                                Layout.maximumWidth: toast.room - 2 * toast.pad
-                            }
-                        }
                     }
                 }
 
