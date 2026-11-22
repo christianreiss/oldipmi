@@ -35,6 +35,7 @@ public:
 
   QQmlApplicationEngine &engine() { return m_engine; }
   Controller &controller() { return m_controller; }
+  AppSettings &settings() { return m_settings; }
   MemoryCredentials &testCredentials() { return m_testCredentials; }
   Console *console() const { return m_console; }
 

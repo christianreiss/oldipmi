@@ -120,11 +120,14 @@ ColumnLayout {
     }
     Kirigami.Action {
         id: fitAction
+        objectName: "fitAction"
         text: view.fit ? "Actual size" : "Fit to window"
         icon.name: view.fit ? "zoom-original" : "zoom-fit-best"
         displayHint: Kirigami.DisplayHint.IconOnly
         tooltip: text
-        onTriggered: view.fit = !view.fit
+        // The setting, which the view follows; assigning the view's fit would
+        // break that binding.
+        onTriggered: AppSettings.fitToWindow = !AppSettings.fitToWindow
     }
     Kirigami.Action {
         id: fullscreenAction
@@ -208,7 +211,6 @@ ColumnLayout {
                         rightCtrlReleases: AppSettings.rightCtrlReleases
                         Accessible.role: Accessible.Graphic
                         Accessible.name: "Remote console of " + root.displayName
-                        onFitChanged: if (AppSettings.fitToWindow !== fit) AppSettings.fitToWindow = fit
                     }
 
                     // Frame around the picture, outside it: a hairline when free, the

@@ -3,6 +3,7 @@
 #include "console.h"
 #include "controller.h"
 #include "devtools/qmlwarnings.h"
+#include "settings.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QCoreApplication>
@@ -273,8 +274,28 @@ QString unknownFamilyFails(QQuickWindow *w) {
     return "it drops the stored console options";
   return {};
 }
-void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *console, Controller &controller) {
-  QTimer::singleShot(600, &app, [&app, &engine, console, &controller] {
+QString fitFails(QQuickWindow *w, Console *console, AppSettings &settings) {
+  auto *action = w->findChild<QObject *>("fitAction");
+  if (!action)
+    return "no fit action";
+  const bool before = settings.fitToWindow();
+  QString why;
+  QMetaObject::invokeMethod(action, "trigger");
+  if (settings.fitToWindow() == before)
+    why = "the button does not switch the setting";
+  else if (!waitFor(w, [&] { return console->fit() != before; }, 1000))
+    why = "the console does not follow the button";
+  else {
+    settings.setFitToWindow(before); // as the switch in Settings does
+    if (!waitFor(w, [&] { return console->fit() == before; }, 1000))
+      why = "after the button, the console no longer follows the setting";
+  }
+  settings.setFitToWindow(before);
+  return why;
+}
+void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *console, Controller &controller,
+                   AppSettings &settings) {
+  QTimer::singleShot(600, &app, [&app, &engine, console, &controller, &settings] {
     auto w = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     if (!w || w->grabWindow().isNull())
       app.exit(code(ExitCode::NoScreenshot));
@@ -292,6 +313,9 @@ void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *co
       app.exit(code(ExitCode::CheckFailed));
     } else if (QString why = unknownFamilyFails(w); !why.isEmpty()) {
       fprintf(stderr, "Unknown family: %s\n", qPrintable(why));
+      app.exit(code(ExitCode::CheckFailed));
+    } else if (QString why = fitFails(w, console, settings); !why.isEmpty()) {
+      fprintf(stderr, "Fit: %s\n", qPrintable(why));
       app.exit(code(ExitCode::CheckFailed));
     } else {
       QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");

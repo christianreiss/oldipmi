@@ -74,6 +74,7 @@ int main(int argc, char **argv) {
   if (test || options.preview)
     QTimer::singleShot(100, &application.controller(), &Controller::preview);
   if (test)
-    devtools::startSelfTest(app, application.engine(), application.console(), application.controller());
+    devtools::startSelfTest(app, application.engine(), application.console(), application.controller(),
+                            application.settings());
   return app.exec();
 }

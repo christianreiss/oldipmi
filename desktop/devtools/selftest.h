@@ -2,6 +2,7 @@
 #include <QDateTime>
 #include <QString>
 
+class AppSettings;
 class Console;
 class Controller;
 class QApplication;
@@ -39,8 +40,13 @@ QString fullScreenFails(QQuickWindow *w, Console *console, Controller &controlle
 // keeps it: the dialog selects no tile and saves the stored family and console
 // options. Returns what failed, or "".
 QString unknownFamilyFails(QQuickWindow *w);
+// The fit button switches the "scale to the window" setting, and the console
+// follows that setting, also when it changes in Settings after the button was
+// used. The setting is as before afterwards. Returns what failed, or "".
+QString fitFails(QQuickWindow *w, Console *console, AppSettings &settings);
 // --self-test: 600 ms after the start, checks that the window renders and runs
 // the checks above, then makes the application exit with the first failure, or
 // with qmlWarningsResult() when they all pass.
-void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *console, Controller &controller);
+void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *console, Controller &controller,
+                   AppSettings &settings);
 } // namespace devtools

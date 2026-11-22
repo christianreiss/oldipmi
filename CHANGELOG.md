@@ -25,6 +25,12 @@
   buttons it pressed.
 
 ### Fixed
+* **The setting to scale the remote screen works after the fit button.** Once
+  the button that switches the console between fitting the window and its
+  actual size had been used, the switch "Scale the remote screen to the
+  window" in Settings → General no longer changed the console, only what the
+  next start would use. The button now switches that setting, and the console
+  follows it, whichever of the two changes it.
 * **A password prompt that an agent opened belongs to its profile.** While
   OldIPMI asked for the password of a profile after an agent's `connect`,
   `status` reported `passwordRequired` for every console, and `disconnect` of
