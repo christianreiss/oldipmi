@@ -48,6 +48,11 @@ const (
 	ASCInvalidField    = 0x24 // invalid field in CDB
 )
 
+// Ejects reports whether cdb is a START STOP UNIT that ejects the medium, as
+// an operating system sends to open the tray: no power condition (with one,
+// the drive ignores the other bits), LoEj set and Start clear.
+func Ejects(cdb []byte) bool { return len(cdb) > 4 && cdb[0] == StartStopUnit && cdb[4]&0xf3 == 2 }
+
 // Transfer returns the first block and the number of blocks of a READ or a
 // WRITE, (10) or (12). The caller checks that cdb is as long as its command.
 func Transfer(cdb []byte) (lba, blocks uint32) {

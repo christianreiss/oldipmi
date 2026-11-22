@@ -74,21 +74,27 @@ type Console interface {
 }
 
 // Media is a console's virtual media: a local ISO that the host sees as a
-// read-only CD/DVD until Eject. Mount's context bounds the setup only: the ISO
-// stays mounted until Eject or the console's Close.
+// read-only CD/DVD until Eject, or until the host ejects it. Mount's context
+// bounds the setup only: the ISO stays mounted until one of these or the
+// console's Close.
 type Media interface {
 	Mount(context.Context, string) error
 	Eject() error
 	Mounted() bool
 	// MediaErr is why the last ISO went away without an Eject: the error that
-	// ended its virtual media, or ErrMediaEnded. It is nil while an ISO is
-	// mounted and after an Eject.
+	// ended its virtual media, ErrServerEjected, or ErrMediaEnded. It is nil
+	// while an ISO is mounted and after an Eject.
 	MediaErr() error
 }
 
 // ErrMediaEnded is why an ISO went away when the BMC ended its virtual media
 // without an error.
 var ErrMediaEnded = errors.New("the BMC ended the virtual media")
+
+// ErrServerEjected is why an ISO went away when the server's operating system
+// ejected the virtual CD: the drive acknowledges the eject, then the console
+// ends its virtual media.
+var ErrServerEjected = errors.New("the server ejected the virtual CD")
 
 // MediaEnd is why an ISO went away when its virtual media ended with err.
 func MediaEnd(err error) error {

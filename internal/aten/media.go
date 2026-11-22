@@ -94,6 +94,9 @@ func (s *mediaSession) serve() error {
 		if e = s.wire.WritePacket(append(mediaHeader(h[2], 255, 13), csw...)); e != nil {
 			return e
 		}
+		if scsi.Ejects(p[15:]) { // acknowledged: the server ejected the CD
+			return protocol.ErrServerEjected
+		}
 	}
 }
 

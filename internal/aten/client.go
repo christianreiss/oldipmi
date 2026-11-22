@@ -467,7 +467,7 @@ func (c *Client) Mount(ctx context.Context, path string) error {
 	go func() {
 		err := s.serve()
 		s.close()
-		if err != nil {
+		if err != nil && err != protocol.ErrServerEjected {
 			err = fmt.Errorf("ATEN virtual media: %w", err)
 		}
 		c.mu.Lock()

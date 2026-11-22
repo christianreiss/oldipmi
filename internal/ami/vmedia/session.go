@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"oldipmi/internal/ami/iusb"
+	"oldipmi/internal/protocol"
 
 	"time"
 )
@@ -65,8 +66,9 @@ type Handler interface {
 	Handle(req *Packet) (payload []byte, err error)
 }
 
-// Serve runs the request/response loop until the BMC sends a kill, the context is
-// cancelled, or the connection drops.
+// Serve runs the request/response loop until the BMC sends a kill, the server
+// ejects the CD (protocol.ErrServerEjected, once the eject is acknowledged),
+// the context is cancelled, or the connection drops.
 func (s *Session) Serve(ctx context.Context, h Handler) error {
 	stop := context.AfterFunc(ctx, func() { s.conn.Close() })
 	defer stop()
@@ -98,6 +100,9 @@ func (s *Session) Serve(ctx context.Context, h Handler) error {
 		}
 		if err := s.writeResponse(req, payload); err != nil {
 			return fmt.Errorf("vmedia: write response: %w", err)
+		}
+		if req.IsEject() {
+			return protocol.ErrServerEjected
 		}
 	}
 }

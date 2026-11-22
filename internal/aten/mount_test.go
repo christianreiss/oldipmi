@@ -2,8 +2,10 @@ package aten
 
 import (
 	"context"
+	"io"
 	"net"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/scsi"
 	"oldipmi/internal/testkit"
 	"os"
 	"path/filepath"
@@ -60,15 +62,21 @@ func TestMountLastsUntilEject(t *testing.T) {
 }
 
 // When the virtual media ends by itself, the ISO counts as gone and MediaErr
-// says why; an Eject clears it.
+// says why; an Eject clears it. An eject by the server is acknowledged first.
 func TestMediaEndsByItself(t *testing.T) {
+	eject := make([]byte, 31) // a USB command wrapper: START STOP UNIT, LoEj set, Start clear
+	copy(eject, "USBC")
+	eject[14], eject[15], eject[19] = 16, scsi.StartStopUnit, 2
 	for _, tc := range []struct {
-		name string
-		end  func(net.Conn)
-		want string
+		name  string
+		end   func(net.Conn)
+		want  string
+		acked bool
 	}{
-		{"connection lost", func(conn net.Conn) { conn.Close() }, "ATEN virtual media: EOF"},
-		{"ended by the BMC", func(conn net.Conn) { conn.Write(mediaHeader(0, 4, 0)) }, "the BMC ended the virtual media"},
+		{"connection lost", func(conn net.Conn) { conn.Close() }, "ATEN virtual media: EOF", false},
+		{"ended by the BMC", func(conn net.Conn) { conn.Write(mediaHeader(0, 4, 0)) }, "the BMC ended the virtual media", false},
+		{"ejected by the server", func(conn net.Conn) { conn.Write(append(mediaHeader(0, 0, 31), eject...)) },
+			"the server ejected the virtual CD", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, conn := mount(t, context.Background())
@@ -83,6 +91,12 @@ func TestMediaEndsByItself(t *testing.T) {
 			}
 			if err := c.MediaErr(); err == nil || err.Error() != tc.want {
 				t.Fatalf("MediaErr %v, want %q", err, tc.want)
+			}
+			if tc.acked { // the status of the eject: passed
+				csw := make([]byte, 8+13)
+				if _, err := io.ReadFull(conn, csw); err != nil || string(csw[8:12]) != "USBS" || csw[20] != 0 {
+					t.Fatalf("no answer to the eject before the end: % x, %v", csw, err)
+				}
 			}
 			c.Eject()
 			if err := c.MediaErr(); err != nil {

@@ -25,6 +25,13 @@
   buttons it pressed.
 
 ### Fixed
+* **An ISO that the server ejects is unmounted.** When the operating system
+  on the server ejected the virtual CD, as an installer does when it is done,
+  OldIPMI acknowledged that, but kept the ISO mounted, and the drive went on
+  reporting the CD as inserted. Now the virtual media ends with the eject,
+  and the status bar says "The ISO is no longer mounted: the server ejected
+  the virtual CD". This concerns AMI and Supermicro (ATEN) consoles, the
+  families with virtual media.
 * **ATEN, Dell iDRAC and Cisco IMC consoles show their full brightness.**
   Colours that these consoles send with 15 or 16 bits per pixel were widened
   to 8 bits by shifting alone: white came out as a light grey (248 of 255),

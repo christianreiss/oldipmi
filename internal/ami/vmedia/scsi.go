@@ -57,9 +57,8 @@ func (c *Device) Handle(req *Packet) ([]byte, error) {
 	}
 	switch cdb[0] {
 	case scsi.TestUnitReady, scsi.PreventAllow, scsi.StartStopUnit, scsi.ModeSelect6:
-		// Status-only commands: acknowledge with no data. (Eject — START STOP
-		// UNIT with loej bits — is reported by Packet.IsEject for the loop to act
-		// on; we still ack it here.)
+		// Status-only commands: acknowledge with no data. An eject (START STOP
+		// UNIT with LoEj, Packet.IsEject) too; Serve then ends the redirection.
 		return c.buildResponse(req, nil), nil
 
 	case scsi.Inquiry:

@@ -6,6 +6,7 @@ import (
 	"net"
 	"oldipmi/internal/ami/iusb"
 	"oldipmi/internal/protocol"
+	"oldipmi/internal/scsi"
 	"oldipmi/internal/testkit"
 	"oldipmi/internal/transport"
 	"os"
@@ -92,15 +93,19 @@ func TestMountLastsUntilEject(t *testing.T) {
 }
 
 // When the virtual media ends by itself, the ISO counts as gone and MediaErr
-// says why; an Eject clears it.
+// says why; an Eject clears it. An eject by the server is acknowledged first.
 func TestMediaEndsByItself(t *testing.T) {
+	eject := iusbPacket(scsi.StartStopUnit)
+	eject[iusb.HeaderLen+9+4] = 2 // LoEj set, Start clear
 	for _, tc := range []struct {
-		name string
-		end  func(net.Conn)
-		want string
+		name  string
+		end   func(net.Conn)
+		want  string
+		acked bool
 	}{
-		{"connection lost", func(conn net.Conn) { conn.Close() }, "vmedia: read request: EOF"},
-		{"killed by the BMC", func(conn net.Conn) { conn.Write(iusbPacket(0xf6)) }, "the BMC ended the virtual media"},
+		{"connection lost", func(conn net.Conn) { conn.Close() }, "vmedia: read request: EOF", false},
+		{"killed by the BMC", func(conn net.Conn) { conn.Write(iusbPacket(0xf6)) }, "the BMC ended the virtual media", false},
+		{"ejected by the server", func(conn net.Conn) { conn.Write(eject) }, "the server ejected the virtual CD", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ln, port := listen(t, nil)
@@ -125,6 +130,15 @@ func TestMediaEndsByItself(t *testing.T) {
 			}
 			if err := c.MediaErr(); err == nil || err.Error() != tc.want {
 				t.Fatalf("MediaErr %v, want %q", err, tc.want)
+			}
+			if tc.acked { // the answer to the eject
+				b := make([]byte, iusb.HeaderLen)
+				if _, err := io.ReadFull(conn, b); err != nil {
+					t.Fatalf("no answer to the eject before the end: %v", err)
+				}
+				if h, err := iusb.ParseHeader(b); err != nil || h.Direction != 128 {
+					t.Fatalf("the answer to the eject: %+v, %v", h, err)
+				}
 			}
 			c.Eject()
 			if err := c.MediaErr(); err != nil {

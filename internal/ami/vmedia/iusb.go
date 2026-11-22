@@ -69,10 +69,7 @@ func (p *Packet) Opcode() int {
 
 // IsEject reports whether this is a START STOP UNIT eject request (opcode 0x1B,
 // CDB[4] low bits == 2), matching JViewer's detection.
-func (p *Packet) IsEject() bool {
-	return p.Opcode() == scsi.StartStopUnit &&
-		len(p.Payload) > ejectByteOffset && p.Payload[ejectByteOffset]&0x03 == 2
-}
+func (p *Packet) IsEject() bool { return scsi.Ejects(p.cdb()) }
 
 // IsKill reports whether the BMC asked to terminate the redirection.
 func (p *Packet) IsKill() bool { return p.Opcode() == OpKillRedir }

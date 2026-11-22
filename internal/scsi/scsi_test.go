@@ -37,6 +37,29 @@ func TestAnswers(t *testing.T) {
 	}
 }
 
+// Only a START STOP UNIT with LoEj set, Start clear and no power condition
+// ejects the medium.
+func TestEjects(t *testing.T) {
+	for _, c := range []struct {
+		cdb  []byte
+		want bool
+	}{
+		{[]byte{StartStopUnit, 0, 0, 0, 2, 0}, true},
+		{[]byte{StartStopUnit, 1, 0, 0, 2, 0}, true},     // immediate
+		{[]byte{StartStopUnit, 0, 0, 0, 0x32, 0}, false}, // a power condition: LoEj is ignored
+		{[]byte{StartStopUnit, 0, 0, 0, 3, 0}, false},    // loads the medium
+		{[]byte{StartStopUnit, 0, 0, 0, 1, 0}, false},    // starts the drive
+		{[]byte{StartStopUnit, 0, 0, 0, 0, 0}, false},    // stops it
+		{[]byte{TestUnitReady, 0, 0, 0, 2, 0}, false},
+		{[]byte{StartStopUnit, 0, 0, 0}, false},
+		{nil, false},
+	} {
+		if got := Ejects(c.cdb); got != c.want {
+			t.Errorf("% x: %t, want %t", c.cdb, got, c.want)
+		}
+	}
+}
+
 func TestTransfer(t *testing.T) {
 	for _, c := range []struct {
 		cdb         []byte
