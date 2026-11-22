@@ -49,6 +49,10 @@ QString fitFails(QQuickWindow *w, Console *console, AppSettings &settings);
 // one pixel narrower it has none. The window is as large as before afterwards.
 // Returns what failed, or "".
 QString narrowFails(QQuickWindow *w);
+// Every shortcut of the window (Main.qml's own, not a dialog's) is in the list
+// of keyboard shortcuts in the settings (Shortcuts.listed in shortcuts.js), by
+// one of the keys it names as text. Returns what failed, or "".
+QString shortcutListFails(QQuickWindow *w);
 // --self-test: 600 ms after the start, checks that the window renders and runs
 // the checks above, then makes the application exit with the first failure, or
 // with qmlWarningsResult() when they all pass.

@@ -25,6 +25,9 @@
   buttons it pressed.
 
 ### Fixed
+* **The list of keyboard shortcuts names Disconnect all and Esc.** The list
+  in the settings left out Ctrl+Shift+D, which closes all open consoles, and
+  Esc, which leaves full screen while the console does not have the keyboard.
 * **Quit asks first also for consoles of unsaved connections.** With more
   than one console open, Quit, closing the window and Disconnect all ask
   first and name the consoles. A console whose connection is not in the list,

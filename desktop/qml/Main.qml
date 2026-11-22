@@ -144,7 +144,7 @@ Kirigami.ApplicationWindow {
         onActivated: consolePane.copyScreen()
     }
     Shortcut { sequences: [StandardKey.Quit]; onActivated: window.requestQuit() }
-    Shortcut { sequence: "Escape"; enabled: window.fullscreen && !consolePane.consoleView.captured; onActivated: window.toggleFullscreen() }
+    Shortcut { sequence: Shortcuts.leaveFullScreen; enabled: window.fullscreen && !consolePane.consoleView.captured; onActivated: window.toggleFullscreen() }
 
     RowLayout {
         anchors.fill: parent

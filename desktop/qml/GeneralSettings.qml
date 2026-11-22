@@ -39,12 +39,7 @@ FormCard.FormCardPage {
     FormCard.FormHeader { title: "Keyboard shortcuts" }
     FormCard.FormCard {
         Repeater {
-            model: [
-                ["New connection", Shortcuts.newConnection], ["Filter connections", Shortcuts.find],
-                ["Show or hide the connection list", Shortcuts.connectionList], ["Full screen", Shortcuts.fullScreen],
-                ["Copy screen image", Shortcuts.copyScreen],
-                ["Disconnect", Shortcuts.disconnect], ["Settings", Shortcuts.settings], ["Quit", Shortcuts.quit]
-            ]
+            model: Shortcuts.listed
             delegate: FormCard.FormTextDelegate {
                 id: shortcutRow
                 required property var modelData

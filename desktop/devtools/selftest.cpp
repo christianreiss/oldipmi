@@ -9,16 +9,21 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFile>
 #include <QGuiApplication>
 #include <QImage>
+#include <QJSEngine>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QMouseEvent>
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QRegularExpression>
 #include <QTimer>
 #include <QWindow>
+#include <algorithm>
 #include <cstdio>
 #include <functional>
 
@@ -329,6 +334,41 @@ QString narrowFails(QQuickWindow *w) {
   waitFor(w, [&] { return w->contentItem()->size() == QSizeF(before); }, 1000);
   return why;
 }
+QString shortcutListFails(QQuickWindow *w) {
+  QFile file(":/qt/qml/OldIPMI/shortcuts.js");
+  if (!file.open(QIODevice::ReadOnly))
+    return "no shortcuts.js in the module";
+  // A QML JavaScript library; without its pragma it is plain JavaScript.
+  QString source = QString::fromUtf8(file.readAll());
+  source.remove(QRegularExpression("^\\.pragma .*$", QRegularExpression::MultilineOption));
+  QJSEngine js;
+  if (const QJSValue r = js.evaluate(source, file.fileName()); r.isError())
+    return "shortcuts.js: " + r.toString();
+  const QJSValue listed = js.globalObject().property("listed");
+  QStringList keys;
+  for (int i = 0, n = listed.property("length").toInt(); i < n; ++i)
+    keys << QKeySequence::fromString(listed.property(i).property(1).toString()).toString(QKeySequence::PortableText);
+  if (keys.isEmpty())
+    return "shortcuts.js lists no shortcuts";
+  const QQmlContext *own = qmlContext(w);
+  for (QObject *o : w->findChildren<QObject *>()) {
+    if (!o->inherits("QQuickShortcut") || qmlContext(o) != own)
+      continue;
+    QVariantList sequences = o->property("sequences").toList();
+    if (const QVariant one = o->property("sequence"); !one.toString().isEmpty())
+      sequences << one;
+    // Its keys written as text. A standard key (a number) is the platform's,
+    // listed by its keys on Linux, which another platform need not share
+    // (Quit is Exit on the offscreen one).
+    QStringList texts;
+    for (const QVariant &v : sequences)
+      if (v.typeId() == QMetaType::QString)
+        texts << QKeySequence::fromString(v.toString()).toString(QKeySequence::PortableText);
+    if (!texts.isEmpty() && std::none_of(texts.begin(), texts.end(), [&](const QString &t) { return keys.contains(t); }))
+      return "the window's shortcut " + texts.join(" or ") + " is not in the list of keyboard shortcuts in the settings";
+  }
+  return {};
+}
 void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *console, Controller &controller,
                    AppSettings &settings) {
   QTimer::singleShot(600, &app, [&app, &engine, console, &controller, &settings] {
@@ -355,6 +395,9 @@ void startSelfTest(QApplication &app, QQmlApplicationEngine &engine, Console *co
       app.exit(code(ExitCode::CheckFailed));
     } else if (QString why = narrowFails(w); !why.isEmpty()) {
       fprintf(stderr, "Narrow window: %s\n", qPrintable(why));
+      app.exit(code(ExitCode::CheckFailed));
+    } else if (QString why = shortcutListFails(w); !why.isEmpty()) {
+      fprintf(stderr, "Shortcuts: %s\n", qPrintable(why));
       app.exit(code(ExitCode::CheckFailed));
     } else {
       QString path = qEnvironmentVariable("OLDIPMI_TEST_SCREENSHOT");
