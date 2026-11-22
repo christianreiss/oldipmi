@@ -61,6 +61,10 @@ endforeach()
 set_source_files_properties(desktop/qml/Theme.qml desktop/qml/Ui.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qt_add_qml_module(oldipmi URI OldIPMI VERSION 1.0 NO_IMPORT_SCAN DEPENDENCIES QtQuick
                   QML_FILES ${QML_FILES})
+# qmlcachegen compiles the QML to bytecode only. The C++ it generates besides
+# calls Qt's private API, and a program that does runs only with the Qt
+# version it was built with (test qt_public_api).
+set_target_properties(oldipmi PROPERTIES QT_QMLCACHEGEN_ARGUMENTS --only-bytecode)
 qt_add_resources(oldipmi icon PREFIX "/" BASE packaging FILES packaging/oldipmi.svg)
 file(GLOB IMAGE_FILES CONFIGURE_DEPENDS RELATIVE ${CMAKE_SOURCE_DIR} desktop/images/*.png)
 qt_add_resources(oldipmi images PREFIX "/" BASE desktop FILES ${IMAGE_FILES})
@@ -109,6 +113,8 @@ set_tests_properties(desktop_tour PROPERTIES TIMEOUT 300
 add_test(NAME probe_ui COMMAND ${ISOLATED} sh ${CMAKE_SOURCE_DIR}/desktop/probe_ui_test.sh $<TARGET_FILE:oldipmi>)
 set_tests_properties(probe_ui PROPERTIES TIMEOUT 120
                      ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_FORCE_STDERR_LOGGING=1")
+# The application calls only Qt's public API.
+add_test(NAME qt_public_api COMMAND sh ${CMAKE_SOURCE_DIR}/desktop/qt_public_api_test.sh ${CMAKE_NM} $<TARGET_FILE:oldipmi>)
 qt_add_executable(profile_tests desktop/controller_test.cpp)
 target_link_libraries(profile_tests PRIVATE oldipmi_desktop Qt6::Test)
 target_compile_definitions(profile_tests PRIVATE IPC_FIXTURES="${CMAKE_SOURCE_DIR}/testdata/ipc" FAKECORE_DIR="$<TARGET_FILE_DIR:fakecore>")
@@ -173,4 +179,4 @@ set_target_properties(profile_tests agent_tests console_tests families_tests sin
 set_tests_properties(desktop_smoke desktop_tour probe_ui PROPERTIES LABELS ui)
 set_tests_properties(desktop_smoke PROPERTIES TIMEOUT 120)
 set_tests_properties(profiles agent_api console_input error_hints single_instance session_ipc ipc_channels key_table
-                     ipc_names PROPERTIES LABELS unit TIMEOUT 120)
+                     ipc_names qt_public_api PROPERTIES LABELS unit TIMEOUT 120)

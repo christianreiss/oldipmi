@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+* **OldIPMI no longer needs exactly the Qt version it was built with.** Its
+  QML is now compiled to bytecode only. Compiled to C++, as in 0.5.0, it
+  called Qt's private interfaces, so a build against the system's Qt stopped
+  starting with the next Qt update until it was rebuilt, and an RPM package
+  would have held that update back. For this reason 0.5.0 came out only as
+  an AppImage, which brings its own Qt, and not as an RPM package.
+
 ## 0.5.0 (2026-11-22)
 
 ### Added
