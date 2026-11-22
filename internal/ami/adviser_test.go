@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"oldipmi/internal/protocol"
 	"oldipmi/internal/testkit"
+	"oldipmi/internal/transport"
 	"oldipmi/internal/video/ast"
 	"os"
 	"reflect"
@@ -17,7 +19,7 @@ import (
 
 // The adviser console of older MegaRAC firmware (ASUS ASMB4, for one): its
 // JNLP passes four or more positional arguments (address, port, session
-// token, web session token, then ones the viewer does not read); the console
+// token, additional session argument, then ones the viewer does not read); the console
 // is plain TCP with 7-byte headers.
 
 func adviserJNLP(args ...string) []byte {
@@ -35,7 +37,7 @@ func TestAdviserJNLP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !l.Adviser || l.Legacy || l.Port != 7578 || l.Token != "0123456789abcdef" || l.WebSession != "0" || l.Secure || l.CDPort != 0 {
+	if !l.Adviser || l.Legacy || l.Port != 7578 || l.Token != "0123456789abcdef" || l.AdviserSessionArg != "0" || l.Secure || l.CDPort != 0 {
 		t.Fatalf("launch %+v", l)
 	}
 	if l, err = parseJNLP(adviserJNLP("10.0.0.5", "7578", "short", "w")); err != nil || !l.Adviser || l.Token != "short" {
@@ -57,7 +59,7 @@ func TestAdviserJNLP(t *testing.T) {
 }
 
 func TestAdviserConsoleInfo(t *testing.T) {
-	got := Launch{Adviser: true, Token: "secret", WebSession: "secret", Port: 7578}.ConsoleInfo(protocol.Profile{Host: "bmc.example.net"})
+	got := Launch{Adviser: true, Token: "secret", AdviserSessionArg: "secret", Port: 7578}.ConsoleInfo(protocol.Profile{Host: "bmc.example.net"})
 	want := protocol.ConsoleInfo{Protocol: "AMI MegaRAC adviser",
 		Endpoints:    []protocol.Endpoint{{Role: "Video / input", Address: "bmc.example.net:7578", Transport: "Plain TCP"}},
 		Capabilities: []string{"Video", "Keyboard", "Pointer"}}
@@ -71,7 +73,7 @@ func adviserProfile() protocol.Profile {
 }
 
 func adviserLaunch(port int) Launch {
-	return Launch{Adviser: true, Token: "adviser-token", WebSession: "0", Port: port}
+	return Launch{Adviser: true, Token: "adviser-token", AdviserSessionArg: "0", Port: port}
 }
 
 // accepts answers the session token packets with 35 and the given byte.
@@ -87,13 +89,15 @@ func accepts(ok byte) func(end, uint16) error {
 func silent(end) error { return nil }
 
 // The client speaks first: the session token (34, zero-padded to 16 bytes)
-// and the web session token (52). The console accepts with 35; the client
-// sends nothing more until there is input, and 25 when it closes.
+// and the additional JNLP session argument (52). The console accepts with
+// 35; the client sends nothing more until there is input, and 25 on close.
 func TestAdviserSessionTranscript(t *testing.T) {
 	ln, port := listen(t, nil)
 	done := accept(ln, true, silent, accepts(1))
 	var stages []string
-	c := client(adviserProfile(), adviserLaunch(port))
+	launch := adviserLaunch(port)
+	launch.AdviserSessionArg = "fixture-session-arg"
+	c := client(adviserProfile(), launch)
 	if err := c.attach(stagesOf(t, &stages)); err != nil {
 		t.Fatal(err)
 	}
@@ -108,11 +112,22 @@ func TestAdviserSessionTranscript(t *testing.T) {
 	if tok := s.payload[34]; len(tok) != 16 || cstring(tok) != "adviser-token" {
 		t.Fatalf("session token % x", tok)
 	}
-	if string(s.payload[52]) != "0" || len(s.payload[25]) != 0 {
-		t.Fatalf("web session %q, stop % x", s.payload[52], s.payload[25])
+	if string(s.payload[52]) != "fixture-session-arg" || len(s.payload[25]) != 0 {
+		t.Fatalf("session argument %q, stop % x", s.payload[52], s.payload[25])
 	}
 	if !reflect.DeepEqual(stages, []string{"connecting"}) {
 		t.Fatal("stages", stages)
+	}
+}
+
+func TestAdviserRequiresPlainConsoleOptIn(t *testing.T) {
+	_, port := listen(t, nil)
+	p := adviserProfile()
+	p.AllowPlainConsole = false
+	c := client(p, adviserLaunch(port))
+	defer c.Close()
+	if err := c.attach(context.Background()); !errors.Is(err, transport.ErrPlainConsole) || c.wire != nil {
+		t.Fatalf("attach with plain console disabled: %v", err)
 	}
 }
 
@@ -261,8 +276,8 @@ func TestAdviserRunEnds(t *testing.T) {
 		err  string
 	}{
 		{"stopped", 25, "BMC ended session (7)"},
-		{"encryption", 30, "this BMC encrypts keyboard and mouse input, which OldIPMI does not support; turn KVM encryption off in the BMC's web interface"},
-		{"encryption by another session", 29, "this BMC encrypts keyboard and mouse input, which OldIPMI does not support; turn KVM encryption off in the BMC's web interface"},
+		{"encryption", 30, "this BMC encrypts keyboard and mouse input, which OldIPMI does not support"},
+		{"encryption by another session", 29, "this BMC encrypts keyboard and mouse input, which OldIPMI does not support"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			ln, port := listen(t, nil)
@@ -271,7 +286,16 @@ func TestAdviserRunEnds(t *testing.T) {
 					if err := e.send(35, 0, []byte{1}); err != nil {
 						return err
 					}
-					return e.send(c.typ, 7, nil)
+					if c.typ == 25 {
+						return e.send(c.typ, 7, nil)
+					}
+					if err := e.send(33, 0, []byte{2}); err != nil {
+						return err
+					}
+					// The encryption notice is terminal even if its body has
+					// not arrived. Advertise a byte and only send the header.
+					_, err := e.conn.Write([]byte{byte(c.typ), 1, 0, 0, 0, 7, 0})
+					return err
 				}
 				return nil
 			})
@@ -285,6 +309,14 @@ func TestAdviserRunEnds(t *testing.T) {
 			defer cancel()
 			if err := cl.Run(ctx, func(protocol.Frame) {}); err == nil || err.Error() != c.err {
 				t.Fatalf("Run ended with %v", err)
+			}
+			if c.typ != 25 {
+				if err := cl.Key(protocol.Input{Usage: 4, Down: true}); err == nil {
+					t.Error("sent a key after the encryption notice")
+				}
+				if err := cl.Pointer(protocol.Input{X: 30, Y: 30}); err == nil {
+					t.Error("sent a pointer report after the encryption notice")
+				}
 			}
 		})
 	}

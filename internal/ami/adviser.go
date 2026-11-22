@@ -20,8 +20,8 @@ import (
 // description: no vendor code is copied, and no vendor binary or decompiled
 // source is distributed.
 //
-// The client speaks first: its session token and the web session token, both
-// from the JNLP. The console answers with advValidateResp and then streams
+// The client speaks first: its session token and the additional session
+// argument, both from the JNLP. The console answers with advValidateResp and then streams
 // video unasked. Its numbers overlap the VSC's with other meanings (33 is the
 // VSC's ping, 34 its pong), so the two never share a code path beyond the
 // framing.
@@ -36,7 +36,7 @@ const (
 	advToken         = 34 // the session token, zero-padded to advTokenSize
 	advValidateResp  = 35 // byte 0: 0 rejects the session
 	advMaxSessions   = 49 // no free console session
-	advWebSession    = 52 // the web session token
+	advSessionArg    = 52 // additional JNLP session argument
 )
 
 // advTokenSize is the session token's field in advToken; the JNLP's token
@@ -55,7 +55,7 @@ const (
 // length, the frame's, a command, a status and two reserved bytes.
 const advVideoHeaderSize = 39
 
-var errAdvEncryption = fmt.Errorf("this BMC encrypts keyboard and mouse input, which OldIPMI does not support; turn KVM encryption off in the BMC's web interface")
+var errAdvEncryption = fmt.Errorf("this BMC encrypts keyboard and mouse input, which OldIPMI does not support")
 var errAdvMaxSessions = fmt.Errorf("BMC has no free console session; close other viewers and try again")
 
 // attachAdviser sends the session tokens and waits for the console to accept
@@ -66,7 +66,7 @@ func (c *Client) attachAdviser() error {
 	if err := c.send(c.wire, advToken, tok); err != nil {
 		return err
 	}
-	if err := c.send(c.wire, advWebSession, []byte(c.launch.WebSession)); err != nil {
+	if err := c.send(c.wire, advSessionArg, []byte(c.launch.AdviserSessionArg)); err != nil {
 		return err
 	}
 	for range 20 {
@@ -87,8 +87,6 @@ func (c *Client) attachAdviser() error {
 			return errAdvMaxSessions
 		case advStop:
 			return fmt.Errorf("AMI stopped native session")
-		case advEncryption, advEncryptionNow:
-			return errAdvEncryption
 		case advMouseMode:
 			c.setMouseMode(b)
 		}
@@ -119,8 +117,6 @@ func (c *Client) runAdviser(onFrame func(protocol.Frame)) error {
 			return fmt.Errorf("BMC ended session (%d)", st)
 		case advMaxSessions:
 			return errAdvMaxSessions
-		case advEncryption, advEncryptionNow:
-			return errAdvEncryption
 		case advMouseMode:
 			c.setMouseMode(b)
 		case advVideo:

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 (2026-11-22)
+
+### Added
+* **ASUS ASMB4 and other AMI MegaRAC adviser consoles.** OldIPMI now handles
+  the positional JNLP launch file and supports AST2100 video, keyboard and
+  absolute or relative pointer input. The console requires explicit per-host
+  permission for plain TCP. OldIPMI disconnects as soon as the BMC announces
+  keyboard/mouse encryption. Virtual media is unavailable for this console.
+
 ## 0.5.1 (2026-11-22)
 
 ### Fixed
@@ -13,13 +22,6 @@
 ## 0.5.0 (2026-11-22)
 
 ### Added
-* **AMI MegaRAC consoles of the adviser generation work, such as ASUS ASMB4.**
-  Their launch file passes seven arguments by position, which OldIPMI refused
-  as "unsupported AMI JNLP arguments". OldIPMI now opens their console: plain
-  TCP on port 7578, AST2100 video, keyboard and pointer in the mouse mode the
-  BMC names. The connection needs the host's plain-console option. Virtual
-  media and keyboard/mouse encryption are not available there; a BMC with
-  encryption on fails with a message saying so.
 * **OldIPMI and oldipmi-mcp check each other's version.** oldipmi-mcp tells
   the app its version, and the app answers with the operations it offers. An
   operation the running OldIPMI lacks now fails with both versions named

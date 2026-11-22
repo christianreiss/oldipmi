@@ -104,6 +104,12 @@ func (c *Client) read(w *transport.Wire) (uint16, uint16, []byte, error) {
 		off = 1
 		t = uint16(b[0])
 	}
+	if c.launch.Adviser && (t == advEncryption || t == advEncryptionNow) {
+		// The notice ends this session. Close before reading its body or
+		// returning to the backend so concurrent input writes stop now.
+		w.Close()
+		return t, 0, nil, errAdvEncryption
+	}
 	size := binary.LittleEndian.Uint32(b[off:])
 	st := binary.LittleEndian.Uint16(b[off+4:])
 	total := uint64(size)

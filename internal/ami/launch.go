@@ -17,11 +17,11 @@ type Launch struct {
 	Args map[string]string
 	Pos  []string
 	// Token is the console credential, Cookie the web session's.
-	// WebSession is the adviser console's second token, from its JNLP.
-	Token, Cookie, WebSession   string
-	Port, HIDPort, CDPort       int
-	Secure, MediaSecure, Legacy bool
-	Adviser                     bool
+	// AdviserSessionArg is the additional session value from the adviser JNLP.
+	Token, Cookie, AdviserSessionArg string
+	Port, HIDPort, CDPort            int
+	Secure, MediaSecure, Legacy      bool
+	Adviser                          bool
 }
 
 // ConsoleInfo is what the connection page shows of the console: never a
@@ -80,7 +80,7 @@ func parseJNLP(b []byte) (Launch, error) {
 		l.Adviser = true
 		l.Port = number(a[1])
 		l.Token = a[2]
-		l.WebSession = a[3]
+		l.AdviserSessionArg = a[3]
 		if len(l.Token) > advTokenSize {
 			return l, fmt.Errorf("JNLP has invalid connection parameters")
 		}

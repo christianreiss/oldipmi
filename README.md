@@ -197,11 +197,12 @@ command-line arguments, profile files or diagnostic output.
 
 AMI MegaRAC firmware of the adviser generation (ASUS ASMB4, for one) hands out a
 JNLP with seven positional arguments and runs its console as plain TCP on port
-7578: select AMI and enable plain console/media for the host. OldIPMI sends the
-session tokens as the vendor's viewer does, skips the BMC's cursor and bandwidth
-packets, and moves the pointer in the mode the BMC announces (absolute or
-relative). Keyboard/mouse encryption, which the BMC can turn on, is refused with
-an explicit message; virtual media is not offered there.
+7578. On an isolated management network, select AMI and explicitly enable
+plain console/media for this host. The console's JNLP session values, video and
+input travel without TLS. Web login keeps its own transport settings. OldIPMI
+moves the pointer in the mode the BMC announces (absolute or relative) and
+immediately disconnects when the BMC announces unsupported keyboard/mouse
+encryption. This console does not offer virtual media.
 
 For verified Lab-Avocent, select Dell iDRAC (Avocent) and enable legacy/unverified TLS.
 Avocent ISO media and packet-134 video are not implemented; the ISO
