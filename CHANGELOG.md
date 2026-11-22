@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1 (2026-11-22)
 
 ### Fixed
 * **OldIPMI no longer needs exactly the Qt version it was built with.** Its
