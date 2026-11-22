@@ -42,7 +42,7 @@ func (e *codedError) Error() string { return e.err.Error() }
 func (e *codedError) Unwrap() error { return e.err }
 
 // ErrorCode is the class of err, "" if none fits. The classes are tried in the
-// order of the desktop's hints (desktop/qml/families.js, errorHint), which
+// order of the desktop's hints (desktop/qml/stages.js, errorHint), which
 // take the first that fits too: an error is in the class whose hint its text
 // gets there. A Mark counts where its class stands in that order.
 func ErrorCode(err error) string {
