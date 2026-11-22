@@ -69,9 +69,10 @@ and names both versions in the error. OldIPMI 0.4.0 and older answer `hello` wit
 ## Choosing a console
 
 Several consoles can be open at once. An operation on a console takes an optional `profile`: a
-profile's id, or its name or host, either without regard to case. Without it, the operation acts
-on the only open console. It fails as `ambiguous` when several are open, and as `no_profile` when
-no profile matches.
+profile's id, or its name or host, either without regard to case. A name or host that several
+profiles share names none of them: the operation fails as `ambiguous`, and the error lists those
+profiles with their ids. Without `profile`, the operation acts on the only open console, and fails
+as `ambiguous` when several are open. It fails as `no_profile` when no profile matches.
 
 ## Operations
 
@@ -185,7 +186,7 @@ Ejects the ISO. The result has a `message`, which may be empty. Errors: `not_con
 | `unknown_op` | OldIPMI does not offer the operation. |
 | `bad_args` | An argument is out of range or of the wrong kind. |
 | `no_profile` | No profile has the id, name or host given in `profile`. |
-| `ambiguous` | Several consoles are open, and the request names none of them. |
+| `ambiguous` | Several profiles have the name or host given in `profile`; or several consoles are open, and the request names none of them. |
 | `busy` | OldIPMI's window asks for the password of another profile. |
 | `not_connected` | The console is not connected. |
 | `no_frame` | The console has not sent a picture yet. |

@@ -106,18 +106,22 @@ private:
   // An action the user should notice: the note "Agent: <status>" in the status
   // bar, and the entry `activity` under `who` in the activity list.
   void audit(const QString &who, const QString &kind, const QString &activity, const QString &status);
-  QVariantMap findProfile(const QString &key) const;
   // A request that cannot be done: its code (agentops::Err*) and the message.
   struct Failure {
     const char *code = nullptr;
     QString message;
   };
+  // The profile that key names: the one with that id, else the only one with
+  // that name or host, either without regard to case. Empty when none has it,
+  // or when several have that name or host; then *failure, if given, says so
+  // (ErrNoProfile, or ErrAmbiguous with those profiles and their ids).
+  QVariantMap findProfile(const QString &key, Failure *failure = nullptr) const;
   // That no profile has the id, name or host key, with the names there are.
   Failure noProfile(const QString &key) const;
   // The session a request targets: args.profile, else the only open one. Null
   // when that console or every console is closed; null with *failure set
-  // (ErrNoProfile, ErrAmbiguous) when no profile matches args.profile, or when
-  // args names none and several consoles are open.
+  // (ErrNoProfile, ErrAmbiguous) when args.profile names no profile or several,
+  // or when args names none and several consoles are open.
   Session *resolve(const QJsonObject &args, Failure *failure) const;
 
   // One request while dispatch runs it: its arguments, the client that sent

@@ -321,17 +321,31 @@ void AgentApi::audit(const QString &who, const QString &kind, const QString &act
   m_c->agentNote("Agent: " + status);
   log(who, kind, activity);
 }
-QVariantMap AgentApi::findProfile(const QString &key) const {
+QVariantMap AgentApi::findProfile(const QString &key, Failure *failure) const {
   for (const auto &v : m_c->hosts()) {
     auto p = v.toMap();
     if (p.value("id").toString() == key)
       return p;
   }
+  QList<QVariantMap> matches;
   for (const auto &v : m_c->hosts()) {
     auto p = v.toMap();
     if (p.value("name").toString().compare(key, Qt::CaseInsensitive) == 0 ||
         p.value("host").toString().compare(key, Qt::CaseInsensitive) == 0)
-      return p;
+      matches << p;
+  }
+  if (matches.size() == 1)
+    return matches.first();
+  if (failure && matches.isEmpty()) {
+    *failure = noProfile(key);
+  } else if (failure) {
+    // Not the first of them: a power action could reach another server.
+    QStringList which;
+    for (const auto &p : matches)
+      which << "'" + p.value("name").toString() + "' (" + p.value("host").toString() + ", id " +
+                   p.value("id").toString() + ")";
+    *failure = {agentops::ErrAmbiguous,
+                "Several profiles match '" + key + "': " + which.join(", ") + ". Use the id of the one you mean."};
   }
   return {};
 }
@@ -349,12 +363,8 @@ Session *AgentApi::resolve(const QJsonObject &a, Failure *failure) const {
   *failure = {};
   auto key = a.value("profile").toString();
   if (!key.isEmpty()) {
-    auto p = findProfile(key);
-    if (p.isEmpty()) {
-      *failure = noProfile(key);
-      return nullptr;
-    }
-    return m_c->session(p.value("id").toString());
+    auto p = findProfile(key, failure);
+    return p.isEmpty() ? nullptr : m_c->session(p.value("id").toString());
   }
   auto open = m_c->openIds();
   if (open.size() > 1) {
@@ -482,12 +492,10 @@ void AgentApi::opStatus(Call &c) {
   c.succeed(st);
 }
 void AgentApi::opConnect(Call &c) {
-  auto key = c.args.value("profile").toString();
-  auto p = findProfile(key);
-  if (p.isEmpty()) {
-    auto f = noProfile(key);
+  Failure f;
+  auto p = findProfile(c.args.value("profile").toString(), &f);
+  if (p.isEmpty())
     return c.fail(f.code, f.message);
-  }
   auto name = p.value("name").toString();
   auto id = p.value("id").toString();
   if (m_c->isOpen(id))

@@ -25,6 +25,13 @@
   buttons it pressed.
 
 ### Fixed
+* **An agent no longer guesses between profiles of the same name.** An agent
+  names the console it means by the profile's id, name or host. When several
+  profiles had that name or host, as a copied connection keeps the host,
+  OldIPMI took the first of them, so a `power` could switch another server
+  than the one meant. Now such an operation fails with the code `ambiguous`,
+  and the error lists those profiles with their ids, which the agent can use
+  instead.
 * **An ISO that the server ejects is unmounted.** When the operating system
   on the server ejected the virtual CD, as an installer does when it is done,
   OldIPMI acknowledged that, but kept the ISO mounted, and the drive went on

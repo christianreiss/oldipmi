@@ -385,6 +385,41 @@ private slots:
     QVERIFY(run(api, "disconnect").ok);
     QVERIFY(!run(api, "status").value.toObject()["passwordRequired"].toBool());
   }
+  // A name or host that several profiles share names none of them: whatever
+  // the operation, it fails as ambiguous and lists them with their ids, and no
+  // password prompt opens (B-07). An id, or the host of one profile, still
+  // names it.
+  void anAmbiguousProfileNamesNone() {
+    QTemporaryDir dir; NoCredentials w;
+    QFile f(dir.filePath("hosts.json"));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(R"({"version":1,"defaultsVersion":1,"profiles":[
+      {"id":"twin-a","name":"Twin","host":"a.invalid","family":"ami","username":"x","remember":false},
+      {"id":"twin-b","name":"twin","host":"b.invalid","family":"ami","username":"x","remember":false},
+      {"id":"copy","name":"Copy","host":"A.invalid","family":"ami","username":"x","remember":false}]})");
+    f.close();
+    Controller c(nullptr, &w, f.fileName());
+    AgentApi api(&c, dir.filePath("s"));
+    QSignalSpy prompts(&c, &Controller::passwordRequired);
+    const QList<std::pair<QString, QString>> cases{
+        {"TWIN", "'Twin' (a.invalid, id twin-a), 'twin' (b.invalid, id twin-b)"},
+        {"a.invalid", "'Twin' (a.invalid, id twin-a), 'Copy' (A.invalid, id copy)"}};
+    for (const auto &[key, which] : cases) {
+      for (const char *op : {"connect", "status", "screenshot", "power", "disconnect"}) {
+        auto r = run(api, op, {{"profile", key}, {"action", "off"}});
+        QVERIFY2(!r.ok, op);
+        QCOMPARE(r.code, QString(agentops::ErrAmbiguous));
+        QCOMPARE(r.value.toString(), "Several profiles match '" + key + "': " + which + ". Use the id of the one you mean.");
+      }
+    }
+    QCOMPARE(prompts.count(), 0);
+    QVERIFY(c.pendingProfile().isEmpty());
+    QVERIFY(run(api, "connect", {{"profile", "twin-a"}}).value["passwordRequired"].toBool());
+    QCOMPARE(c.pendingProfile().value("id").toString(), QString("twin-a"));
+    auto st = run(api, "status", {{"profile", "b.invalid"}});
+    QVERIFY(st.ok);
+    QVERIFY(!st.value["passwordRequired"].toBool()); // the prompt is twin-a's
+  }
   // The prompt an agent's connect opened belongs to its profile, by id:
   // another console, or another profile of the same name, neither reports nor
   // dismisses it (B-07).

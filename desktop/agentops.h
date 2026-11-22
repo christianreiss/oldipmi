@@ -24,10 +24,11 @@ inline constexpr char OpEject[] = "eject";
 // message. bad_request: the line is no request (invalid JSON, or over 1 MiB);
 // unknown_op: the app does not offer the op; bad_args: an argument is out of
 // range or of the wrong kind; no_profile: no profile has the id, name or host
-// in profile; ambiguous: several consoles are open and the request names none;
-// busy: a password prompt for another profile is open; not_connected: the
-// console is not connected; no_frame: no picture has come yet; failed: the
-// app, the console or the BMC could not do it.
+// in profile; ambiguous: several profiles have the name or host in profile, or
+// several consoles are open and the request names none; busy: a password
+// prompt for another profile is open; not_connected: the console is not
+// connected; no_frame: no picture has come yet; failed: the app, the console
+// or the BMC could not do it.
 inline constexpr char ErrBadRequest[] = "bad_request";
 inline constexpr char ErrUnknownOp[] = "unknown_op";
 inline constexpr char ErrBadArgs[] = "bad_args";
