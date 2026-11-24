@@ -254,12 +254,13 @@ From the AppImage the bundled path changes on every run: copy `oldipmi-mcp` (a s
 stable place such as `~/.local/bin`; the settings page then shows that path. Copy it again after
 an update: the settings page warns while an agent uses an `oldipmi-mcp` of another version.
 
-Several consoles can be open at once. Every tool except `list_profiles`, `list_keys`,
-`wait` and `connect` takes an optional `profile` (name, id or host); it may be left out
+Several consoles can be open at once. Every tool except `list_profiles`, `create_profile`, `update_profile`,
+`delete_profile`, `list_keys`, `wait` and `connect` takes an optional `profile` (name, id or host); it may be left out
 while exactly one console is open, and is required (the error names the open ones) when
 several are. `status` lists them under `sessions`; `disconnect` takes `profile` or `all`.
 
-Tools: `list_profiles`, `status`, `connect` (waits up to 60 s for the user to type a
+Tools: `list_profiles`, `create_profile`, `update_profile`, `delete_profile`,
+`status`, `connect` (waits up to 60 s for the user to type a
 missing password in the window), `disconnect`, `screenshot` (PNG image content; crop,
 `scale`, `max_size` default 1568 px, with the exact image-to-framebuffer mapping),
 `wait_for_change`, `wait_for_stable`, `wait`, `list_keys`, `type_text` (all printable
@@ -268,7 +269,23 @@ US-ASCII), `key` (`ctrl+alt+f1` style, `repeat`), `key_combo`, `key_down`, `key_
 `mouse_drag`, `mouse_scroll`, `power`, `mount_iso`, `eject_iso`. Keys: F1–F24, keypad,
 SysRq/Break, Caps/Num/Scroll lock, Menu, left/right modifiers, Super. A failing tool
 releases only the keys and buttons it holds; when an agent disconnects, everything it
-held is released. Passwords stay in KWallet and are never visible to the agent.
+held is released.
+
+Profile management requires **Settings → AI agents (MCP) → Allow AI agents to
+manage connection profiles**, off by default. Create a profile with its address
+(`host`), BMC type (`family`) and, for types with accounts, `username`. The
+optional `name` defaults to the address. Update and delete use the exact `id`
+from `list_profiles`. Updates change only supplied fields. Close an open
+console or password prompt before editing or deleting its profile. Advanced
+connection options are managed in the desktop editor.
+
+To write a password to KWallet, supply `password` on create or update, or set
+`clear_password: true` on update to remove it. Changing address, username or
+BMC type removes the old password unless you supply a replacement. Deleting
+the profile also removes its saved password. OldIPMI never returns passwords.
+A client can log the password it sends as a tool argument, so use the desktop
+password prompt if the password should stay outside the MCP client. If creation
+times out, check `list_profiles` before retrying.
 
 Protocol: MCP 2024-11-05 through 2025-11-25 and 2026-07-28; `ping` and
 `notifications/cancelled` are handled while a long tool runs; tool calls run one at a

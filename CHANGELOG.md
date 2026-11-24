@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+* MCP agents can create, update and delete saved connection profiles and
+  set or clear their KWallet passwords. A separate desktop setting enables
+  these operations and defaults to off.
+
 ## 0.6.0 (2026-11-22)
 
 ### Added

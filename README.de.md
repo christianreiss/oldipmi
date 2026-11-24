@@ -39,6 +39,21 @@ diese Seite fasst das Wichtigste auf Deutsch zusammen.
 * **KI-Agenten:** Über `oldipmi-mcp` kann ein Agent wie Claude Code den
   Bildschirm sehen und tippen, etwa um durch ein BIOS-Setup zu gehen.
 
+## Verbindungsprofile über MCP
+
+Unter **Einstellungen → KI-Agenten (MCP)** kannst du die Profilverwaltung
+separat freigeben. Danach kann ein Agent mit `list_profiles`, `create_profile`,
+`update_profile` und `delete_profile` Profile auflisten, anlegen, bearbeiten
+und löschen. Für Änderungen und Löschungen verwendet er die exakte Profil-ID.
+Erweiterte Einstellungen wie TLS-Ausnahmen und lokale Dateipfade bearbeitest
+du im Desktop-Fenster.
+
+`password` speichert ein Passwort in KWallet. `clear_password: true` entfernt
+es. OldIPMI gibt gespeicherte Passwörter nie über MCP zurück. Der MCP-Client
+kann ein übergebenes Passwort in seinen Aufrufprotokollen speichern. Wenn das
+Passwort außerhalb des Clients bleiben soll, gib es im OldIPMI-Fenster ein.
+[Details zur MCP-Schnittstelle](README.md#mcp-let-an-ai-agent-drive-the-console)
+
 ## Unterstützte BMCs
 
 | Konsolentyp | Typische Hardware |

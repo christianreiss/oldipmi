@@ -4,8 +4,7 @@ OldIPMI is a desktop app that shows the remote console (KVM) of old BMCs
 (AMI, ATEN, Avocent/iDRAC, Cisco). This MCP server controls the **running
 OldIPMI window**: whatever you do is visible to the user there, and the app
 lists your actions. OldIPMI must be running with agent control enabled. There
-is no authentication; it is local-only. Passwords stay in KWallet and are never
-visible to you.
+is no authentication; it is local-only. OldIPMI does not return passwords.
 
 ## Register this server
 
@@ -36,6 +35,15 @@ Other MCP clients (stdio transport):
 
 - Read-only: `list_profiles`, `status`, `screenshot` (optional region, `scale`,
   `max_size`), `wait_for_change`, `wait_for_stable`, `wait`, `list_keys`.
+- Profiles: `create_profile`, `update_profile`, `delete_profile`. Ask the user
+  to enable profile management in OldIPMI if it is off. Use exact profile IDs
+  for update and delete. Close the console or any password prompt before
+  updating or deleting. A supplied `password` goes to KWallet, but the MCP
+  client may log the argument. Use the desktop prompt if it should stay
+  outside the client. `clear_password: true` removes the saved password.
+  Changing host, username or family removes the old password unless you
+  supply a replacement. Check `list_profiles` before retrying a timed-out
+  create request.
 - Session: `connect`, `disconnect`.
 - Keyboard (US layout):
   - `type_text`: every printable ASCII character, Shift added as needed;
@@ -71,7 +79,8 @@ Other MCP clients (stdio transport):
 - Relative-pointer guests are not supported; the pointer is absolute.
 - Several consoles can be open at once (the user may have some open too).
   `status` lists them under `sessions`. Every tool except `list_profiles`,
-  `list_keys`, `wait` and `connect` takes an optional `profile` (name, id or
+  `create_profile`, `update_profile`, `delete_profile`, `list_keys`, `wait` and
+  `connect` takes an optional `profile` (name, id or
   host) naming the console it acts on. With exactly one console open you may
   leave it out; with several open the call fails and names them — always
   pass `profile` then. `connect` leaves other consoles alone, and the newest

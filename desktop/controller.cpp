@@ -108,7 +108,10 @@ QVariantMap Controller::saveProfile(const QVariantMap &p, const QString &passwor
   }
   return saved;
 }
-bool Controller::removeHost(QString id) { return m_profiles->remove(id); }
+bool Controller::removeHost(QString id) { return removeProfile(id, nullptr); }
+bool Controller::removeProfile(const QString &id, ProfileStore::Failure *failure) {
+  return m_profiles->remove(id, failure);
+}
 QVariantMap Controller::host(QString id) const { return m_profiles->profile(id); }
 QVariantMap Controller::duplicateHost(QString id) {
   auto saved = m_profiles->duplicate(id);
@@ -134,6 +137,10 @@ void Controller::agentNote(QString message) {
   emit changed();
 }
 void Controller::connectHost(QVariantMap p, QString password) {
+  if (profileWriteInProgress()) {
+    fail("Another profile change is still being saved.");
+    return;
+  }
   // Already open (or being set up): bring it to the front instead of opening a second one.
   if (auto id = p.value("id").toString(); !id.isEmpty() && isOpen(id)) {
     show(id);

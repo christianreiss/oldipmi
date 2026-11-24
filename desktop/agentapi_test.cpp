@@ -14,6 +14,7 @@
 
 class NoCredentials : public Credentials {
 public:
+  Entry snapshot(const QString &, QString &) override { return Entry::Missing; }
   bool read(const QString &, QString &) override { return false; }
   bool write(const QString &, const QString &) override { return true; }
   bool remove(const QString &) override { return true; }
@@ -23,6 +24,7 @@ public:
 // read() runs an event loop, after calling `during`.
 class SlowWallet : public Credentials {
 public:
+  Entry snapshot(const QString &, QString &) override { return Entry::Missing; }
   std::function<void()> during;
   int reads = 0;
   bool read(const QString &, QString &) override {
@@ -222,8 +224,9 @@ private slots:
   // oldipmi-mcp, which finds this AgentApi's socket through XDG_RUNTIME_DIR
   // (a directory of its own), and the demo console behind it.
   void mcpServerEndToEnd() {
-    QTemporaryDir dir, runtime; NoCredentials w;
-    Controller c(nullptr, &w, writeProfiles(dir));
+    QTemporaryDir dir, runtime; MemoryCredentials w;
+    const auto path = writeProfiles(dir);
+    Controller c(nullptr, &w, path);
     AgentApi api(&c, runtime.filePath("oldipmi/agent.sock"));
     QVERIFY(api.start());
     QProcess mcp;
@@ -283,6 +286,64 @@ private slots:
     QTRY_VERIFY(c.shown()->changeSeq > before); // the demo screen redraws for the key
     QCOMPARE(tool("disconnect", {}).second, QString("Disconnected from Demo."));
     QTRY_COMPARE(c.state(), QString("disconnected"));
+    // Profile tools walk through the same stdio, socket and desktop code.
+    const auto decode = [](const QString &text) { return QJsonDocument::fromJson(text.toUtf8()).object(); };
+    const auto profile = [&](const QString &text) { return decode(text).value("profile").toObject(); };
+    QVERIFY(tool("create_profile", {{"host", "demo"}, {"family", "demo"}}).first["isError"].toBool());
+    api.setProfileWritesAllowed(true);
+    const auto demo = profile(tool("create_profile", {{"name", "MCP Demo"}, {"host", "demo"},
+                                                      {"family", "demo"}}).second);
+    const auto demoId = demo["id"].toString();
+    QVERIFY(!demoId.isEmpty());
+    QVERIFY(!tool("connect", {{"profile", demoId}}).first["isError"].toBool());
+    QCOMPARE(c.state(), QString("connected"));
+    QVERIFY(!tool("disconnect", {{"profile", demoId}}).first["isError"].toBool());
+    QTRY_VERIFY(!c.isOpen(demoId));
+    QCOMPARE(decode(tool("delete_profile", {{"id", demoId}}).second)["id"].toString(), demoId);
+
+    const QString secret = "fixture-mcp-secret-not-in-output";
+    const auto made = tool("create_profile", {{"host", "https://fixture.invalid/login"}, {"family", "ami"},
+                                              {"username", "admin"}, {"password", secret}});
+    QVERIFY(!made.second.contains(secret));
+    const auto created = profile(made.second);
+    const auto id = created["id"].toString();
+    QVERIFY(!id.isEmpty());
+    QCOMPARE(created["host"].toString(), QString("fixture.invalid"));
+    QVERIFY(created["passwordSaved"].toBool());
+    QString password;
+    QVERIFY(w.read(id, password));
+    QCOMPARE(password, secret);
+    const auto edited = profile(tool("update_profile", {{"id", id}, {"name", "Edited"}}).second);
+    QCOMPARE(edited["name"].toString(), QString("Edited"));
+    QVERIFY(edited["passwordSaved"].toBool());
+    QVERIFY(w.read(id, password));
+    QCOMPARE(password, secret);
+    {
+      Controller reloaded(nullptr, &w, path);
+      QCOMPARE(reloaded.host(id).value("name").toString(), QString("Edited"));
+      QVERIFY(reloaded.host(id).value("remember").toBool());
+    }
+
+    const auto changed = profile(tool("update_profile", {{"id", id}, {"username", "other"}}).second);
+    QCOMPARE(changed["username"].toString(), QString("other"));
+    QVERIFY(!changed["passwordSaved"].toBool());
+    QVERIFY(!w.read(id, password));
+    QVERIFY(profile(tool("update_profile", {{"id", id}, {"password", secret}}).second)["passwordSaved"].toBool());
+    const auto cleared = profile(tool("update_profile", {{"id", id}, {"clear_password", true}}).second);
+    QCOMPARE(cleared["passwordSaved"], QJsonValue(false));
+    QVERIFY(!w.read(id, password));
+    QVERIFY(profile(tool("update_profile", {{"id", id}, {"password", secret}}).second)["passwordSaved"].toBool());
+    QVERIFY(tool("list_profiles", {}).second.contains(id));
+    QVERIFY(!tool("list_profiles", {}).second.contains(secret));
+    QFile stored(path);
+    QVERIFY(stored.open(QIODevice::ReadOnly));
+    QVERIFY(!stored.readAll().contains(secret.toUtf8()));
+    stored.close();
+    QCOMPARE(decode(tool("delete_profile", {{"id", id}}).second)["id"].toString(), id);
+    QVERIFY(!w.read(id, password));
+    QVERIFY(!tool("list_profiles", {}).second.contains(id));
+    QVERIFY(!trail(api).join('\n').contains(secret));
+
     // At the end of its input the server ends, and the app forgets the agent.
     mcp.closeWriteChannel();
     QVERIFY(mcp.waitForFinished(5000));
@@ -290,6 +351,45 @@ private slots:
     QCOMPARE(mcp.exitCode(), 0);
     QTRY_COMPARE(api.clientCount(), 0);
   }
+  void profileWritesValidateStateAndPermissions() {
+    QTemporaryDir dir;
+    MemoryCredentials wallet;
+    Controller c(nullptr, &wallet, writeProfiles(dir));
+    AgentApi api(&c, dir.filePath("s"));
+    QVERIFY(api.start());
+
+    QLocalSocket socket;
+    socket.connectToServer(api.socketPath());
+    QVERIFY(socket.waitForConnected(2000));
+    const auto remove = R"({"id":1,"op":"delete_profile","args":{"id":"demo-1"}})";
+    QCOMPARE(request(socket, remove)["code"].toString(), QString("forbidden"));
+    api.setProfileWritesAllowed(true);
+    QCOMPARE(run(api, "delete_profile", {{"id", "Demo"}}).code, QString("no_profile"));
+    QCOMPARE(run(api, "update_profile", {{"id", "demo-1"}, {"legacyTLS", true}}).code, QString("bad_args"));
+    QCOMPARE(run(api, "update_profile", {{"id", "demo-1"}, {"password", "discard"}}).code, QString("bad_args"));
+    QCOMPARE(run(api, "update_profile", {{"id", "demo-1"}, {"name", QJsonValue::Null}}).code, QString("bad_args"));
+    QVERIFY(run(api, "connect", {{"profile", "demo-1"}}).ok);
+    QVERIFY(c.isOpen("demo-1"));
+    QVERIFY(run(api, "connect", {{"profile", "fake-1"}}).ok);
+    QCOMPARE(run(api, "delete_profile", {{"id", "demo-1"}}).code, QString("busy"));
+    QCOMPARE(run(api, "update_profile", {{"id", "fake-1"}, {"name", "New"}}).code, QString("busy"));
+    QVERIFY(run(api, "disconnect", {{"all", true}}).ok);
+    QTRY_VERIFY(!c.isOpen("demo-1"));
+
+    auto advanced = c.host("fake-1");
+    advanced["legacyTLS"] = true;
+    QVERIFY(!c.saveHost(advanced, {}, false).isEmpty());
+    QCOMPARE(run(api, "update_profile", {{"id", "fake-1"}, {"host", "elsewhere.invalid"}}).code,
+             QString("bad_args"));
+    QVERIFY(run(api, "update_profile", {{"id", "fake-1"}, {"name", "New"}}).ok);
+    QVERIFY(c.host("fake-1").value("legacyTLS").toBool());
+    api.setProfileWritesAllowed(false);
+    QCOMPARE(request(socket, remove)["code"].toString(), QString("forbidden"));
+    api.setProfileWritesAllowed(true);
+    QVERIFY(request(socket, remove)["ok"].toBool());
+    QVERIFY(c.host("demo-1").isEmpty());
+  }
+
   // A client that stops reading is dropped once 64 MiB of replies wait for it.
   void clientThatStopsReadingIsDropped() {
     QTemporaryDir dir; NoCredentials w;

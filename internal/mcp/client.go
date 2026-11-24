@@ -71,7 +71,7 @@ type line struct {
 // unlock it.
 func replyWithin(op string) time.Duration {
 	switch op {
-	case opConnect:
+	case opConnect, opCreateProfile, opUpdateProfile, opDeleteProfile:
 		return 60 * time.Second
 	case opMount, opEject:
 		return 35 * time.Second

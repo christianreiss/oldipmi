@@ -56,7 +56,7 @@ The reply names the app, its version, the version of the agent API and the opera
 
 ```json
 {"id": 1, "ok": true, "result": {"app": "OldIPMI", "version": "0.5.0", "api": 1,
-  "ops": ["hello", "list_profiles", "status", "connect", "disconnect", "screenshot", "key",
+  "ops": ["hello", "list_profiles", "create_profile", "update_profile", "delete_profile", "status", "connect", "disconnect", "screenshot", "key",
           "pointer", "release", "power", "mount", "eject"]}}
 ```
 
@@ -84,6 +84,31 @@ See [Versions](#versions).
 
 No arguments. `profiles` lists the saved connections: `id`, `name`, `host`, `family` (`ami`,
 `aten`, `avocent`, `cisco` or `demo`), `username` and `passwordSaved`.
+
+### `create_profile`, `update_profile`, `delete_profile`
+
+All three require the separate profile management setting under AI agents (MCP),
+off by default. They do not open or close a console.
+
+* `create_profile` requires `host` and a supported `family`. Families with an
+  account require `username`. `name` defaults to the address. An optional
+  nonempty `password` is stored in KWallet. Success returns `{"profile": {...}}`
+  with the same fields as an entry from `list_profiles`.
+* `update_profile` requires the exact `id` and at least one change. It accepts
+  `name`, `host`, `family`, `username`, `password` or `clear_password: true`.
+  OldIPMI preserves omitted fields. An address, username or family change
+  removes the prior password unless the request sets a replacement. Use the
+  desktop editor to change address or family for a profile with advanced options.
+  Success returns the same shape as create.
+* `delete_profile` takes the exact `id` and removes the profile and its saved
+  password. Success returns `{"id": "..."}`.
+
+Errors include `forbidden` while the setting is off, `no_profile` for an
+unknown ID, `busy` for a console or password prompt open for the target,
+`bad_args` for invalid fields and `failed` for storage errors. Wallet
+changes can wait for the user to unlock KWallet. Passwords are input-only.
+OldIPMI reports a partial failure if it cannot restore KWallet after a
+profiles file write fails.
 
 ### `status`
 
@@ -184,6 +209,7 @@ Ejects the ISO. The result has a `message`, which may be empty. Errors: `not_con
 | --- | --- |
 | `bad_request` | The line is no request: not a JSON object, or longer than 1 MiB. |
 | `unknown_op` | OldIPMI does not offer the operation. |
+| `forbidden` | The desktop setting for MCP profile management is off. |
 | `bad_args` | An argument is out of range or of the wrong kind. |
 | `no_profile` | No profile has the id, name or host given in `profile`. |
 | `ambiguous` | Several profiles have the name or host given in `profile`; or several consoles are open, and the request names none of them. |

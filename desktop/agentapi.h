@@ -48,6 +48,7 @@ public:
   Q_INVOKABLE void stop();
   bool enabled() const { return m_enabled; }
   void setEnabled(bool on);
+  void setProfileWritesAllowed(bool allowed) { m_profileWritesAllowed = allowed; }
   bool listening() const { return m_server.isListening(); }
   QString errorString() const { return m_error; }
   QString socketPath() const { return m_path; }
@@ -85,6 +86,7 @@ private:
   Controller *m_c;
   QString m_path, m_error, m_mcpPath;
   bool m_enabled = false;
+  bool m_profileWritesAllowed = false;
   QLocalServer m_server;
   QTimer m_retry; // takes the socket over once another instance lets go of it
   // Shared with the handler that runs for a client, which keeps it while it
@@ -146,6 +148,11 @@ private:
   static const Op Ops[];
   void opHello(Call &c);
   void opListProfiles(Call &c);
+  void opCreateProfile(Call &c);
+  void opUpdateProfile(Call &c);
+  void opDeleteProfile(Call &c);
+  enum class ProfileAction { Create, Update, Delete };
+  void changeProfile(Call &c, ProfileAction action);
   void opStatus(Call &c);
   void opConnect(Call &c);
   void opDisconnect(Call &c);

@@ -7,6 +7,8 @@
 class Credentials {
 public:
   virtual ~Credentials() = default;
+  enum class Entry { Missing, Present, Unavailable };
+  virtual Entry snapshot(const QString &id, QString &password) = 0;
   virtual bool read(const QString &id, QString &password) = 0;
   virtual bool write(const QString &id, const QString &password) = 0;
   virtual bool remove(const QString &id) = 0;
@@ -18,11 +20,17 @@ std::unique_ptr<Credentials> kdeCredentials();
 class MemoryCredentials final : public Credentials {
 public:
   bool available = true;
+  Entry snapshot(const QString &id, QString &password) override {
+    if (!available)
+      return Entry::Unavailable;
+    const auto it = m_values.constFind(id);
+    if (it == m_values.cend())
+      return Entry::Missing;
+    password = *it;
+    return Entry::Present;
+  }
   bool read(const QString &id, QString &password) override {
-    if (!available || !m_values.contains(id))
-      return false;
-    password = m_values.value(id);
-    return true;
+    return snapshot(id, password) == Entry::Present;
   }
   bool write(const QString &id, const QString &password) override {
     if (available)

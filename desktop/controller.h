@@ -79,6 +79,10 @@ public:
   Q_INVOKABLE QVariantMap saveHost(QVariantMap profile, QString password,
                                    bool remember);
   Q_INVOKABLE bool removeHost(QString id);
+  bool profileWriteInProgress() const { return m_profiles->writing(); }
+  QVariantMap saveProfile(const QVariantMap &p, const QString &password, bool remember,
+                          ProfileStore::Failure *failure);
+  bool removeProfile(const QString &id, ProfileStore::Failure *failure);
   Q_INVOKABLE void connectHost(QVariantMap profile, QString password);
   Q_INVOKABLE void disconnectHost();
   Q_INVOKABLE void continueWithoutWallet();
@@ -112,7 +116,4 @@ private:
   std::unique_ptr<SessionManager> m_sessions; // the last member: it goes first
   void setMessage(const QString &m);
   void fail(QString message);
-  // saveHost, with what failed.
-  QVariantMap saveProfile(const QVariantMap &p, const QString &password, bool remember,
-                          ProfileStore::Failure *failure);
 };

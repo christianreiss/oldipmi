@@ -8,7 +8,11 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+#include <QScopeGuard>
+#include <utility>
 #include <QUuid>
+
+static constexpr qsizetype MaxProfilesBytes = 1 << 20;
 
 ProfileStore::ProfileStore(QString file, Credentials *credentials, QObject *parent)
     : QObject(parent), m_file(std::move(file)), m_credentials(credentials) {}
@@ -17,7 +21,7 @@ void ProfileStore::load() {
   QFile f(m_file);
   bool migrate = false;
   if (f.exists()) {
-    if (!f.open(QIODevice::ReadOnly) || f.size() > 1024 * 1024) {
+    if (!f.open(QIODevice::ReadOnly) || f.size() > MaxProfilesBytes) {
       m_readable = false;
     } else {
       auto doc = QJsonDocument::fromJson(f.readAll());
@@ -47,6 +51,14 @@ bool ProfileStore::persist(const QVariantList &profiles) {
     emit failed("Profiles were not saved because the existing file could not be read safely.");
     return false;
   }
+  // defaultsVersion is no longer read; it stops 0.3.0 and older from adding their presets again.
+  const auto data = QJsonDocument(QJsonObject{{"version", 1}, {"defaultsVersion", 1},
+                                              {"profiles", QJsonArray::fromVariantList(profiles)}})
+                        .toJson();
+  if (data.size() > MaxProfilesBytes) {
+    emit failed("The profiles file would be too large to load. Remove unused profiles or shorten their fields.");
+    return false;
+  }
   QDir().mkpath(QFileInfo(m_file).absolutePath());
   QSaveFile f(m_file);
   if (!f.open(QIODevice::WriteOnly)) {
@@ -54,10 +66,6 @@ bool ProfileStore::persist(const QVariantList &profiles) {
     return false;
   }
   f.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
-  // defaultsVersion is no longer read; it stops 0.3.0 and older from adding their presets again.
-  auto data = QJsonDocument(QJsonObject{{"version", 1}, {"defaultsVersion", 1},
-                                        {"profiles", QJsonArray::fromVariantList(profiles)}})
-                  .toJson();
   if (f.write(data) != data.size() || !f.commit()) {
     emit failed("Could not save host profiles.");
     return false;
@@ -76,12 +84,12 @@ QVariantMap ProfileStore::save(const QVariantMap &p, const QString &password, bo
                                Failure *failure) {
   if (failure)
     *failure = Failure::Profile;
-  auto walletFailed = [&](const QString &message) {
+  if (m_writing) {
     if (failure)
-      *failure = Failure::Wallet;
-    emit failed(message);
-    return QVariantMap{};
-  };
+      *failure = Failure::Busy;
+    emit failed("Another profile change is still being saved.");
+    return {};
+  }
   if (!m_readable) {
     emit failed("Cannot modify an unreadable profiles file.");
     return {};
@@ -112,23 +120,18 @@ QVariantMap ProfileStore::save(const QVariantMap &p, const QString &password, bo
     clean["lastConnected"] = previous["lastConnected"];
   if (clean.value("name").toString().trimmed().isEmpty())
     clean["name"] = clean["host"];
-  if (remember && !password.isEmpty()) {
-    if (!m_credentials->write(clean["id"].toString(), password))
-      return walletFailed("KWallet is unavailable; the password was not saved.");
-  } else if (previous.value("remember").toBool() &&
-             (!remember || previous.value("host") != clean.value("host") ||
-              previous.value("username") != clean.value("username"))) {
-    if (!m_credentials->remove(clean["id"].toString()))
-      return walletFailed("Could not remove the saved password from KWallet.");
-  }
+  const bool replacePassword = remember && !password.isEmpty();
+  const bool removePassword = !replacePassword && previous.value("remember").toBool() &&
+                              (!remember || previous.value("host") != clean.value("host") ||
+                               previous.value("username") != clean.value("username") ||
+                               previous.value("family") != clean.value("family"));
   if (index >= 0)
     profiles[index] = clean;
   else
     profiles.append(clean);
-  if (!persist(profiles))
+  if (!commit(profiles, clean["id"].toString(), replacePassword ? password : QString(),
+              removePassword, failure))
     return {};
-  m_profiles = profiles;
-  emit profilesChanged();
   return clean;
 }
 
@@ -143,26 +146,70 @@ QVariantMap ProfileStore::duplicate(const QString &id) {
   return save(p, {}, false);
 }
 
-bool ProfileStore::remove(const QString &id) {
+bool ProfileStore::remove(const QString &id, Failure *failure) {
+  if (failure)
+    *failure = Failure::Profile;
+  if (m_writing) {
+    if (failure)
+      *failure = Failure::Busy;
+    emit failed("Another profile change is still being saved.");
+    return false;
+  }
   if (!m_readable) {
     emit failed("Cannot modify an unreadable profiles file.");
     return false;
   }
   auto profiles = m_profiles;
-  for (int i = 0; i < profiles.size(); i++)
-    if (profiles[i].toMap().value("id").toString() == id) {
-      if (profiles[i].toMap().value("remember").toBool() && !m_credentials->remove(id)) {
-        emit failed("Could not remove the saved password from KWallet.");
-        return false;
-      }
-      profiles.removeAt(i);
-      if (!persist(profiles))
-        return false;
-      m_profiles = profiles;
-      emit profilesChanged();
-      return true;
-    }
+  for (int i = 0; i < profiles.size(); i++) {
+    const auto p = profiles[i].toMap();
+    if (p.value("id").toString() != id)
+      continue;
+    profiles.removeAt(i);
+    return commit(profiles, id, {}, p.value("remember").toBool(), failure);
+  }
   return false;
+}
+
+void ProfileStore::finishWrite() {
+  m_writing = false;
+  const auto stamps = std::exchange(m_pendingStamps, {});
+  for (const auto &id : stamps)
+    stamp(id);
+}
+
+bool ProfileStore::commit(const QVariantList &profiles, const QString &id, const QString &password,
+                          bool removePassword, Failure *failure) {
+  m_writing = true;
+  const auto finish = qScopeGuard([this] { finishWrite(); });
+  const bool walletChange = removePassword || !password.isEmpty();
+  QString oldPassword;
+  auto previous = Credentials::Entry::Missing;
+  if (walletChange) {
+    previous = m_credentials->snapshot(id, oldPassword);
+    if (previous == Credentials::Entry::Unavailable ||
+        (removePassword ? !m_credentials->remove(id) : !m_credentials->write(id, password))) {
+      if (failure)
+        *failure = Failure::Wallet;
+      emit failed("KWallet is unavailable or could not change the saved password.");
+      return false;
+    }
+  }
+  if (!persist(profiles)) {
+    if (walletChange) {
+      const bool restored = previous == Credentials::Entry::Present
+                                ? m_credentials->write(id, oldPassword)
+                                : m_credentials->remove(id);
+      if (!restored) {
+        if (failure)
+          *failure = Failure::Partial;
+        emit failed("Profiles were not saved and the previous KWallet state could not be restored.");
+      }
+    }
+    return false;
+  }
+  m_profiles = profiles;
+  emit profilesChanged();
+  return true;
 }
 
 QString ProfileStore::savedPassword(const QVariantMap &p) const {
@@ -170,7 +217,8 @@ QString ProfileStore::savedPassword(const QVariantMap &p) const {
   for (const auto &v : m_profiles) {
     auto saved = v.toMap();
     if (saved.value("id") == p.value("id") && saved.value("host") == p.value("host") &&
-        saved.value("username") == p.value("username")) {
+        saved.value("username") == p.value("username") &&
+        saved.value("family") == p.value("family")) {
       if (!m_credentials->read(p.value("id").toString(), password))
         password.clear();
       break;
@@ -180,6 +228,10 @@ QString ProfileStore::savedPassword(const QVariantMap &p) const {
 }
 
 void ProfileStore::stamp(const QString &id) {
+  if (m_writing) {
+    m_pendingStamps.insert(id);
+    return;
+  }
   auto profiles = m_profiles;
   for (auto &v : profiles) {
     auto p = v.toMap();

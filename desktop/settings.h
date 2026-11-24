@@ -11,6 +11,7 @@ class AppSettings : public QObject {
   Q_PROPERTY(bool fitToWindow READ fitToWindow WRITE setFitToWindow NOTIFY changed)
   Q_PROPERTY(bool rightCtrlReleases READ rightCtrlReleases WRITE setRightCtrlReleases NOTIFY changed)
   Q_PROPERTY(bool agentApiEnabled READ agentApiEnabled WRITE setAgentApiEnabled NOTIFY changed)
+  Q_PROPERTY(bool agentProfileWrites READ agentProfileWrites WRITE setAgentProfileWrites NOTIFY changed)
   Q_PROPERTY(bool showSidebar READ showSidebar WRITE setShowSidebar NOTIFY changed)
   Q_PROPERTY(QString lastProfile READ lastProfile WRITE setLastProfile NOTIFY changed)
   Q_PROPERTY(QRect windowGeometry READ windowGeometry WRITE setWindowGeometry NOTIFY changed)
@@ -20,6 +21,7 @@ public:
   bool fitToWindow() const { return get("fitToWindow", true).toBool(); }
   bool rightCtrlReleases() const { return get("rightCtrlReleases", true).toBool(); }
   bool agentApiEnabled() const { return get("agentApiEnabled", true).toBool(); }
+  bool agentProfileWrites() const { return get("agentProfileWrites", false).toBool(); }
   bool showSidebar() const { return get("showSidebar", true).toBool(); }
   QString lastProfile() const { return get("lastProfile", QString()).toString(); }
   QRect windowGeometry() const { return get("windowGeometry", QRect()).toRect(); }
@@ -27,6 +29,7 @@ public:
   void setFitToWindow(bool v) { set("fitToWindow", v); }
   void setRightCtrlReleases(bool v) { set("rightCtrlReleases", v); }
   void setAgentApiEnabled(bool v) { set("agentApiEnabled", v); }
+  void setAgentProfileWrites(bool v) { set("agentProfileWrites", v); }
   void setShowSidebar(bool v) { set("showSidebar", v); }
   void setLastProfile(const QString &v) { set("lastProfile", v); }
   void setWindowGeometry(const QRect &v) { set("windowGeometry", v); }

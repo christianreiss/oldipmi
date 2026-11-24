@@ -31,6 +31,7 @@ Application::Application(const Options &options, const QString &profiles)
 }
 
 void Application::applyAgentSetting() {
+  m_agent.setProfileWritesAllowed(m_launch.agentAllowed() && m_settings.agentProfileWrites());
   if (!m_launch.agentAllowed() || m_settings.agentApiEnabled() == m_agent.enabled())
     return;
   m_agent.setEnabled(m_settings.agentApiEnabled());

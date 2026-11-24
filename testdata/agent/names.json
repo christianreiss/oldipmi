@@ -4,6 +4,9 @@
   "ops": {
     "Hello": "hello",
     "ListProfiles": "list_profiles",
+    "CreateProfile": "create_profile",
+    "UpdateProfile": "update_profile",
+    "DeleteProfile": "delete_profile",
     "Status": "status",
     "Connect": "connect",
     "Disconnect": "disconnect",
@@ -24,6 +27,7 @@
     "Busy": "busy",
     "NotConnected": "not_connected",
     "NoFrame": "no_frame",
+    "Forbidden": "forbidden",
     "Failed": "failed"
   }
 }

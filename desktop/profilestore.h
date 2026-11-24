@@ -1,5 +1,6 @@
 #pragma once
 #include <QObject>
+#include <QSet>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -25,7 +26,8 @@ public:
   // What kept save() from saving: the wallet, which could not store the
   // password or remove the one it had, or the profile itself (no address, a
   // file that cannot be read or written).
-  enum class Failure { Profile, Wallet };
+  enum class Failure { Profile, Wallet, Partial, Busy };
+  bool writing() const { return m_writing; }
   // Saves profile under its id (a new one without), with the password in the
   // wallet if remember; returns it as saved, or {} after failed, with what
   // failed in failure.
@@ -34,7 +36,7 @@ public:
   // A copy of the profile with its own id, without its password or last
   // connection; {} if there is none, or after failed.
   QVariantMap duplicate(const QString &id);
-  bool remove(const QString &id);
+  bool remove(const QString &id, Failure *failure = nullptr);
   // The password the wallet keeps for profile, if it is saved with the same
   // host and account: one is never reused after either changed.
   QString savedPassword(const QVariantMap &profile) const;
@@ -50,5 +52,10 @@ private:
   Credentials *const m_credentials;
   QVariantList m_profiles;
   bool m_readable = true;
+  bool m_writing = false;
+  QSet<QString> m_pendingStamps;
+  void finishWrite();
+  bool commit(const QVariantList &profiles, const QString &id, const QString &password,
+              bool removePassword, Failure *failure);
   bool persist(const QVariantList &profiles);
 };

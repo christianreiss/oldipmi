@@ -223,5 +223,5 @@ func tools() []Tool {
 // rawTools are the tools in the order agents see them; tools adds the profile
 // selector.
 func rawTools() []Tool {
-	return slices.Concat(sessionTools(), screenTools(), inputTools(), hostTools())
+	return slices.Concat(sessionTools(), profileTools(), screenTools(), inputTools(), hostTools())
 }

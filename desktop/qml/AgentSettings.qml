@@ -44,6 +44,14 @@ FormCard.FormCardPage {
             onToggled: AppSettings.agentApiEnabled = checked
         }
         FormCard.FormDelegateSeparator {}
+        FormCard.FormSwitchDelegate {
+            text: "Allow AI agents to manage connection profiles"
+            description: "Allows programs using the agent socket to add, change and delete profiles and their saved passwords."
+            enabled: AppSettings.agentApiEnabled
+            checked: AppSettings.agentProfileWrites
+            onToggled: AppSettings.agentProfileWrites = checked
+        }
+        FormCard.FormDelegateSeparator {}
         FormCard.FormTextDelegate {
             text: "Status"
             description: AgentApi.listening

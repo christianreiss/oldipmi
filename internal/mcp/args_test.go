@@ -54,6 +54,12 @@ func TestArgumentChecks(t *testing.T) {
 		{tool: "connect", args: `{"profile":"x","timeout_ms":1500.5}`, err: "timeout_ms must be an integer in 1000..300000"},
 		{tool: "connect", args: `{"profile":"x","password_wait_ms":-1}`, err: "password_wait_ms must be an integer in 0..300000"},
 
+		{tool: "create_profile", args: `{"host":"bmc.invalid"}`, err: "family is required"},
+		{tool: "create_profile", args: `{"host":"bmc.invalid","family":"ami","password":""}`, err: "password must be a non-empty string"},
+		{tool: "update_profile", args: `{"id":"abc"}`, err: "supply at least one profile change"},
+		{tool: "update_profile", args: `{"id":"abc","password":"fixture","clear_password":true}`, err: "give either password or clear_password, not both"},
+		{tool: "delete_profile", args: `{"id":42}`, err: "id must be a string"},
+
 		{tool: "disconnect", args: `{"all":true,"profile":"A"}`, err: "give either profile or all, not both"},
 		{tool: "disconnect", args: `{"all":"yes"}`, err: "all must be true or false"},
 		{tool: "disconnect", args: `{"all":null}`, sent: `disconnect{}`},

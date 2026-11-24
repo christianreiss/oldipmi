@@ -8,11 +8,22 @@ auto wallet() {
 }
 class KDECredentials final : public Credentials {
 public:
-  bool read(const QString &id, QString &password) override {
+  Entry snapshot(const QString &id, QString &password) override {
     if (KWallet::Wallet::keyDoesNotExist(KWallet::Wallet::NetworkWallet(), "OldIPMI", id))
-      return false;
+      return Entry::Missing;
     auto w = wallet();
-    return w && w->setFolder("OldIPMI") && w->readPassword(id, password) == 0;
+    if (!w)
+      return Entry::Unavailable;
+    if (!w->hasFolder("OldIPMI"))
+      return Entry::Missing;
+    if (!w->setFolder("OldIPMI"))
+      return Entry::Unavailable;
+    if (!w->hasEntry(id))
+      return Entry::Missing;
+    return w->readPassword(id, password) == 0 ? Entry::Present : Entry::Unavailable;
+  }
+  bool read(const QString &id, QString &password) override {
+    return snapshot(id, password) == Entry::Present;
   }
   bool write(const QString &id, const QString &password) override {
     auto w = wallet();

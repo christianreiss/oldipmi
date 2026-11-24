@@ -15,6 +15,9 @@
                 "ops": [
                     "hello",
                     "list_profiles",
+                    "create_profile",
+                    "update_profile",
+                    "delete_profile",
                     "status",
                     "connect",
                     "disconnect",
@@ -73,6 +76,30 @@
                     }
                 ]
             }
+        },
+        {
+            "args": {
+            },
+            "code": "forbidden",
+            "error": "Enable Settings → AI agents (MCP) → Allow AI agents to manage connection profiles.",
+            "ok": false,
+            "op": "delete_profile"
+        },
+        {
+            "args": {
+            },
+            "code": "forbidden",
+            "error": "Enable Settings → AI agents (MCP) → Allow AI agents to manage connection profiles.",
+            "ok": false,
+            "op": "update_profile"
+        },
+        {
+            "args": {
+            },
+            "code": "forbidden",
+            "error": "Enable Settings → AI agents (MCP) → Allow AI agents to manage connection profiles.",
+            "ok": false,
+            "op": "create_profile"
         },
         {
             "args": {

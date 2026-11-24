@@ -298,14 +298,14 @@ func TestToolsHaveSchemasAndAnnotations(t *testing.T) {
 			}
 		}
 	}
-	for _, n := range []string{"list_profiles", "status", "connect", "disconnect", "screenshot", "wait_for_change", "wait_for_stable", "wait", "list_keys",
+	for _, n := range []string{"list_profiles", "create_profile", "update_profile", "delete_profile", "status", "connect", "disconnect", "screenshot", "wait_for_change", "wait_for_stable", "wait", "list_keys",
 		"type_text", "key", "key_combo", "key_down", "key_up", "release_input", "mouse_move", "mouse_click", "mouse_double_click", "mouse_drag", "mouse_scroll",
 		"power", "mount_iso", "eject_iso"} {
 		if !names[n] {
 			t.Errorf("missing tool %s", n)
 		}
 	}
-	if len(names) != 23 {
+	if len(names) != 26 {
 		t.Errorf("unexpected tool count %d", len(names))
 	}
 }
@@ -698,7 +698,7 @@ func TestSessionToolsTakeAProfile(t *testing.T) {
 		props := tool["inputSchema"].(map[string]any)["properties"].(map[string]any)
 		_, has := props["profile"]
 		switch name {
-		case "list_profiles", "list_keys", "wait":
+		case "list_profiles", "create_profile", "update_profile", "delete_profile", "list_keys", "wait":
 			if has {
 				t.Errorf("%s is not tied to a console but takes a profile", name)
 			}

@@ -14,18 +14,21 @@ import (
 
 // Ops: what a request asks. The client says hello first.
 const (
-	opHello        = "hello"
-	opListProfiles = "list_profiles"
-	opStatus       = "status"
-	opConnect      = "connect"
-	opDisconnect   = "disconnect"
-	opScreenshot   = "screenshot"
-	opKey          = "key"
-	opPointer      = "pointer"
-	opRelease      = "release"
-	opPower        = "power"
-	opMount        = "mount"
-	opEject        = "eject"
+	opHello         = "hello"
+	opListProfiles  = "list_profiles"
+	opCreateProfile = "create_profile"
+	opUpdateProfile = "update_profile"
+	opDeleteProfile = "delete_profile"
+	opStatus        = "status"
+	opConnect       = "connect"
+	opDisconnect    = "disconnect"
+	opScreenshot    = "screenshot"
+	opKey           = "key"
+	opPointer       = "pointer"
+	opRelease       = "release"
+	opPower         = "power"
+	opMount         = "mount"
+	opEject         = "eject"
 )
 
 // agentAPI is the version of the agent API this oldipmi-mcp speaks

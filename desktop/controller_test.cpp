@@ -15,7 +15,16 @@ class FakeCredentials : public Credentials {
 public:
   QMap<QString, QString> values;
   bool available = true;
+  bool failRemove = false;
   int reads = 0, writes = 0, removes = 0;
+  Entry snapshot(const QString &id, QString &password) override {
+    if (!available)
+      return Entry::Unavailable;
+    if (!values.contains(id))
+      return Entry::Missing;
+    password = values.value(id);
+    return Entry::Present;
+  }
   bool read(const QString &id, QString &password) override {
     ++reads;
     if (!available || !values.contains(id)) return false;
@@ -30,7 +39,7 @@ public:
   }
   bool remove(const QString &id) override {
     ++removes;
-    if (!available) return false;
+    if (!available || failRemove) return false;
     values.remove(id);
     return true;
   }
@@ -195,6 +204,48 @@ private slots:
       QVERIFY(c.pendingProfile().isEmpty());
       QVERIFY(c.sessions().isEmpty());
     }
+  }
+  void profileWriteFailureRestoresWallet() {
+    QTemporaryDir dir;
+    FakeCredentials wallet;
+    const auto path = writeProfiles(dir, {savedProfile()});
+    Controller c(nullptr, &wallet, path);
+    const auto profile = c.host("fixture-id");
+    const auto id = profile.value("id").toString();
+    wallet.values[id] = "previous";
+    const auto backup = dir.filePath("backup.json");
+    QVERIFY(QFile::rename(path, backup));
+    QVERIFY(QDir().mkdir(path)); // an atomic file commit cannot replace a directory
+    const auto unchanged = c.hosts();
+    QSignalSpy changes(&c, &Controller::hostsChanged);
+    auto failure = ProfileStore::Failure::Wallet;
+    QVERIFY(c.saveProfile(profile, "replacement", true, &failure).isEmpty());
+    QCOMPARE(failure, ProfileStore::Failure::Profile);
+    QCOMPARE(wallet.values.value(id), QString("previous"));
+    QVERIFY(!c.removeProfile(id, &failure));
+    QCOMPARE(wallet.values.value(id), QString("previous"));
+    QCOMPARE(c.hosts(), unchanged);
+    QCOMPARE(changes.count(), 0);
+
+    auto fresh = profile;
+    fresh.remove("id");
+    wallet.failRemove = true;
+    QVERIFY(c.saveProfile(fresh, "fixture", true, &failure).isEmpty());
+    QCOMPARE(failure, ProfileStore::Failure::Partial);
+    QVERIFY(c.message().contains("could not be restored"));
+    QCOMPARE(c.hosts(), unchanged);
+  }
+  void oversizedProfileWriteKeepsLoadableFile() {
+    QTemporaryDir dir;
+    FakeCredentials wallet;
+    const auto path = writeProfiles(dir, {savedProfile()});
+    Controller c(nullptr, &wallet, path);
+    const auto before = read(path);
+    auto profile = c.host("fixture-id");
+    profile["name"] = QString(1024 * 1024, 'x');
+    QVERIFY(c.saveHost(profile, {}, false).isEmpty());
+    QVERIFY(c.message().contains("too large"));
+    QCOMPARE(read(path), before);
   }
   void changedAccountNeverReusesPassword() {
     QTemporaryDir dir; FakeCredentials wallet;

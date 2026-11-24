@@ -1,5 +1,6 @@
 #include "agentapi.h"
 #include "agentops.h"
+#include "families.h"
 #include "runtimedir.h"
 #include <QBuffer>
 #include <QCoreApplication>
@@ -9,6 +10,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLocalSocket>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTimer>
 #include <algorithm>
@@ -399,6 +401,9 @@ static Session::Result slowReply(AgentApi::Reply reply) {
 }
 const AgentApi::Op AgentApi::Ops[] = {
     {agentops::OpHello, &AgentApi::opHello},           {agentops::OpListProfiles, &AgentApi::opListProfiles},
+    {agentops::OpCreateProfile, &AgentApi::opCreateProfile},
+    {agentops::OpUpdateProfile, &AgentApi::opUpdateProfile},
+    {agentops::OpDeleteProfile, &AgentApi::opDeleteProfile},
     {agentops::OpStatus, &AgentApi::opStatus},         {agentops::OpConnect, &AgentApi::opConnect},
     {agentops::OpDisconnect, &AgentApi::opDisconnect}, {agentops::OpScreenshot, &AgentApi::opScreenshot},
     {agentops::OpKey, &AgentApi::opKey},               {agentops::OpPointer, &AgentApi::opPointer},
@@ -427,18 +432,154 @@ void AgentApi::opHello(Call &c) {
   c.succeed(QJsonObject{{"app", "OldIPMI"}, {"version", QCoreApplication::applicationVersion()},
                         {"api", agentops::Api}, {"ops", ops}});
 }
+static QJsonObject savedProfileJson(const QVariantMap &profile) {
+  auto result = profileJson(profile);
+  result["username"] = profile.value("username").toString();
+  result["passwordSaved"] = profile.value("remember").toBool();
+  return result;
+}
 void AgentApi::opListProfiles(Call &c) {
   QJsonArray list;
-  for (const auto &v : m_c->hosts()) {
-    auto p = v.toMap();
-    auto o = profileJson(p);
-    o["username"] = p["username"].toString();
-    o["passwordSaved"] = p["remember"].toBool();
-    list.append(o);
-  }
+  for (const auto &v : m_c->hosts())
+    list.append(savedProfileJson(v.toMap()));
   log(c.who(), "profiles", "Listed profiles ×%1", true);
   c.succeed(QJsonObject{{"profiles", list}});
 }
+void AgentApi::opCreateProfile(Call &c) { changeProfile(c, ProfileAction::Create); }
+void AgentApi::opUpdateProfile(Call &c) { changeProfile(c, ProfileAction::Update); }
+void AgentApi::opDeleteProfile(Call &c) { changeProfile(c, ProfileAction::Delete); }
+
+static bool hasAdvancedProfileSettings(const QVariantMap &p) {
+  const auto mode = p.value("consoleMode").toString();
+  return p.value("http").toBool() || p.value("legacyTLS").toBool() ||
+         p.value("allowPlainConsole").toBool() || !p.value("jnlpPath").toString().isEmpty() ||
+         !p.value("clientCert").toString().isEmpty() || !p.value("clientKey").toString().isEmpty() ||
+         (!mode.isEmpty() && mode != "auto");
+}
+
+void AgentApi::changeProfile(Call &c, ProfileAction action) {
+  const bool create = action == ProfileAction::Create;
+  const bool remove = action == ProfileAction::Delete;
+  const QString verb = create ? "Create profile" : remove ? "Delete profile" : "Update profile";
+  QString id;
+  auto failed = [&](const char *code, const QString &message) {
+    log(c.who(), "profiles", verb + (id.isEmpty() ? QString() : " " + clean(id)) + " failed (" + code + ")");
+    c.fail(code, message);
+  };
+  if (!m_profileWritesAllowed)
+    return failed(agentops::ErrForbidden,
+                  "Enable Settings → AI agents (MCP) → Allow AI agents to manage connection profiles.");
+  if (m_c->profileWriteInProgress())
+    return failed(agentops::ErrBusy, "Another profile change is still being saved.");
+
+  QVariantMap patch;
+  for (auto it = c.args.constBegin(); it != c.args.constEnd(); ++it) {
+    const auto &key = it.key();
+    if (key == "clear_password" && !create && !remove) {
+      if (!it.value().isBool())
+        return failed(agentops::ErrBadArgs, "clear_password must be true or false.");
+    } else if ((!create && key == "id") || (!remove && (key == "name" || key == "host" ||
+                key == "family" || key == "username" || key == "password"))) {
+      if (!it.value().isString())
+        return failed(agentops::ErrBadArgs, key + " must be a string.");
+      if (key != "id" && key != "password")
+        patch.insert(key, it.value().toString());
+    } else {
+      return failed(agentops::ErrBadArgs, "This operation received an unsupported profile field.");
+    }
+  }
+
+  QVariantMap previous;
+  if (!create) {
+    const auto requestedId = c.args.value("id").toString();
+    if (requestedId.trimmed().isEmpty())
+      return failed(agentops::ErrBadArgs, "Give the exact profile id from list_profiles.");
+    previous = m_c->host(requestedId);
+    if (previous.isEmpty())
+      return failed(agentops::ErrNoProfile, "No saved profile has that id. Use list_profiles.");
+    id = requestedId;
+    if (m_c->isOpen(id) || m_c->pendingProfile().value("id").toString() == id)
+      return failed(agentops::ErrBusy, "Close the console or its password prompt before changing this profile.");
+  }
+
+  auto storageFailure = [&](ProfileStore::Failure failure) {
+    switch (failure) {
+    case ProfileStore::Failure::Busy:
+      return failed(agentops::ErrBusy, "Another profile change is still being saved.");
+    case ProfileStore::Failure::Wallet:
+      return failed(agentops::ErrFailed, "KWallet could not change the saved password. Check that it is available and unlocked.");
+    case ProfileStore::Failure::Partial:
+      return failed(agentops::ErrFailed, "The profiles file could not be saved and the previous KWallet state could not be restored.");
+    case ProfileStore::Failure::Profile:
+      return failed(agentops::ErrFailed, "OldIPMI could not save its profiles file. Check the desktop message.");
+    }
+  };
+  auto failure = ProfileStore::Failure::Profile;
+  if (remove) {
+    if (!m_c->removeProfile(id, &failure))
+      return storageFailure(failure);
+    log(c.who(), "profiles", verb + " " + clean(id) + " succeeded");
+    return c.succeed(QJsonObject{{"id", id}});
+  }
+
+  const bool setPassword = c.args.contains("password");
+  const auto password = c.args.value("password").toString();
+  const bool clearPassword = c.args.value("clear_password").toBool();
+  if (setPassword && (password.isEmpty() || clearPassword))
+    return failed(agentops::ErrBadArgs, "Give a nonempty password or clear_password, never both.");
+  if (!create && patch.isEmpty() && !setPassword && !clearPassword)
+    return failed(agentops::ErrBadArgs, "Supply at least one profile change.");
+
+  auto profile = previous;
+  for (auto it = patch.cbegin(); it != patch.cend(); ++it)
+    profile.insert(it.key(), it.value());
+  static const QRegularExpression scheme("^[a-z]+://", QRegularExpression::CaseInsensitiveOption);
+  static const QRegularExpression suffix("[/?#].*$");
+  static const QRegularExpression invalidHost(R"([\s@\\])");
+  auto host = profile.value("host").toString().trimmed();
+  if (patch.contains("host")) {
+    host.remove(scheme);
+    host.remove(suffix);
+    profile["host"] = host;
+  }
+  if (host.isEmpty() || host.contains(invalidHost))
+    return failed(agentops::ErrBadArgs, "Enter a BMC hostname or IP address.");
+  if (patch.contains("name"))
+    profile["name"] = profile.value("name").toString().trimmed();
+
+  const auto family = profile.value("family").toString();
+  if (create || patch.contains("family")) {
+    const auto families = familyTable();
+    const bool known = std::any_of(families.begin(), families.end(), [&](const QJsonValue &v) {
+      return v.toObject().value("id").toString() == family;
+    });
+    if (!known)
+      return failed(agentops::ErrBadArgs, "Choose a supported BMC family.");
+  }
+  const auto username = profile.value("username").toString();
+  if (familyNeedsAccount(family)) {
+    if (username.trimmed().isEmpty())
+      return failed(agentops::ErrBadArgs, "This BMC family requires a username.");
+  } else {
+    if (setPassword || (patch.contains("username") && !username.isEmpty()))
+      return failed(agentops::ErrBadArgs, "This console type does not use a username or password.");
+    profile["username"] = QString();
+  }
+
+  const bool endpointChanged = previous.value("host") != profile.value("host") ||
+                               previous.value("family") != profile.value("family");
+  if (!create && endpointChanged && hasAdvancedProfileSettings(previous))
+    return failed(agentops::ErrBadArgs, "Change the address or BMC family in the desktop editor to review its advanced options.");
+  const bool accountChanged = endpointChanged || previous.value("username") != profile.value("username");
+  const bool remember = setPassword || (!clearPassword && !accountChanged && previous.value("remember").toBool());
+  const auto saved = m_c->saveProfile(profile, password, remember, &failure);
+  if (saved.isEmpty())
+    return storageFailure(failure);
+  id = saved.value("id").toString();
+  log(c.who(), "profiles", verb + " " + clean(id) + " succeeded");
+  c.succeed(QJsonObject{{"profile", savedProfileJson(saved)}});
+}
+
 void AgentApi::opStatus(Call &c) {
   Failure f;
   auto *s = resolve(c.args, &f);
@@ -492,6 +633,8 @@ void AgentApi::opStatus(Call &c) {
   c.succeed(st);
 }
 void AgentApi::opConnect(Call &c) {
+  if (m_c->profileWriteInProgress())
+    return c.fail(agentops::ErrBusy, "Another profile change is still being saved.");
   Failure f;
   auto p = findProfile(c.args.value("profile").toString(), &f);
   if (p.isEmpty())

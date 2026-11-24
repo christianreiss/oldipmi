@@ -145,15 +145,16 @@ func (s boolSpec) get(a map[string]any) (bool, error) {
 }
 
 // enumSpec is one of Values, in any case, read as Values spells it. Without
-// a value it is Def, or required when Def is "".
+// a value it is Def. A spec with no default is required unless Optional.
 type enumSpec struct {
 	Key, Desc string
 	Values    []string
 	Def       string
+	Optional  bool
 }
 
 func (s enumSpec) key() string    { return s.Key }
-func (s enumSpec) required() bool { return s.Def == "" }
+func (s enumSpec) required() bool { return s.Def == "" && !s.Optional }
 func (s enumSpec) schema() map[string]any {
 	m := map[string]any{"type": "string", "enum": s.Values}
 	if s.Desc != "" {
@@ -163,7 +164,7 @@ func (s enumSpec) schema() map[string]any {
 }
 func (s enumSpec) get(a map[string]any) (string, error) {
 	if !given(a, s.Key) {
-		if s.Def == "" {
+		if s.required() {
 			return "", fmt.Errorf("%s is required", s.Key)
 		}
 		return s.Def, nil

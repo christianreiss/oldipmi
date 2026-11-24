@@ -99,6 +99,136 @@
   },
   {
     "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Create connection profile"
+    },
+    "description": "Save a new BMC profile without opening a console. If a request times out, check list_profiles before retrying. Requires profile management to be enabled in OldIPMI.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "enum": [
+            "aten",
+            "ami",
+            "avocent",
+            "cisco",
+            "demo"
+          ],
+          "type": "string"
+        },
+        "host": {
+          "description": "BMC hostname or IP address",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name; an empty name uses the host",
+          "type": "string"
+        },
+        "password": {
+          "description": "Nonempty password to write to KWallet; the MCP client may log arguments",
+          "type": "string",
+          "writeOnly": true
+        },
+        "username": {
+          "description": "BMC username; required for families with an account",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "family"
+      ],
+      "type": "object"
+    },
+    "name": "create_profile",
+    "title": "Create connection profile"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Update connection profile"
+    },
+    "description": "Update supplied fields of a saved profile by exact ID. The console must be closed. Changing host, username or family clears the old password unless a new password is supplied. Requires profile management to be enabled in OldIPMI.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "clear_password": {
+          "description": "Remove the saved password; mutually exclusive with password",
+          "type": "boolean"
+        },
+        "family": {
+          "enum": [
+            "aten",
+            "ami",
+            "avocent",
+            "cisco",
+            "demo"
+          ],
+          "type": "string"
+        },
+        "host": {
+          "description": "BMC hostname or IP address",
+          "type": "string"
+        },
+        "id": {
+          "description": "Exact saved profile ID from list_profiles",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name; an empty name uses the host",
+          "type": "string"
+        },
+        "password": {
+          "description": "Nonempty password to write to KWallet; the MCP client may log arguments",
+          "type": "string",
+          "writeOnly": true
+        },
+        "username": {
+          "description": "BMC username; required for families with an account",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_profile",
+    "title": "Update connection profile"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false,
+      "title": "Delete connection profile"
+    },
+    "description": "Delete a saved profile and its KWallet entry by exact ID. The console must be closed. Requires profile management to be enabled in OldIPMI.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Exact saved profile ID from list_profiles",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_profile",
+    "title": "Delete connection profile"
+  },
+  {
+    "annotations": {
       "openWorldHint": false,
       "readOnlyHint": true,
       "title": "Screenshot"

@@ -9,6 +9,9 @@ namespace agentops {
 // Ops: what a request asks. oldipmi-mcp says hello first.
 inline constexpr char OpHello[] = "hello";
 inline constexpr char OpListProfiles[] = "list_profiles";
+inline constexpr char OpCreateProfile[] = "create_profile";
+inline constexpr char OpUpdateProfile[] = "update_profile";
+inline constexpr char OpDeleteProfile[] = "delete_profile";
 inline constexpr char OpStatus[] = "status";
 inline constexpr char OpConnect[] = "connect";
 inline constexpr char OpDisconnect[] = "disconnect";
@@ -37,6 +40,7 @@ inline constexpr char ErrAmbiguous[] = "ambiguous";
 inline constexpr char ErrBusy[] = "busy";
 inline constexpr char ErrNotConnected[] = "not_connected";
 inline constexpr char ErrNoFrame[] = "no_frame";
+inline constexpr char ErrForbidden[] = "forbidden";
 inline constexpr char ErrFailed[] = "failed";
 
 // The version of the agent API that the reply to hello reports, beside the
